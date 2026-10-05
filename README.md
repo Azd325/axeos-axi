@@ -24,7 +24,7 @@ This version sends only GET requests to `/api/system/info`, `/api/system/asic` a
 
 | Command | Default view |
 | --- | --- |
-| no arguments | Hostname, ASIC model, firmware, current/1h/expected hashrate, temperatures, power, efficiency, fan, pool connection/fallback, shares, best difficulty, uptime, overheat and paused flags |
+| no arguments | Hostname, ASIC model, firmware, current/1h/expected hashrate, temperatures, power, efficiency, fan, active pool URL, pool connection/fallback, shares, best difficulty, uptime, overheat and paused flags |
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
@@ -52,7 +52,7 @@ bin/axeos-axi stats --fields labels,statistics
 bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 ```
 
-Pool users, Wi-Fi name, MAC, pool configuration, coinbase outputs and scriptsig
+Pool users, Wi-Fi name, MAC, the `pools` configuration list, coinbase outputs and scriptsig
 are absent from default output. Explicit raw-field selection can expose private data,
 including users inside `pools`; avoid publishing that output.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
