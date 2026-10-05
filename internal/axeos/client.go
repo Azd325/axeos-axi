@@ -14,7 +14,7 @@ import (
 
 const Timeout = 4 * time.Second
 
-var ErrHost = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path, query or fragment")
+var ErrHost = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
 
 type Client struct {
 	base string
@@ -26,10 +26,10 @@ func New(host string) (*Client, error) {
 		host = "http://" + host
 	}
 	u, err := url.Parse(host)
-	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery {
 		return nil, ErrHost
 	}
-	return &Client{base: strings.TrimSuffix(u.String(), "/"), http: &http.Client{
+	return &Client{base: u.Scheme + "://" + u.Host, http: &http.Client{
 		Timeout:       Timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}}, nil

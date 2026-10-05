@@ -95,7 +95,7 @@ func TestRecordedViews(t *testing.T) {
 				if !strings.HasPrefix(out, "bin:") || !strings.Contains(strings.Split(out, "\n")[1], "description:") {
 					t.Fatal("home identity must precede data")
 				}
-				for _, field := range []string{"efficiency:", "pool_connection:", "best_difficulty:", "overheat: false", "paused: false"} {
+				for _, field := range []string{"efficiency:", "pool_connection:", "rpm=4057\n", "shares: accepted=1908; rejected=11\n", "best_difficulty: all_time=42896578860; session=634703787\n", "overheat: false", "paused: false"} {
 					if !strings.Contains(out, field) {
 						t.Errorf("missing %s", field)
 					}
@@ -130,7 +130,11 @@ func TestFieldsAndHostOverride(t *testing.T) {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "info", "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "unknown_field") {
+	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "help: axeos-axi info --help;") {
+		t.Fatal(out)
+	}
+	code, out = execute(t, a, "--host", host, "--fields", "nonexistent")
+	if code != 2 || !strings.Contains(out, "help: axeos-axi --help;") {
 		t.Fatal(out)
 	}
 }
@@ -226,15 +230,15 @@ func TestStatisticsEmptyAndInvalid(t *testing.T) {
 	}
 }
 
-func TestDisabledStatisticsSkipsHistory(t *testing.T) {
+func TestDisabledStatisticsKeepsStatisticsFields(t *testing.T) {
 	info := fixture(t, "info")
 	info["statsFrequency"] = float64(0)
 	host, calls := miner(t, info)
-	code, out := execute(t, New(func(string) string { return host }), "stats", "--fields", "statistics,power_w")
-	if code != 0 || !strings.Contains(out, "logging disabled") || !strings.Contains(out, "statistics: []") || !strings.Contains(out, "power_w: null") {
+	code, out := execute(t, New(func(string) string { return host }), "stats", "--fields", "currentTimestamp,power_w")
+	if code != 0 || !strings.Contains(out, "logging disabled") || !strings.Contains(out, "currentTimestamp: ") || !strings.Contains(out, "power_w: null") {
 		t.Fatalf("%d %s", code, out)
 	}
-	if got := calls(); len(got) != 1 || got[0] != "GET /api/system/info" {
+	if got := calls(); strings.Join(got, ",") != "GET /api/system/info,GET /api/system/statistics" {
 		t.Fatal(got)
 	}
 }

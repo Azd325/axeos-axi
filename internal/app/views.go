@@ -21,6 +21,13 @@ func measure(m map[string]any, key, unit string) string {
 	return "unknown"
 }
 
+func count(m map[string]any, key string) string {
+	if n, ok := number(m, key); ok && n >= 0 {
+		return fmt.Sprintf("%.0f", n)
+	}
+	return "unknown"
+}
+
 func text(m map[string]any, key string) string {
 	if s, ok := m[key].(string); ok && s != "" {
 		return s
@@ -64,12 +71,12 @@ func homeView(m map[string]any) output.Object {
 		{Name: "temperature", Value: "chip=" + measure(m, "temp", "C") + "; regulator=" + measure(m, "vrTemp", "C")},
 		{Name: "power_w", Value: m["power"]},
 		{Name: "efficiency", Value: eff},
-		{Name: "fan", Value: "speed=" + measure(m, "fanspeed", "%") + "; rpm=" + measure(m, "fanrpm", "RPM")},
+		{Name: "fan", Value: "speed=" + measure(m, "fanspeed", "%") + "; rpm=" + count(m, "fanrpm")},
 		{Name: "pool", Value: poolURL},
 		{Name: "pool_connection", Value: m["poolConnectionInfo"]},
 		{Name: "pool_fallback", Value: flag(m, "isUsingFallbackStratum")},
-		{Name: "shares", Value: "accepted=" + measure(m, "sharesAccepted", "shares") + "; rejected=" + measure(m, "sharesRejected", "shares")},
-		{Name: "best_difficulty", Value: "all_time=" + measure(m, "bestDiff", "difficulty") + "; session=" + measure(m, "bestSessionDiff", "difficulty")},
+		{Name: "shares", Value: "accepted=" + count(m, "sharesAccepted") + "; rejected=" + count(m, "sharesRejected")},
+		{Name: "best_difficulty", Value: "all_time=" + count(m, "bestDiff") + "; session=" + count(m, "bestSessionDiff")},
 		{Name: "uptime_s", Value: m["uptimeSeconds"]},
 		{Name: "overheat", Value: flag(m, "overheat_mode")},
 		{Name: "paused", Value: flag(m, "miningPaused")},

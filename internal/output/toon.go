@@ -118,45 +118,18 @@ func columns(v any) (string, []string, bool) {
 	}
 	var names, cells []string
 	for _, f := range o {
-		if primitive(f.Value) {
-			names = append(names, key(f.Name))
-			cells = append(cells, scalar(f.Value))
-		} else {
-			nested, values, ok := columns(f.Value)
-			if !ok {
-				return "", nil, false
-			}
-			names = append(names, key(f.Name)+"{"+nested+"}")
-			cells = append(cells, values...)
+		if !primitive(f.Value) {
+			return "", nil, false
 		}
+		names = append(names, key(f.Name))
+		cells = append(cells, scalar(f.Value))
 	}
 	return strings.Join(names, ","), cells, true
-}
-
-func keyedTable(o Object) (string, []string, bool) {
-	if len(o) < 2 {
-		return "", nil, false
-	}
-	header, _, table := columns(o[0].Value)
-	rows := make([]string, len(o))
-	for i, f := range o {
-		h, cells, ok := columns(f.Value)
-		table = table && ok && h == header
-		rows[i] = key(f.Name) + ": " + strings.Join(cells, ",")
-	}
-	return header, rows, table
 }
 
 func field(b *strings.Builder, name string, v any, depth int) {
 	indent := strings.Repeat("  ", depth)
 	if o, ok := object(v); ok {
-		if header, rows, table := keyedTable(o); table {
-			fmt.Fprintf(b, "%s%s[%d:]{%s}:\n", indent, name, len(o), header)
-			for _, row := range rows {
-				fmt.Fprintf(b, "%s  %s\n", indent, row)
-			}
-			return
-		}
 		fmt.Fprintf(b, "%s%s:\n", indent, name)
 		for _, f := range o {
 			field(b, key(f.Name), f.Value, depth+1)
@@ -165,11 +138,7 @@ func field(b *strings.Builder, name string, v any, depth int) {
 	}
 	if a, ok := v.([]any); ok {
 		if len(a) == 0 {
-			if name == "" {
-				fmt.Fprintf(b, "%s[0]:\n", indent)
-			} else {
-				fmt.Fprintf(b, "%s%s: []\n", indent, name)
-			}
+			fmt.Fprintf(b, "%s%s[0]:\n", indent, name)
 			return
 		}
 		allPrimitive := true
@@ -227,15 +196,8 @@ func field(b *strings.Builder, name string, v any, depth int) {
 
 func Write(w io.Writer, fields Object) error {
 	var b strings.Builder
-	if header, rows, table := keyedTable(fields); table {
-		fmt.Fprintf(&b, "[%d:]{%s}:\n", len(fields), header)
-		for _, row := range rows {
-			fmt.Fprintf(&b, "  %s\n", row)
-		}
-	} else {
-		for _, f := range fields {
-			field(&b, key(f.Name), f.Value, 0)
-		}
+	for _, f := range fields {
+		field(&b, key(f.Name), f.Value, 0)
 	}
 	_, err := io.WriteString(w, b.String())
 	return err

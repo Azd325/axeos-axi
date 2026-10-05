@@ -73,7 +73,7 @@
     {
       "id": 0,
       "stratumProtocol": "SV1",
-      "stratumURL": "pool.solomining.de",
+      "stratumURL": "pool.example.org",
       "stratumPort": 3333,
       "stratumUser": "example-worker",
       "stratumPassword": "*****",
@@ -89,7 +89,7 @@
     {
       "id": 1,
       "stratumProtocol": "SV1",
-      "stratumURL": "eusolo.ckpool.org",
+      "stratumURL": "fallback.example.org",
       "stratumPort": 3333,
       "stratumUser": "example-worker",
       "stratumPassword": "*****",
@@ -103,7 +103,7 @@
       "stratumV2RequireAuth": false
     }
   ],
-  "stratumURL": "pool.solomining.de",
+  "stratumURL": "pool.example.org",
   "stratumPort": 3333,
   "stratumUser": "example-worker",
   "stratumSuggestedDifficulty": 1000,
@@ -114,7 +114,7 @@
   "stratumProtocol": "SV1",
   "stratumV2AuthorityPubkey": "",
   "stratumV2ChannelType": "extended",
-  "fallbackStratumURL": "eusolo.ckpool.org",
+  "fallbackStratumURL": "fallback.example.org",
   "fallbackStratumPort": 3333,
   "fallbackStratumUser": "example-fallback",
   "fallbackStratumSuggestedDifficulty": 1000,

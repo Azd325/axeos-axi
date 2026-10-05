@@ -2,7 +2,7 @@
 
 A read-only, agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
 This is an independent tool, not affiliated with the Bitaxe project.
-The [vision](VISION.md) records the agreed interface and three proposals for review.
+The [vision](VISION.md) records the agreed interface and ten proposals for review.
 
 ## Build and use
 
@@ -17,6 +17,7 @@ bin/axeos-axi stats
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file or discovery.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
+A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds. Redirects are refused.
 This version sends only GET requests to `/api/system/info`, `/api/system/asic` and
 `/api/system/statistics`; it has no commands that change the miner.
@@ -60,8 +61,7 @@ is mV, frequency is MHz and uptime is seconds.
 `pool_connection` preserves AxeOS's reported connection information (for example,
 `IPv4`); it is not an independently verified pool-health check.
 Statistics timestamps are milliseconds since miner boot, not wall-clock dates.
-`stats` reports logging disabled definitively when `statsFrequency` is zero without
-requesting history, and
+`stats` reports logging disabled definitively when `statsFrequency` is zero, and
 reports zero recorded samples when enabled logging has no data. Extra sample history
 is available only through explicit field selection; it is not dumped by default.
 An empty-state explanation remains present with `--fields`.

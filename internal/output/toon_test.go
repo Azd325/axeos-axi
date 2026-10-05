@@ -30,7 +30,7 @@ func TestTOONShapes(t *testing.T) {
 		{"objects", []any{map[string]any{"a": "x", "b": []any{float64(1)}}, map[string]any{}}},
 		{"unsafe:key", "value"},
 	})
-	want := "empty: []\nnumbers[3]: 1,0.000001,10000000\nrows[2]{id,state}:\n  1,ok\n  2,\"a:b\"\nnested[2]{meta{name}}:\n  one\n  two\nmatrices[2]:\n  - [2]: 1,2\n  - [0]:\nobjects[2]:\n  - a: x\n    b[1]: 1\n  -\n\"unsafe:key\": value\n"
+	want := "empty[0]:\nnumbers[3]: 1,0.000001,10000000\nrows[2]{id,state}:\n  1,ok\n  2,\"a:b\"\nnested[2]:\n  - meta:\n      name: one\n  - meta:\n      name: two\nmatrices[2]:\n  - [2]: 1,2\n  - [0]:\nobjects[2]:\n  - a: x\n    b[1]: 1\n  -\n\"unsafe:key\": value\n"
 	if err != nil || b.String() != want {
 		t.Fatalf("err=%v\ngot:\n%s\nwant:\n%s", err, b.String(), want)
 	}
@@ -43,23 +43,5 @@ func (brokenWriter) Write([]byte) (int, error) { return 0, errors.New("write fai
 func TestOutputFailure(t *testing.T) {
 	if err := Write(brokenWriter{}, Object{{"state", "ok"}}); err == nil {
 		t.Fatal("writer failure discarded")
-	}
-}
-
-func TestKeyedTables(t *testing.T) {
-	var b bytes.Buffer
-	rows := Object{{"first", map[string]any{"count": float64(1)}}, {"second", map[string]any{"count": float64(2)}}}
-	if err := Write(&b, rows); err != nil {
-		t.Fatal(err)
-	}
-	if b.String() != "[2:]{count}:\n  first: 1\n  second: 2\n" {
-		t.Fatal(b.String())
-	}
-	b.Reset()
-	if err := Write(&b, Object{{"groups", rows}}); err != nil {
-		t.Fatal(err)
-	}
-	if b.String() != "groups[2:]{count}:\n  first: 1\n  second: 2\n" {
-		t.Fatal(b.String())
 	}
 }

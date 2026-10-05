@@ -11,15 +11,32 @@ import (
 )
 
 func TestHostValidation(t *testing.T) {
-	for _, host := range []string{"", "http://", "ftp://192.0.2.10", "http://user:pass@192.0.2.10", "http://192.0.2.10/path", "http://192.0.2.10?", "http://192.0.2.10?q=x", "http://192.0.2.10/#fragment"} {
+	for _, host := range []string{"", "http://", "ftp://192.0.2.10", "http://user:pass@192.0.2.10", "http://192.0.2.10/path", "http://192.0.2.10?", "http://192.0.2.10?q=x", "http://192.0.2.10/path#/"} {
 		if _, err := New(host); !errors.Is(err, ErrHost) {
 			t.Errorf("accepted %s: %v", host, err)
 		}
 	}
-	for _, host := range []string{"192.0.2.10", "http://192.0.2.10/", "https://example-miner.local:443", "http://[2001:db8::10]:80"} {
+	for _, host := range []string{"192.0.2.10", "http://192.0.2.10/", "http://192.0.2.10/#/", "192.0.2.10/#/system", "https://example-miner.local:443", "http://[2001:db8::10]:80"} {
 		if _, err := New(host); err != nil {
 			t.Errorf("rejected %s: %v", host, err)
 		}
+	}
+}
+
+func TestBrowserAddressReachesAPI(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/system/info" {
+			t.Errorf("path=%s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"hostname":"example-miner"}`))
+	}))
+	defer s.Close()
+	c, err := New(s.URL + "/#/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := c.Get(context.Background(), "info"); err != nil || data["hostname"] != "example-miner" {
+		t.Fatalf("data=%v error=%v", data, err)
 	}
 }
 
