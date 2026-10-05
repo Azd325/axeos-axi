@@ -1,0 +1,26 @@
+{
+  "ASICModel": "BM1370",
+  "deviceModel": "Gamma",
+  "swarmColor": "green",
+  "asicCount": 1,
+  "hashDomains": 4,
+  "defaultFrequency": 525,
+  "frequencyOptions": [
+    400,
+    490,
+    525,
+    550,
+    600,
+    625,
+    690
+  ],
+  "defaultVoltage": 1150,
+  "voltageOptions": [
+    1000,
+    1060,
+    1100,
+    1150,
+    1200,
+    1250
+  ]
+}

@@ -1,0 +1,14 @@
+commands:
+  test: "nix develop --no-pure-eval --command go test ./..."
+  lint: "nix develop --no-pure-eval --command sh -c 'go vet ./... && golangci-lint run'"
+  format: "nix develop --no-pure-eval --command gofmt -w cmd internal"
+
+auto_fix:
+  review: 0
+
+document:
+  instructions: |
+    Public behavior is documented in README.md and VISION.md.
+    Contributor workflow is documented in CONTRIBUTING.md.
+    Keep fixtures and live verification output sanitized; never publish miner identifiers.
+    The AXI skill and its TOON specification were loaded for this implementation.
