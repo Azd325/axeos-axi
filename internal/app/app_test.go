@@ -25,9 +25,22 @@ func fixture(t *testing.T, name string) map[string]any {
 	return m
 }
 
+func listFixture(t *testing.T, name string) []any {
+	t.Helper()
+	b, err := os.ReadFile("../axeos/testdata/" + name + ".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list []any
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatal(err)
+	}
+	return list
+}
+
 func miner(t *testing.T, info map[string]any) (string, func() []string) {
 	t.Helper()
-	responses := map[string]map[string]any{"info": info, "asic": fixture(t, "asic"), "statistics": fixture(t, "statistics"), "firmware/checksum": fixture(t, "firmware_checksum")}
+	responses := map[string]any{"info": info, "asic": fixture(t, "asic"), "statistics": fixture(t, "statistics"), "firmware/checksum": fixture(t, "firmware_checksum"), "scoreboard": listFixture(t, "scoreboard")}
 	var mu sync.Mutex
 	var requests []string
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +85,7 @@ func TestRecordedViews(t *testing.T) {
 		{"asic", "device_model: Gamma", []string{"GET /api/system/info", "GET /api/system/asic"}},
 		{"stats", "sample_count: 3", []string{"GET /api/system/info", "GET /api/system/statistics"}},
 		{"firmware", "partition: ota_1\nversion: v2.15.3\nsize_bytes: 1638400\nsha256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n", []string{"GET /api/system/firmware/checksum"}},
+		{"scoreboard", "count: 3\nshares[3]{rank,difficulty,ntime}:\n  1,42896578860.4,1759000000\n  2,634703787.2,1759100000\n  3,9120344.5,1759200000\nhelp[1]: ", []string{"GET /api/system/scoreboard"}},
 	} {
 		t.Run(tc.command, func(t *testing.T) {
 			host, calls := miner(t, fixture(t, "info"))
@@ -163,7 +177,7 @@ func TestHelpAndVersionOffline(t *testing.T) {
 			t.Fatalf("%s: %d %s", flag, code, out)
 		}
 	}
-	for _, command := range []string{"", "info", "asic", "stats", "firmware"} {
+	for _, command := range []string{"", "info", "asic", "stats", "firmware", "scoreboard"} {
 		args := []string{"--help"}
 		if command != "" {
 			args = append([]string{command}, args...)
@@ -229,6 +243,77 @@ func TestFirmwareChecksum(t *testing.T) {
 	code, out = execute(t, New(func(string) string { return failing.URL }), "firmware")
 	if code != 1 || !strings.Contains(out, "code: miner_read_failed") || !strings.Contains(out, "HTTP 500") {
 		t.Fatalf("%d %s", code, out)
+	}
+}
+
+func scoreboardMiner(t *testing.T, status int, body string) (string, func() []string) {
+	t.Helper()
+	var requests []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		if status == http.StatusFound {
+			http.Redirect(w, r, "/", status)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(s.Close)
+	return s.URL, func() []string { return requests }
+}
+
+func TestScoreboard(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return host })
+	code, out := execute(t, a, "scoreboard")
+	for _, optIn := range []string{"job_id", "extranonce2", "nonce", "6a1f03", "0000002a", "1A2B3C4D", "0034C000"} {
+		if code != 0 || strings.Contains(strings.Split(out, "help[1]:")[0], optIn) {
+			t.Errorf("default output carries %s: %d %s", optIn, code, out)
+		}
+	}
+	if !strings.Contains(out, "axeos-axi scoreboard --host '"+host+"' --fields rank,difficulty,ntime,job_id,extranonce2,nonce,version_bits") {
+		t.Fatal(out)
+	}
+	code, out = execute(t, a, "scoreboard", "--fields", "nonce,rank,job_id,since")
+	if code != 2 || !strings.Contains(out, "unknown field since") || !strings.Contains(out, "valid fields: rank,difficulty,ntime,job_id,extranonce2,nonce,version_bits") {
+		t.Fatalf("%d %s", code, out)
+	}
+	code, out = execute(t, a, "scoreboard", "--fields", "nonce,rank,job_id")
+	if code != 0 || out != "count: 3\nshares[3]{nonce,rank,job_id}:\n  1A2B3C4D,1,6a1f03\n  00FFAA10,2,6a2b10\n  DEADBEEF,3,6a2c44\n" {
+		t.Fatalf("%d %s", code, out)
+	}
+	for _, tc := range []struct {
+		name, body, want string
+		args             []string
+		status, code     int
+	}{
+		{"empty", "[]", "count: 0\nstate: 0 shares recorded on the miner scoreboard\n", nil, http.StatusOK, 0},
+		{"empty with fields", "[]", "count: 0\nstate: 0 shares recorded on the miner scoreboard\n", []string{"--fields", "nonce"}, http.StatusOK, 0},
+		{"missing and extra keys", `[{"difficulty":5,"since":7}]`, "count: 1\nshares[1]{difficulty,ntime,since}:\n  5,null,7\n", []string{"--fields", "difficulty,ntime,since"}, http.StatusOK, 0},
+		{"not found", "", "code: not_supported\n  message: scoreboard is not supported by this firmware\n", nil, http.StatusNotFound, 1},
+		{"root redirect", "", "code: not_supported\n  message: scoreboard is not supported by this firmware\n", nil, http.StatusFound, 1},
+		{"server error", "", "code: miner_read_failed\n  message: miner returned HTTP 500 for scoreboard\n", nil, http.StatusInternalServerError, 1},
+		{"object", `{"difficulty":5}`, "code: miner_read_failed\n  message: miner returned invalid JSON", nil, http.StatusOK, 1},
+		{"null", "null", "code: miner_read_failed\n  message: miner returned invalid JSON", nil, http.StatusOK, 1},
+		{"entry not an object", `[{"difficulty":5},7]`, "code: invalid_scoreboard\n", nil, http.StatusOK, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host, calls := scoreboardMiner(t, tc.status, tc.body)
+			code, out := execute(t, New(func(string) string { return host }), append([]string{"scoreboard"}, tc.args...)...)
+			if code != tc.code || !strings.Contains(out, tc.want) {
+				t.Fatalf("%d %s", code, out)
+			}
+			if tc.code == 0 && out != tc.want {
+				t.Fatalf("%s", out)
+			}
+			if strings.Contains(out, "not_supported") && !strings.Contains(out, "axeos-axi info --host '"+host+"'") {
+				t.Fatalf("%s", out)
+			}
+			if strings.Join(calls(), ",") != "GET /api/system/scoreboard" {
+				t.Fatal(calls())
+			}
+		})
 	}
 }
 

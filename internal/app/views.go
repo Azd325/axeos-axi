@@ -172,6 +172,9 @@ func statsView(info, stats map[string]any) (output.Object, error) {
 }
 
 func viewNames(command string) string {
+	if command == "scoreboard" {
+		return strings.Join(scoreboardFields, ",")
+	}
 	var fields output.Object
 	switch command {
 	case "info":
@@ -205,6 +208,8 @@ func exampleFields(command string) string {
 		return "sample_count,power_w"
 	case "firmware":
 		return "version,sha256"
+	case "scoreboard":
+		return "rank,difficulty,nonce"
 	default:
 		return "hashrate,temperature,power_w"
 	}
