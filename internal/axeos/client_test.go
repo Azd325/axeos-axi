@@ -192,3 +192,35 @@ func TestTextReadTimeout(t *testing.T) {
 		t.Fatalf("unbounded timeout: %v", err)
 	}
 }
+
+func TestBodyReadFailureIsNotTheSizeLimit(t *testing.T) {
+	stall := false
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", "64")
+		_, _ = w.Write([]byte("example-log-line\n"))
+		if stall {
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		}
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.logs.Timeout = 100 * time.Millisecond
+	check := func(name string, err error) {
+		t.Helper()
+		if err == nil || !strings.Contains(err.Error(), "timed out or was interrupted") || strings.Contains(err.Error(), "4 MiB") || strings.Contains(err.Error(), "example-log-line") {
+			t.Errorf("%s: error=%v", name, err)
+		}
+	}
+	_, err = c.GetText(context.Background(), "logs")
+	check("interrupted text", err)
+	_, err = c.Get(context.Background(), "info")
+	check("interrupted JSON", err)
+	stall = true
+	_, err = c.GetText(context.Background(), "logs")
+	check("timed out text", err)
+}

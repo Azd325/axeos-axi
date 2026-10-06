@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	defaultLogLines = 20
-	allLogLines     = 0
-	logPrivacy      = "log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name"
+	noLogLines  = 0
+	allLogLines = -1
+	logPrivacy  = "log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name"
 )
 
 // ECMA-48 sequences: CSI, then OSC and the DCS/SOS/PM/APC strings with their terminator, then any other escape sequence.
@@ -47,6 +47,14 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	if total == 0 {
 		return write(stdout, output.Object{{Name: "total_lines", Value: 0}, {Name: "state", Value: "0 lines in the miner log buffer"}})
 	}
+	prefix := "axeos-axi logs --host " + shellQuote(opts.host)
+	help := output.Field{Name: "help", Value: []any{
+		fmt.Sprintf("%s --lines all for all %d lines", prefix, total),
+		prefix + " --lines <n> for the newest n lines",
+	}}
+	if opts.lines == noLogLines {
+		return write(stdout, output.Object{{Name: "total_lines", Value: total}, {Name: "size_bytes", Value: len(text)}, help})
+	}
 	if opts.lines != allLogLines && opts.lines < total {
 		lines = lines[total-opts.lines:]
 	}
@@ -56,11 +64,7 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	}
 	fields := output.Object{{Name: "total_lines", Value: total}, {Name: "shown_lines", Value: len(lines)}, {Name: "lines", Value: rows}}
 	if len(lines) < total {
-		prefix := "axeos-axi logs --host " + shellQuote(opts.host)
-		fields = append(fields, output.Field{Name: "help", Value: []any{
-			fmt.Sprintf("%s --lines all for all %d lines", prefix, total),
-			prefix + " --lines <n> for the newest n lines",
-		}})
+		fields = append(fields, help)
 	}
 	return write(stdout, fields)
 }
@@ -68,10 +72,10 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 func logsHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "logs"},
-		{Name: "description", Value: fmt.Sprintf("Newest lines of the miner log buffer, oldest first and newest last; default %d lines; total_lines and shown_lines state how many lines exist and how many are printed; blank lines and terminal control sequences are removed", defaultLogLines)},
+		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
-			{Name: "lines", Value: fmt.Sprintf("--lines <n|all>; default %d; the newest n lines, or all lines", defaultLogLines)},
+			{Name: "lines", Value: "--lines <n|all>; default prints no log line; the newest n lines, or all lines"},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

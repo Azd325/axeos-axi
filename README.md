@@ -35,7 +35,7 @@ This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
-| `logs` | The newest 20 lines of the miner log buffer, oldest first, with the number of lines that exist and that are shown |
+| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -87,10 +87,10 @@ bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 ```
 
 Pool users, Wi-Fi name, MAC, the `pools` configuration list, coinbase outputs and scriptsig
-are absent from default output, except in `logs`. Explicit raw-field selection can expose private data,
+are absent from default output. Explicit raw-field selection can expose private data,
 including users inside `pools`; avoid publishing that output.
-`logs` prints log lines as the miner wrote them, and they can contain the pool user, addresses,
-hostnames and the Wi-Fi name.
+`logs --lines` prints log lines as the miner wrote them, and they can contain the pool user,
+addresses, hostnames and the Wi-Fi name.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
 makes efficiency unknown. Hashrate is GH/s, temperatures are Celsius, tuning voltage
 is mV, frequency is MHz and uptime is seconds.
@@ -113,11 +113,12 @@ identify neither the owner nor the network and appear only through `--fields`.
 Zero shares is a definitive result with exit code 0. Firmware without the path gives
 `not_supported`, by the same rule as `firmware`.
 `logs` sends one request, to the logs path only. The miner answers with plain text: its log
-buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. The command
-prints the newest 20 lines in that order, so the newest line is last. `total_lines` and
-`shown_lines` state how many lines exist and how many are printed. `--lines <n>` prints the
-newest n lines and `--lines all` prints every line; there is no filter, search or follow.
-Blank lines are not counted. Terminal control sequences, such as the colour codes of the
+buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. Without
+`--lines` the command prints no log line: it prints `total_lines`, the response size
+`size_bytes` and the commands that print lines. `--lines <n>` prints the newest n lines and
+`--lines all` prints every line, in the order of the buffer, so the newest line is last;
+`total_lines` and `shown_lines` state how many lines exist and how many are printed.
+There is no filter, search or follow. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
 firmware, are removed; the text is otherwise unchanged. Zero lines is a definitive result
 with exit code 0. Firmware without the path gives `not_supported`, by the same rule as `firmware`.
 

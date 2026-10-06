@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,10 +35,23 @@ func logsFixture(t *testing.T) string {
 	return string(b)
 }
 
+func TestLogsDefaultPrintsNoLogLine(t *testing.T) {
+	fixture := logsFixture(t)
+	host, calls := logsMiner(t, http.StatusOK, "text/plain", fixture)
+	code, out := execute(t, New(func(string) string { return host }), "logs")
+	want := fmt.Sprintf("total_lines: 26\nsize_bytes: %d\nhelp[2]: \"axeos-axi logs --host '%s' --lines all for all 26 lines\",\"axeos-axi logs --host '%s' --lines <n> for the newest n lines\"\n", len(fixture), host, host)
+	if code != 0 || out != want {
+		t.Fatalf("%d\n%q\nwant\n%q", code, out, want)
+	}
+	if strings.Join(calls(), ",") != "GET /api/system/logs" {
+		t.Fatal(calls())
+	}
+}
+
 func TestLogsBoundedTail(t *testing.T) {
 	host, calls := logsMiner(t, http.StatusOK, "text/plain", logsFixture(t))
 	a := New(func(string) string { return host })
-	code, out := execute(t, a, "logs")
+	code, out := execute(t, a, "logs", "--lines", "20")
 	want := "total_lines: 26\nshown_lines: 20\nlines[20]{text}:\n" +
 		"  \"I (2750) example_task: sample event 7\"\n" +
 		"  \"I (3000) example_task: sample event 8\"\n" +
@@ -90,17 +104,19 @@ func TestLogsEmptyUnsupportedAndFailed(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := logsMiner(t, tc.status, tc.contentType, tc.body)
-			code, out := execute(t, New(func(string) string { return host }), "logs")
-			if code != tc.code || !strings.Contains(out, tc.want) || strings.Contains(out, "example-log-line") {
-				t.Fatalf("%d %s", code, out)
+			for _, args := range [][]string{{"logs"}, {"logs", "--lines", "5"}, {"logs", "--lines", "all"}} {
+				code, out := execute(t, New(func(string) string { return host }), args...)
+				if code != tc.code || !strings.Contains(out, tc.want) || strings.Contains(out, "example-log-line") {
+					t.Fatalf("%v: %d %s", args, code, out)
+				}
+				if tc.code == 0 && out != tc.want {
+					t.Fatalf("%v: %s", args, out)
+				}
+				if strings.Contains(out, "not_supported") && !strings.Contains(out, "axeos-axi info --host '"+host+"'") {
+					t.Fatalf("%v: %s", args, out)
+				}
 			}
-			if tc.code == 0 && out != tc.want {
-				t.Fatalf("%s", out)
-			}
-			if strings.Contains(out, "not_supported") && !strings.Contains(out, "axeos-axi info --host '"+host+"'") {
-				t.Fatalf("%s", out)
-			}
-			if strings.Join(calls(), ",") != "GET /api/system/logs" {
+			if strings.Join(calls(), ",") != "GET /api/system/logs,GET /api/system/logs,GET /api/system/logs" {
 				t.Fatal(calls())
 			}
 		})
@@ -126,7 +142,7 @@ func TestLogsContentIsData(t *testing.T) {
 		"plain",
 	}, "\n") + "\n"
 	host, _ := logsMiner(t, http.StatusOK, "text/plain", body)
-	code, out := execute(t, New(func(string) string { return host }), "logs")
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all")
 	want := "total_lines: 15\nshown_lines: 15\nlines[15]{text}:\n" +
 		"  \"E (10) example_task: coloured\"\n" +
 		"  screen cleared\n" +
@@ -179,7 +195,7 @@ func TestLogsHelpOffline(t *testing.T) {
 	a := New(func(string) string { t.Fatal("offline command read environment"); return "" })
 	code, out := execute(t, a, "logs", "--help")
 	for _, want := range []string{
-		"command: logs\n", "default 20 lines", "lines: \"--lines <n|all>; default 20; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
+		"command: logs\n", "prints no log line without --lines", "lines: \"--lines <n|all>; default prints no log line; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
 		"privacy: \"log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name\"\n",
 		"examples[3]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all\n",
 	} {

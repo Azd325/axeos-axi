@@ -127,7 +127,10 @@ func (c *Client) fetch(ctx context.Context, client *http.Client, endpoint string
 	}
 	const maxBytes = 4 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-	if err != nil || len(body) > maxBytes {
+	if err != nil {
+		return nil, "", errors.New("miner response timed out or was interrupted; check the host and network")
+	}
+	if len(body) > maxBytes {
 		return nil, "", errors.New("cannot read miner response within the 4 MiB limit")
 	}
 	return body, resp.Header.Get("Content-Type"), nil

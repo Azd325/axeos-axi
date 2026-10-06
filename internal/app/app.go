@@ -60,7 +60,7 @@ type options struct {
 // The command may follow its flags, so parsing continues after the first error
 // to report the valid flags of the right command.
 func parse(args []string) (options, error) {
-	opts := options{timeout: defaultDiscoverTimeout, lines: defaultLogLines}
+	opts := options{timeout: defaultDiscoverTimeout}
 	var first error
 	fail := func(format string, a ...any) {
 		if first == nil {
@@ -302,7 +302,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi stats --host " + hostArg + " for recorded statistics",
 			"axeos-axi firmware --host " + hostArg + " for the running firmware checksum",
 			"axeos-axi scoreboard --host " + hostArg + " for the best-difficulty shares",
-			"axeos-axi logs --host " + hostArg + " for the newest log lines",
+			"axeos-axi logs --host " + hostArg + " for the log line count and size",
 			"axeos-axi discover to find AxeOS miners on the local network",
 		}})
 	}
