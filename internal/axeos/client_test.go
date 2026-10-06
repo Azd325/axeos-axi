@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -263,5 +265,37 @@ func TestWriteAllowlistAndUnansweredRequest(t *testing.T) {
 	}
 	if requests.Load() != 1 {
 		t.Fatalf("requests=%d", requests.Load())
+	}
+}
+
+func TestProxyEnvironmentIgnored(t *testing.T) {
+	const child = "AXEOS_AXI_PROXY_TEST_CHILD"
+	if os.Getenv(child) == "1" {
+		c, err := New("192.0.2.10")
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.http.Timeout = 300 * time.Millisecond
+		c.logs.Timeout = 300 * time.Millisecond
+		_, _ = c.Get(context.Background(), "info")
+		_, _ = c.GetList(context.Background(), "scoreboard")
+		_, _ = c.GetText(context.Background(), "logs")
+		_ = c.Post(context.Background(), "restart")
+		return
+	}
+	var requests atomic.Int32
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer proxy.Close()
+	// net/http reads the proxy environment once per process (envProxyFunc in net/http/transport.go), so the requests run in a new process.
+	cmd := exec.Command(os.Args[0], "-test.run=^TestProxyEnvironmentIgnored$")
+	cmd.Env = append(os.Environ(), child+"=1", "HTTP_PROXY="+proxy.URL, "http_proxy="+proxy.URL, "NO_PROXY=", "no_proxy=", "REQUEST_METHOD=")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("child process: %v\n%s", err, out)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("proxy received %d requests", requests.Load())
 	}
 }

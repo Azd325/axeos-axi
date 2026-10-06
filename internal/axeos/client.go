@@ -38,7 +38,10 @@ type Client struct {
 }
 
 func httpClient(timeout time.Duration) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
 	return &http.Client{
+		Transport:     transport,
 		Timeout:       timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}
