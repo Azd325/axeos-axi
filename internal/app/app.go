@@ -17,17 +17,23 @@ import (
 	"github.com/Azd325/axeos-axi/internal/output"
 )
 
-const commonFlags = "--fields, --help, -v, -V, --version"
+const (
+	universalFlags = "--help, -v, -V, --version"
+	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+)
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "discover"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
 func validFlags(command string) string {
-	if command == "discover" {
-		return "--timeout, " + commonFlags
+	switch command {
+	case "discover":
+		return "--timeout, --fields, " + universalFlags
+	case "logs":
+		return "--host, --lines, " + universalFlags
 	}
-	return "--host, " + commonFlags
+	return "--host, --fields, " + universalFlags
 }
 
 type Browser interface {
@@ -45,10 +51,10 @@ func New(getenv func(string) string) *App {
 }
 
 type options struct {
-	command, host string
-	timeout       int
-	fields        []string
-	help, version bool
+	command, host  string
+	timeout, lines int
+	fields         []string
+	help, version  bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
@@ -61,14 +67,16 @@ func parse(args []string) (options, error) {
 			first = fmt.Errorf(format, a...)
 		}
 	}
-	hostSet, timeoutSet := false, false
+	hostSet, timeoutSet, fieldsSet, linesSet := false, false, false, false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout":
+		case "--host", "--fields", "--timeout", "--lines":
 			hostSet = hostSet || flag == "--host"
 			timeoutSet = timeoutSet || flag == "--timeout"
+			fieldsSet = fieldsSet || flag == "--fields"
+			linesSet = linesSet || flag == "--lines"
 			if !assigned {
 				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
 					fail("%s requires a value", flag)
@@ -91,6 +99,16 @@ func parse(args []string) (options, error) {
 					continue
 				}
 				opts.timeout = seconds
+			case "--lines":
+				opts.lines = allLogLines
+				if value != "all" {
+					count, err := strconv.Atoi(value)
+					if err != nil || count < 1 {
+						fail("--lines requires a whole number from 1, or all")
+						continue
+					}
+					opts.lines = count
+				}
 			default:
 				opts.fields = strings.Split(value, ",")
 				seen := map[string]bool{}
@@ -128,6 +146,12 @@ func parse(args []string) (options, error) {
 	}
 	if opts.command != "discover" && timeoutSet {
 		return opts, errors.New("unknown flag --timeout; it is a flag of `discover` only")
+	}
+	if opts.command != "logs" && linesSet {
+		return opts, errors.New("unknown flag --lines; it is a flag of `logs` only")
+	}
+	if opts.command == "logs" && fieldsSet {
+		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")
 	}
 	return opts, first
 }
@@ -182,6 +206,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "scoreboard" {
 		return scoreboard(ctx, client, opts, stdout)
+	}
+	if opts.command == "logs" {
+		return logs(ctx, client, opts, stdout)
 	}
 	var info map[string]any
 	if opts.command != "firmware" {
@@ -275,6 +302,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi stats --host " + hostArg + " for recorded statistics",
 			"axeos-axi firmware --host " + hostArg + " for the running firmware checksum",
 			"axeos-axi scoreboard --host " + hostArg + " for the best-difficulty shares",
+			"axeos-axi logs --host " + hostArg + " for the log line count and size",
 			"axeos-axi discover to find AxeOS miners on the local network",
 		}})
 	}
@@ -286,6 +314,9 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'
 func help(command string) output.Object {
 	if command == "discover" {
 		return discoverHelp()
+	}
+	if command == "logs" {
+		return logsHelp()
 	}
 	label := command
 	if label == "" {
@@ -299,7 +330,7 @@ func help(command string) output.Object {
 	}
 	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"},
+			{Name: "host", Value: hostFlagHelp},
 			{Name: "fields", Value: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},

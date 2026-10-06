@@ -15,16 +15,17 @@ bin/axeos-axi asic
 bin/axeos-axi stats
 bin/axeos-axi firmware
 bin/axeos-axi scoreboard
+bin/axeos-axi logs
 bin/axeos-axi discover
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
-Each request times out after four seconds. Redirects are refused.
+Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
 This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
-`/api/system/statistics`, `/api/system/firmware/checksum` and `/api/system/scoreboard`,
-and mDNS queries from `discover`; it has no commands that change the miner.
+`/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
+`/api/system/logs`, and mDNS queries from `discover`; it has no commands that change the miner.
 
 | Command | Default view |
 | --- | --- |
@@ -34,6 +35,7 @@ and mDNS queries from `discover`; it has no commands that change the miner.
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
+| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -70,7 +72,8 @@ listed in command help or exact top-level JSON field names from the
 `asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
-`discover` accepts only the view names in its help.
+`discover` accepts only the view names in its help;
+`logs` does not take `--fields`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 
@@ -86,6 +89,8 @@ bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 Pool users, Wi-Fi name, MAC, the `pools` configuration list, coinbase outputs and scriptsig
 are absent from default output. Explicit raw-field selection can expose private data,
 including users inside `pools`; avoid publishing that output.
+`logs --lines` prints log lines as the miner wrote them, and they can contain the pool user,
+addresses, hostnames and the Wi-Fi name.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
 makes efficiency unknown. Hashrate is GH/s, temperatures are Celsius, tuning voltage
 is mV, frequency is MHz and uptime is seconds.
@@ -107,6 +112,15 @@ the API does not send it. `ntime` is the block-header time of the share in Unix 
 identify neither the owner nor the network and appear only through `--fields`.
 Zero shares is a definitive result with exit code 0. Firmware without the path gives
 `not_supported`, by the same rule as `firmware`.
+`logs` sends one request, to the logs path only. The miner answers with plain text: its log
+buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. Without
+`--lines` the command prints no log line: it prints `total_lines`, the response size
+`size_bytes` and the commands that print lines. `--lines <n>` prints the newest n lines and
+`--lines all` prints every line, in the order of the buffer, so the newest line is last;
+`total_lines` and `shown_lines` state how many lines exist and how many are printed.
+There is no filter, search or follow. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
+firmware, are removed; the text is otherwise unchanged. Zero lines is a definitive result
+with exit code 0. Firmware without the path gives `not_supported`, by the same rule as `firmware`.
 
 ## Development
 
@@ -115,7 +129,7 @@ point, `internal/app` commands, `internal/axeos` API client, `internal/mdns` bro
 and `internal/output` TOON.
 Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest` and run
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
-The firmware checksum and scoreboard fixtures are written from the API schema, not recorded.
+The firmware checksum, scoreboard and logs fixtures are written from the API schema, not recorded.
 `discover` is tested against a fake browser and hand-built mDNS packets.
 The output layer keeps ordered view fields and sorts raw API object keys.
 API JSON numbers use Go's float64 precision.
