@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -165,6 +166,41 @@ func TestRejectInputBeforeNetwork(t *testing.T) {
 	}
 	if len(calls()) != 0 {
 		t.Fatalf("requests before usage validation: %v", calls())
+	}
+}
+
+func TestRepeatedHostIsAUsageError(t *testing.T) {
+	first, firstCalls := miner(t, fixture(t, "info"))
+	second, secondCalls := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return "" })
+	for _, args := range [][]string{
+		{"info", "--host", first, "--host", second},
+		{"info", "--host=" + first, "--host=" + second},
+		{"info", "--host", first, "--host=" + second},
+		{"info", "--host=" + first, "--host", second},
+		{"--host", first, "--host", second},
+		{"--host", first, "info", "--host", first},
+		{"logs", "--host", first, "--host", second},
+	} {
+		code, out := execute(t, a, args...)
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; a command takes one miner") || !strings.Contains(out, "valid flags:") {
+			t.Errorf("args=%v code=%d out=%s", args, code, out)
+		}
+	}
+	if len(firstCalls()) != 0 || len(secondCalls()) != 0 {
+		t.Fatalf("requests after a repeated --host: %v %v", firstCalls(), secondCalls())
+	}
+}
+
+func TestOneHostFlagOverridesTheEnvironment(t *testing.T) {
+	fromEnv, envCalls := miner(t, fixture(t, "info"))
+	fromFlag, flagCalls := miner(t, fixture(t, "info"))
+	code, out := execute(t, New(func(string) string { return fromEnv }), "info", "--host", fromFlag)
+	if code != 0 {
+		t.Fatalf("code=%d %s", code, out)
+	}
+	if len(envCalls()) != 0 || !slices.Equal(flagCalls(), []string{"GET /api/system/info"}) {
+		t.Fatalf("env=%v flag=%v", envCalls(), flagCalls())
 	}
 }
 
