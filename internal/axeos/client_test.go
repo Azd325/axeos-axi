@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"os/exec"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -269,33 +267,31 @@ func TestWriteAllowlistAndUnansweredRequest(t *testing.T) {
 }
 
 func TestProxyEnvironmentIgnored(t *testing.T) {
-	const child = "AXEOS_AXI_PROXY_TEST_CHILD"
-	if os.Getenv(child) == "1" {
-		c, err := New("192.0.2.10")
+	const proxy = "http://127.0.0.1:1"
+	for _, name := range []string{"HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"} {
+		t.Setenv(name, proxy)
+	}
+	for _, name := range []string{"NO_PROXY", "no_proxy", "REQUEST_METHOD"} {
+		t.Setenv(name, "")
+	}
+	for _, host := range []string{"http://192.0.2.10", "https://192.0.2.10"} {
+		c, err := New(host)
 		if err != nil {
 			t.Fatal(err)
 		}
-		c.http.Timeout = 300 * time.Millisecond
-		c.logs.Timeout = 300 * time.Millisecond
-		_, _ = c.Get(context.Background(), "info")
-		_, _ = c.GetList(context.Background(), "scoreboard")
-		_, _ = c.GetText(context.Background(), "logs")
-		_ = c.Post(context.Background(), "restart")
-		return
-	}
-	var requests atomic.Int32
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requests.Add(1)
-		w.WriteHeader(http.StatusBadGateway)
-	}))
-	defer proxy.Close()
-	// net/http reads the proxy environment once per process (envProxyFunc in net/http/transport.go), so the requests run in a new process.
-	cmd := exec.Command(os.Args[0], "-test.run=^TestProxyEnvironmentIgnored$")
-	cmd.Env = append(os.Environ(), child+"=1", "HTTP_PROXY="+proxy.URL, "http_proxy="+proxy.URL, "NO_PROXY=", "no_proxy=", "REQUEST_METHOD=")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("child process: %v\n%s", err, out)
-	}
-	if requests.Load() != 0 {
-		t.Fatalf("proxy received %d requests", requests.Load())
+		req, err := http.NewRequest(http.MethodPost, c.base+"/api/system/restart", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, client := range map[string]*http.Client{"http": c.http, "logs": c.logs} {
+			transport, ok := client.Transport.(*http.Transport)
+			if !ok {
+				t.Fatalf("%s %s: transport=%T", host, name, client.Transport)
+			}
+			if transport.Proxy != nil {
+				u, err := transport.Proxy(req)
+				t.Errorf("%s %s: proxy resolver is set; proxy=%v err=%v", host, name, u, err)
+			}
+		}
 	}
 }
