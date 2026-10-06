@@ -334,3 +334,40 @@ func TestSettingsWriteAllowlistAndBody(t *testing.T) {
 		t.Fatalf("requests=%d", requests.Load())
 	}
 }
+
+func TestPatchPoolsSendsOnlyPoolRecordsThatKeepThePassword(t *testing.T) {
+	var requests atomic.Int32
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		body, err := io.ReadAll(r.Body)
+		if err != nil || r.Method != http.MethodPatch || r.URL.RequestURI() != "/api/system" || string(body) != `{"pools":[{"id":1,"stratumPassword":"*****","stratumURL":"pool.example.org"}]}` || r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("request=%s %s body=%q error=%v", r.Method, r.URL.RequestURI(), body, err)
+		}
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pools := range [][]map[string]any{
+		nil, {}, {{}},
+		{{"stratumPassword": KeepPassword}},
+		{{"id": "1", "stratumPassword": KeepPassword}},
+		{{"id": float64(1)}},
+		{{"id": float64(1), "stratumPassword": "example-password"}},
+		{{"id": float64(0), "stratumPassword": KeepPassword}, {"id": float64(1), "stratumPassword": ""}},
+	} {
+		if err := c.PatchPools(context.Background(), pools); err == nil {
+			t.Errorf("unapproved pool write %v", pools)
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("requests=%d", requests.Load())
+	}
+	if err := c.PatchPools(context.Background(), []map[string]any{{"id": float64(1), "stratumPassword": KeepPassword, "stratumURL": "pool.example.org"}}); err != nil {
+		t.Fatal(err)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("requests=%d", requests.Load())
+	}
+}

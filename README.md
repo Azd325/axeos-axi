@@ -1,7 +1,7 @@
 # axeos-axi
 
 An agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
-It reads a miner and has two commands that change it: `restart` and `tuning`.
+It reads a miner and has three commands that change it: `restart`, `tuning` and `pool`.
 This is an independent tool, not affiliated with the Bitaxe project.
 The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
@@ -20,6 +20,7 @@ bin/axeos-axi logs
 bin/axeos-axi discover
 bin/axeos-axi restart
 bin/axeos-axi tuning --frequency 525 --core-voltage 1150
+bin/axeos-axi pool --url pool.example.org --port 3333
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
@@ -30,9 +31,9 @@ Each request times out after four seconds; the `logs` request after fifteen. Red
 Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`. Two commands change the miner, each only
-with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` sends
-one PATCH request to `/api/system`.
+`/api/system/logs`, and mDNS queries from `discover`. Three commands change the miner, each only
+with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
+`pool` each send one PATCH request to `/api/system`.
 
 | Command | Default view |
 | --- | --- |
@@ -46,6 +47,7 @@ one PATCH request to `/api/system`.
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
+| `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
@@ -136,6 +138,81 @@ when the miner answered a status other than 200, such as 400 for a rejected valu
 client outside the allowed network range. The command does not repeat the request;
 `asic` shows `frequency_mhz` and `core_voltage_set_mv` after the change.
 
+## Pool
+
+`pool` changes the miner: it sets the URL, the port or the user of the primary pool and of the
+fallback pool. The miner stores the values at once and keeps them across a restart. An open pool
+connection uses the old values until the miner restarts or connects again. The command does not
+restart the miner; `restart` does. It takes one miner, through `--host` or `AXEOS_HOST`, and no
+`--fields`.
+
+```sh
+bin/axeos-axi pool --host 192.0.2.10 --url pool.example.org --port 3333
+bin/axeos-axi pool --host 192.0.2.10 --fallback-user example-worker --show-user --confirm
+```
+
+| Flag | Pool | Value |
+| --- | --- | --- |
+| `--url <host>` | primary | Host name or address, 1 to 255 bytes, without a scheme, a port or a space |
+| `--port <port>` | primary | Whole number from 1 to 65535 |
+| `--user <user>` | primary | 1 to 255 bytes |
+| `--fallback-url <host>` | fallback | Same rule as `--url` |
+| `--fallback-port <port>` | fallback | Same rule as `--port` |
+| `--fallback-user <user>` | fallback | Same rule as `--user` |
+
+A call with none of these flags, with one of them given more than once, or with a value outside
+its rule is a usage error with exit code 2 and sends no request. Firmware v2.15.3 also stores a
+URL with a scheme such as `stratum+tcp://` or with a port, and the miner cannot connect to it;
+the command refuses both.
+
+Firmware v2.15.3 keeps the pools as a list `pools` of at most 8 slots. `primaryPoolIndex` and
+`secondaryPoolIndex` name the slot of the primary pool and of the fallback pool. The firmware
+replaces the whole record of a slot in one write: a field that the request omits goes back to
+its default. The command therefore reads the record and sends it back complete:
+
+1. Each call sends one GET request, to `/api/system/info`.
+2. For each pool with a named setting, the command copies the record that the miner reported
+   and replaces the named settings.
+3. With `--confirm` it sends exactly one request, `PATCH /api/system`, with the body
+   `{"pools":[...]}`. The body carries each record that has a changed value, complete.
+
+The values between the read and the write are not locked. When a second client changes a field
+of the same pool after the read, the write sets that field back to the value that was read.
+
+Without `--confirm` the command sends no write request. It prints `sent: false`, the request,
+its `body`, one `settings` row for each named setting with its present value and its new value,
+the effect and, as `execute`, the command line that performs the change. HTTP 200 is success for
+the confirmed call: the command prints `sent: true` and, in `help`, the command line that sets
+the previous values again. When each new value equals the present value, the command prints
+`sent: false` and that result, sends no write request, also with `--confirm`, and exits with
+code 0. A pool with no changed value is not in the body.
+
+The pool user can identify the owner. By default a `settings` row for a user prints `set` as the
+present and as the new value, with `changes`, and the `body`, `execute` and the command line in
+`help` print a placeholder. `--show-user` prints each user. The miner does not report the previous
+user after a change: run the preview with `--show-user` and record the user before `--confirm`.
+The command cannot set a password and never prints one. The miner reports each password as
+`*****`, and a record with that value keeps the stored password, so each write sends it. The
+pool certificate is carried in the request and printed as `<not printed>`.
+
+Each refusal is an error with exit code 1, in the preview and in the confirmed call, and sends
+no write request:
+`not_supported` when the miner reports no `pools` list with both indexes; the write of firmware
+without that list is not traced;
+`same_slot` when the primary and the fallback pool are the same slot;
+`no_pool_in_slot` when the slot of a named pool has no pool, because the command cannot remove
+a pool again;
+`present_value_unknown` when the miner reports no URL, port or user for a named pool; and
+`not_reversible` when the present URL, port or user of a named pool is outside the rule of its
+flag, because the command could not set that value again.
+A failed read is `miner_read_failed`. Each failed write states whether the request was sent:
+`pool_not_sent`, `pool_unconfirmed` when the miner closed the connection or did not answer in
+four seconds, and `pool_failed` when the miner answered a status other than 200, such as 400
+for a rejected record or 401 for a client outside the allowed network range. The firmware
+checks each record before it stores one. The command does not repeat the request;
+`info --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` shows the stored
+values after the change.
+
 ## Fields, units and privacy
 
 Default views are deliberately small. `--fields` replaces the data fields with a
@@ -146,7 +223,7 @@ listed in command help or exact top-level JSON field names from the
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
-`logs`, `restart` and `tuning` do not take `--fields`.
+`logs`, `restart`, `tuning` and `pool` do not take `--fields`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 

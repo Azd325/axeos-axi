@@ -20,6 +20,8 @@ const (
 	Timeout = 4 * time.Second
 	// The firmware sends its 512 KiB log buffer one line per HTTP chunk (GET_system_logs in ESP-Miner main/http_server/http_server.c).
 	LogsTimeout = 15 * time.Second
+	// The firmware reports each pool password as this value (system_api_get_full_json in ESP-Miner main/http_server/system_api_json.c).
+	KeepPassword = "*****"
 )
 
 var (
@@ -124,6 +126,25 @@ func (c *Client) Patch(ctx context.Context, settings map[string]int) error {
 		}
 	}
 	body, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("cannot create miner request; %w", ErrNotSent)
+	}
+	return c.send(ctx, http.MethodPatch, "", body, "settings")
+}
+
+// The firmware replaces the whole record of each pool in the list, checks each record before it stores one,
+// and keeps the stored password when a record carries KeepPassword
+// (check_settings_and_update and update_pool_nvs in ESP-Miner main/http_server/http_server.c).
+func (c *Client) PatchPools(ctx context.Context, pools []map[string]any) error {
+	if len(pools) == 0 {
+		return errors.New("unsupported write setting")
+	}
+	for _, pool := range pools {
+		if _, ok := pool["id"].(float64); !ok || pool["stratumPassword"] != KeepPassword {
+			return errors.New("unsupported write setting")
+		}
+	}
+	body, err := json.Marshal(map[string]any{"pools": pools})
 	if err != nil {
 		return fmt.Errorf("cannot create miner request; %w", ErrNotSent)
 	}
