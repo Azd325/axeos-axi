@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"io"
-	"maps"
 	"slices"
 	"strings"
 
@@ -21,27 +20,20 @@ func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout 
 	if err != nil {
 		return optionalReadFailure(stdout, err, "scoreboard", opts.host)
 	}
-	valid := slices.Clone(scoreboardFields)
 	rows := make([]map[string]any, len(entries))
 	for i, entry := range entries {
 		share, ok := entry.(map[string]any)
 		if !ok {
 			return failure(stdout, 1, "invalid_scoreboard", "scoreboard response contains an entry that is not an object", "check AxeOS scoreboard API compatibility")
 		}
-		rows[i] = map[string]any{"rank": i + 1}
-		maps.Copy(rows[i], share)
-		for name := range share {
-			if !slices.Contains(valid, name) {
-				valid = append(valid, name)
-			}
-		}
+		rows[i] = share
 	}
 	columns := scoreboardDefaults
 	if len(opts.fields) != 0 {
 		columns = opts.fields
 	}
 	for _, name := range columns {
-		if !slices.Contains(valid, name) {
+		if !slices.Contains(scoreboardFields, name) {
 			return failure(stdout, 2, "unknown_field", "unknown field "+name, "axeos-axi scoreboard --help; valid fields: "+strings.Join(scoreboardFields, ","))
 		}
 	}
@@ -54,6 +46,9 @@ func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout 
 		share := make(output.Object, len(columns))
 		for j, name := range columns {
 			share[j] = output.Field{Name: name, Value: row[name]}
+			if name == "rank" {
+				share[j].Value = i + 1
+			}
 		}
 		shares[i] = share
 	}

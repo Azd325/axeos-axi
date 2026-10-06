@@ -69,7 +69,7 @@ listed in command help or exact top-level JSON field names from the
 [AxeOS API](https://github.com/bitaxeorg/ESP-Miner/blob/master/main/http_server/openapi.yaml).
 `asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
 `firmware` accepts its checksum-response fields;
-`scoreboard` accepts `rank` and the fields of a scoreboard entry, as row columns;
+`scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.

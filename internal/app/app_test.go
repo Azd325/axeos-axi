@@ -290,7 +290,7 @@ func TestScoreboard(t *testing.T) {
 	}{
 		{"empty", "[]", "count: 0\nstate: 0 shares recorded on the miner scoreboard\n", nil, http.StatusOK, 0},
 		{"empty with fields", "[]", "count: 0\nstate: 0 shares recorded on the miner scoreboard\n", []string{"--fields", "nonce"}, http.StatusOK, 0},
-		{"missing and extra keys", `[{"difficulty":5,"since":7}]`, "count: 1\nshares[1]{difficulty,ntime,since}:\n  5,null,7\n", []string{"--fields", "difficulty,ntime,since"}, http.StatusOK, 0},
+		{"entry with its own rank", `[{"rank":0,"difficulty":5},{"rank":7,"difficulty":4}]`, "count: 2\nshares[2]{rank,difficulty}:\n  1,5\n  2,4\n", []string{"--fields", "rank,difficulty"}, http.StatusOK, 0},
 		{"not found", "", "code: not_supported\n  message: scoreboard is not supported by this firmware\n", nil, http.StatusNotFound, 1},
 		{"root redirect", "", "code: not_supported\n  message: scoreboard is not supported by this firmware\n", nil, http.StatusFound, 1},
 		{"server error", "", "code: miner_read_failed\n  message: miner returned HTTP 500 for scoreboard\n", nil, http.StatusInternalServerError, 1},
