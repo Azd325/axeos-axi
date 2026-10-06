@@ -209,6 +209,19 @@ func TestFirmwareChecksum(t *testing.T) {
 	if strings.Join(requests, ",") != "GET /api/system/firmware/checksum" {
 		t.Fatal(requests)
 	}
+	requests = nil
+	older := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		http.Redirect(w, r, "/", http.StatusFound)
+	}))
+	defer older.Close()
+	code, out = execute(t, New(func(string) string { return older.URL }), "firmware")
+	if code != 1 || !strings.Contains(out, "code: not_supported") || !strings.Contains(out, "not supported by this firmware") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if strings.Join(requests, ",") != "GET /api/system/firmware/checksum" {
+		t.Fatal(requests)
+	}
 	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

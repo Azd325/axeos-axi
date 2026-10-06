@@ -185,8 +185,8 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	switch opts.command {
 	case "firmware":
 		checksum, readErr := client.Get(ctx, "firmware/checksum")
-		if errors.Is(readErr, axeos.ErrNotFound) {
-			return failure(stdout, 1, "not_supported", "firmware checksum is not supported by this firmware (HTTP 404)", "axeos-axi info --host "+shellQuote(opts.host)+" shows the firmware version")
+		if errors.Is(readErr, axeos.ErrNotFound) || errors.Is(readErr, axeos.ErrRootRedirect) {
+			return failure(stdout, 1, "not_supported", "firmware checksum is not supported by this firmware", "axeos-axi info --host "+shellQuote(opts.host)+" shows the firmware version")
 		}
 		if readErr != nil {
 			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check --host or AXEOS_HOST and local network connectivity")

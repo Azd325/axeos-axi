@@ -94,7 +94,8 @@ is available only through explicit field selection; it is not dumped by default.
 An empty-state explanation remains present with `--fields`.
 `firmware` sends one request, to the checksum path only. Its `sha256` is lowercase hex and
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
-HTTP 404; the command then reports `not_supported` with exit code 1.
+HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
+reports `not_supported` with exit code 1 and does not follow the redirect.
 
 ## Development
 

@@ -15,8 +15,9 @@ import (
 const Timeout = 4 * time.Second
 
 var (
-	ErrHost     = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
-	ErrNotFound = errors.New("miner returned HTTP 404")
+	ErrHost         = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
+	ErrNotFound     = errors.New("miner returned HTTP 404")
+	ErrRootRedirect = errors.New("miner returned HTTP 302")
 )
 
 type Client struct {
@@ -55,6 +56,9 @@ func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, erro
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("%w for %s", ErrNotFound, endpoint)
+	}
+	if resp.StatusCode == http.StatusFound && resp.Header.Get("Location") == "/" {
+		return nil, fmt.Errorf("%w for %s", ErrRootRedirect, endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("miner returned HTTP %d for %s", resp.StatusCode, endpoint)
