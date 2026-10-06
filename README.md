@@ -114,8 +114,8 @@ Each call first sends two GET requests: `/api/system/info` for the present value
 Without `--confirm` the command sends no write request. It prints `sent: false`, the request,
 its `body`, one `settings` row for each named setting with its present value and its new value,
 the effect and, as `execute`, the command line that performs the change.
-With `--confirm` it sends exactly one request, `PATCH /api/system`. The body carries only the
-named settings that change: `frequency`, `coreVoltage` or both. HTTP 200 is success: the
+With `--confirm` it sends exactly one request, `PATCH /api/system`. The body carries each
+named setting: `frequency`, `coreVoltage` or both. HTTP 200 is success: the
 command prints `sent: true` and, in `help`, the command line that sets the previous values again.
 
 Firmware v2.15.3 checks only that each value is a number from 1 to 65535, so the command holds
@@ -128,7 +128,7 @@ code 1, in the preview and in the confirmed call, and sends no write request:
 that value again. The present value is outside the list after overclock mode stored such a value
 or after the firmware reduced the values in an overheat event.
 A new value that equals the present value is not an error: its row has `changes: false`, and
-when no named setting changes the command sends no write request and exits with code 0.
+the confirmed call sends the one write request with that value.
 A failed read is `miner_read_failed`, or `not_supported` for firmware without the `asic` path.
 Each failed write states whether the request was sent: `tuning_not_sent`, `tuning_unconfirmed`
 when the miner closed the connection or did not answer in four seconds, and `tuning_failed`

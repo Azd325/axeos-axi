@@ -63,9 +63,10 @@ func TestTuningWithoutConfirmSendsNoWrite(t *testing.T) {
 		args                      []string
 	}{
 		{"frequency", "  frequency: 550\n", "settings[1]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n", "--frequency 550", []string{"tuning", "--frequency", "550"}},
-		{"core voltage", "  coreVoltage: 1150\n", "settings[1]{setting,present,new,changes}:\n  core_voltage_mv,1100,1150,true\n", "--core-voltage 1150", []string{"--core-voltage=1150", "tuning"}},
-		{"both", "  frequency: 550\n  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_mv,1100,1150,true\n", "--frequency 550 --core-voltage 1150", []string{"tuning", "--core-voltage", "1150", "--frequency", "550"}},
-		{"one of two changes", "  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,525,false\n  core_voltage_mv,1100,1150,true\n", "--core-voltage 1150", []string{"tuning", "--frequency", "525", "--core-voltage", "1150"}},
+		{"core voltage", "  coreVoltage: 1150\n", "settings[1]{setting,present,new,changes}:\n  core_voltage_set_mv,1100,1150,true\n", "--core-voltage 1150", []string{"--core-voltage=1150", "tuning"}},
+		{"both", "  frequency: 550\n  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_set_mv,1100,1150,true\n", "--frequency 550 --core-voltage 1150", []string{"tuning", "--core-voltage", "1150", "--frequency", "550"}},
+		{"one of two changes", "  frequency: 525\n  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,525,false\n  core_voltage_set_mv,1100,1150,true\n", "--frequency 525 --core-voltage 1150", []string{"tuning", "--frequency", "525", "--core-voltage", "1150"}},
+		{"no change", "  frequency: 525\n  coreVoltage: 1100\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,525,false\n  core_voltage_set_mv,1100,1100,false\n", "--frequency 525 --core-voltage 1100", []string{"tuning", "--frequency", "525", "--core-voltage", "1100"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := tuningMiner(t, nil, settingsSaved)
@@ -89,9 +90,10 @@ func TestTuningWithConfirmSendsOneWriteWithTheNamedSettings(t *testing.T) {
 		args                            []string
 	}{
 		{"frequency", `{"frequency":550}`, "  frequency: 550\n", "settings[1]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n", "--frequency 525", []string{"tuning", "--frequency", "550", "--confirm"}},
-		{"core voltage", `{"coreVoltage":1150}`, "  coreVoltage: 1150\n", "settings[1]{setting,present,new,changes}:\n  core_voltage_mv,1100,1150,true\n", "--core-voltage 1100", []string{"--confirm", "tuning", "--core-voltage", "1150"}},
-		{"both", `{"coreVoltage":1150,"frequency":550}`, "  frequency: 550\n  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_mv,1100,1150,true\n", "--frequency 525 --core-voltage 1100", []string{"tuning", "--frequency=550", "--core-voltage=1150", "--confirm"}},
-		{"one of two changes", `{"frequency":550}`, "  frequency: 550\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_mv,1100,1100,false\n", "--frequency 525", []string{"tuning", "--frequency", "550", "--core-voltage", "1100", "--confirm"}},
+		{"core voltage", `{"coreVoltage":1150}`, "  coreVoltage: 1150\n", "settings[1]{setting,present,new,changes}:\n  core_voltage_set_mv,1100,1150,true\n", "--core-voltage 1100", []string{"--confirm", "tuning", "--core-voltage", "1150"}},
+		{"both", `{"coreVoltage":1150,"frequency":550}`, "  frequency: 550\n  coreVoltage: 1150\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_set_mv,1100,1150,true\n", "--frequency 525 --core-voltage 1100", []string{"tuning", "--frequency=550", "--core-voltage=1150", "--confirm"}},
+		{"one of two changes", `{"coreVoltage":1100,"frequency":550}`, "  frequency: 550\n  coreVoltage: 1100\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,550,true\n  core_voltage_set_mv,1100,1100,false\n", "--frequency 525 --core-voltage 1100", []string{"tuning", "--frequency", "550", "--core-voltage", "1100", "--confirm"}},
+		{"no change", `{"coreVoltage":1100,"frequency":525}`, "  frequency: 525\n  coreVoltage: 1100\n", "settings[2]{setting,present,new,changes}:\n  frequency_mhz,525,525,false\n  core_voltage_set_mv,1100,1100,false\n", "--frequency 525 --core-voltage 1100", []string{"tuning", "--frequency", "525", "--core-voltage", "1100", "--confirm"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := tuningMiner(t, nil, settingsSaved)
@@ -106,23 +108,6 @@ func TestTuningWithConfirmSendsOneWriteWithTheNamedSettings(t *testing.T) {
 				t.Fatalf("requests=%s", calls())
 			}
 		})
-	}
-}
-
-func TestTuningWithThePresentValuesSendsNoWrite(t *testing.T) {
-	for _, args := range [][]string{
-		{"tuning", "--frequency", "525", "--core-voltage", "1100"},
-		{"tuning", "--frequency", "525", "--core-voltage", "1100", "--confirm"},
-	} {
-		host, calls := tuningMiner(t, nil, settingsSaved)
-		code, out := execute(t, New(func(string) string { return host }), args...)
-		want := "host: \"" + host + "\"\nsent: false\nsettings[2]{setting,present,new,changes}:\n  frequency_mhz,525,525,false\n  core_voltage_mv,1100,1100,false\nresult: the miner already has the named values; no request is sent\n"
-		if code != 0 || out != want {
-			t.Errorf("args=%v code=%d\n%s\nwant\n%s", args, code, out, want)
-		}
-		if calls() != tuningReads {
-			t.Errorf("args=%v requests=%s", args, calls())
-		}
 	}
 }
 

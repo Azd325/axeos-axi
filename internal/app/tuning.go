@@ -26,7 +26,7 @@ type tuningSetting struct {
 
 var tuningSettings = []tuningSetting{
 	{"--frequency", "frequency", "MHz", "frequency_mhz", "frequency", "frequencyOptions"},
-	{"--core-voltage", "core voltage", "mV", "core_voltage_mv", "coreVoltage", "voltageOptions"},
+	{"--core-voltage", "core voltage", "mV", "core_voltage_set_mv", "coreVoltage", "voltageOptions"},
 }
 
 func isTuningFlag(flag string) bool {
@@ -87,11 +87,7 @@ func tuning(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 		if !ok {
 			return failure(stdout, 1, "present_value_unknown", "the miner reports no present value for "+s.label+"; the write is refused", lists)
 		}
-		changes := present != float64(value)
-		rows = append(rows, output.Object{{Name: "setting", Value: s.view}, {Name: "present", Value: present}, {Name: "new", Value: value}, {Name: "changes", Value: changes}})
-		if !changes {
-			continue
-		}
+		rows = append(rows, output.Object{{Name: "setting", Value: s.view}, {Name: "present", Value: present}, {Name: "new", Value: value}, {Name: "changes", Value: present != float64(value)}})
 		if !slices.Contains(allowed, present) {
 			return failure(stdout, 1, "not_reversible", "the present "+s.label+" "+formatNumber(present)+" "+s.unit+" is not in the list the miner reports, so this tool cannot set it again; the write is refused", lists)
 		}
@@ -100,15 +96,7 @@ func tuning(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 		execute += " " + s.flag + " " + strconv.Itoa(value)
 		revert += " " + s.flag + " " + formatNumber(present)
 	}
-	fields := output.Object{{Name: "host", Value: opts.host}}
-	if len(settings) == 0 {
-		return write(stdout, append(fields,
-			output.Field{Name: "sent", Value: false},
-			output.Field{Name: "settings", Value: rows},
-			output.Field{Name: "result", Value: "the miner already has the named values; no request is sent"},
-		))
-	}
-	fields = append(fields, output.Field{Name: "request", Value: tuningRequest}, output.Field{Name: "body", Value: body})
+	fields := output.Object{{Name: "host", Value: opts.host}, {Name: "request", Value: tuningRequest}, {Name: "body", Value: body}}
 	if !opts.confirm {
 		return write(stdout, append(fields,
 			output.Field{Name: "sent", Value: false},
@@ -138,7 +126,7 @@ func tuning(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 func tuningHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "tuning"},
-		{Name: "description", Value: "Changes the miner: sets the ASIC frequency, the core voltage or both; " + tuningEffect + "; each call reads the present values and the allowed lists with GET /api/system/info and GET /api/system/asic; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + tuningRequest + " that carries only the named settings that change; a value outside the list the miner reports is an error and sends no write request; a new value equal to the present value sends no write request; the command does not restart the miner"},
+		{Name: "description", Value: "Changes the miner: sets the ASIC frequency, the core voltage or both; " + tuningEffect + "; each call reads the present values and the allowed lists with GET /api/system/info and GET /api/system/asic; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + tuningRequest + " that carries each named setting, also when a new value equals the present value; a value outside the list the miner reports is an error and sends no write request; the command does not restart the miner"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
 			{Name: "frequency", Value: "--frequency <MHz>; whole number from frequencyOptions of the miner"},
