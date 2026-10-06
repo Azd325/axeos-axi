@@ -3,6 +3,7 @@ package axeos
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -293,5 +294,43 @@ func TestProxyEnvironmentIgnored(t *testing.T) {
 				t.Errorf("%s %s: proxy resolver is set; proxy=%v err=%v", host, name, u, err)
 			}
 		}
+	}
+}
+
+func TestSettingsWriteAllowlistAndBody(t *testing.T) {
+	var requests atomic.Int32
+	status := http.StatusOK
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		body, err := io.ReadAll(r.Body)
+		if err != nil || r.Method != http.MethodPatch || r.URL.RequestURI() != "/api/system" || string(body) != `{"coreVoltage":1150,"frequency":550}` || r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("request=%s %s body=%q error=%v", r.Method, r.URL.RequestURI(), body, err)
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte("private-identifier"))
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, settings := range []map[string]int{nil, {}, {"hostname": 1}, {"frequency": 550, "overclockEnabled": 1}, {"manualFanSpeed": 100}, {"Frequency": 550}} {
+		if err := c.Patch(context.Background(), settings); err == nil {
+			t.Errorf("unapproved write settings %v", settings)
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("requests=%d", requests.Load())
+	}
+	settings := map[string]int{"frequency": 550, "coreVoltage": 1150}
+	if err := c.Patch(context.Background(), settings); err != nil {
+		t.Fatal(err)
+	}
+	status = http.StatusBadRequest
+	if err := c.Patch(context.Background(), settings); err == nil || err.Error() != "the request was sent; miner returned HTTP 400 for settings" {
+		t.Fatalf("rejected write: %v", err)
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("requests=%d", requests.Load())
 	}
 }

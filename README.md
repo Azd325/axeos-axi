@@ -1,7 +1,7 @@
 # axeos-axi
 
 An agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
-It reads a miner and has one command that changes it: `restart`.
+It reads a miner and has two commands that change it: `restart` and `tuning`.
 This is an independent tool, not affiliated with the Bitaxe project.
 The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
@@ -19,6 +19,7 @@ bin/axeos-axi scoreboard
 bin/axeos-axi logs
 bin/axeos-axi discover
 bin/axeos-axi restart
+bin/axeos-axi tuning --frequency 525 --core-voltage 1150
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
@@ -29,8 +30,9 @@ Each request times out after four seconds; the `logs` request after fifteen. Red
 Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`. `restart` is the one command that changes
-the miner: with `--confirm` it sends one POST request to `/api/system/restart`.
+`/api/system/logs`, and mDNS queries from `discover`. Two commands change the miner, each only
+with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` sends
+one PATCH request to `/api/system`.
 
 | Command | Default view |
 | --- | --- |
@@ -43,6 +45,7 @@ the miner: with `--confirm` it sends one POST request to `/api/system/restart`.
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
+| `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
@@ -92,6 +95,47 @@ miner answered a status other than 200, such as 401 for a client outside the all
 network range. The command does not repeat the request and does not wait for the miner to
 come up again; `info` shows `uptime_s` and `reset_reason` after the restart.
 
+## Tuning
+
+`tuning` changes the miner: it sets the ASIC frequency in MHz, the core voltage in mV, or both.
+The values are active at once, without a restart, and the miner keeps them across a restart.
+The command does not restart the miner. It takes one miner, through `--host` or `AXEOS_HOST`,
+and no `--fields`.
+
+```sh
+bin/axeos-axi tuning --host 192.0.2.10 --frequency 525
+bin/axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage 1150 --confirm
+```
+
+`--frequency <MHz>` and `--core-voltage <mV>` take whole numbers. A call with neither flag, or
+with one of them given more than once, is a usage error with exit code 2 and sends no request.
+Each call first sends two GET requests: `/api/system/info` for the present values and
+`/api/system/asic` for the lists of allowed values, `frequencyOptions` and `voltageOptions`.
+Without `--confirm` the command sends no write request. It prints `sent: false`, the request,
+its `body`, one `settings` row for each named setting with its present value and its new value,
+the effect and, as `execute`, the command line that performs the change.
+With `--confirm` it sends exactly one request, `PATCH /api/system`. The body carries only the
+named settings that change: `frequency`, `coreVoltage` or both. HTTP 200 is success: the
+command prints `sent: true` and, in `help`, the command line that sets the previous values again.
+
+Firmware v2.15.3 checks only that each value is a number from 1 to 65535, so the command holds
+a value to the list that the miner reports. It has no built-in list. Each refusal is an error with exit
+code 1, in the preview and in the confirmed call, and sends no write request:
+`value_not_allowed` when a value is not in the list, with the allowed values in the message;
+`no_allowed_values` when the miner reports no list for a named setting;
+`present_value_unknown` when the miner reports no present value for a named setting; and
+`not_reversible` when the present value is not in the list, because the command could not set
+that value again. The present value is outside the list after overclock mode stored such a value
+or after the firmware reduced the values in an overheat event.
+A new value that equals the present value is not an error: its row has `changes: false`, and
+when no named setting changes the command sends no write request and exits with code 0.
+A failed read is `miner_read_failed`, or `not_supported` for firmware without the `asic` path.
+Each failed write states whether the request was sent: `tuning_not_sent`, `tuning_unconfirmed`
+when the miner closed the connection or did not answer in four seconds, and `tuning_failed`
+when the miner answered a status other than 200, such as 400 for a rejected value or 401 for a
+client outside the allowed network range. The command does not repeat the request;
+`asic` shows `frequency_mhz` and `core_voltage_set_mv` after the change.
+
 ## Fields, units and privacy
 
 Default views are deliberately small. `--fields` replaces the data fields with a
@@ -102,7 +146,7 @@ listed in command help or exact top-level JSON field names from the
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
-`logs` and `restart` do not take `--fields`.
+`logs`, `restart` and `tuning` do not take `--fields`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 
