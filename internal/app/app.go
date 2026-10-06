@@ -2,57 +2,103 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azd325/axeos-axi/internal/axeos"
+	"github.com/Azd325/axeos-axi/internal/mdns"
 	"github.com/Azd325/axeos-axi/internal/output"
 )
 
-const validFlags = "--host, --fields, --help, -v, -V, --version"
+const commonFlags = "--fields, --help, -v, -V, --version"
+
+var commandNames = []string{"info", "asic", "stats", "discover"}
+
+func commands() string { return strings.Join(commandNames, ", ") }
+
+func validFlags(command string) string {
+	if command == "discover" {
+		return "--timeout, " + commonFlags
+	}
+	return "--host, " + commonFlags
+}
+
+type Browser interface {
+	Browse(ctx context.Context, service string, wait time.Duration) ([]mdns.Service, error)
+}
 
 type App struct {
 	getenv  func(string) string
 	Version string
+	Browser Browser
 }
 
-func New(getenv func(string) string) *App { return &App{getenv: getenv, Version: "dev"} }
+func New(getenv func(string) string) *App {
+	return &App{getenv: getenv, Version: "dev", Browser: mdns.Multicast{}}
+}
 
 type options struct {
 	command, host string
+	timeout       int
 	fields        []string
 	help, version bool
 }
 
+// The command may follow its flags, so parsing continues after the first error
+// to report the valid flags of the right command.
 func parse(args []string) (options, error) {
-	var opts options
+	opts := options{timeout: defaultDiscoverTimeout}
+	var first error
+	fail := func(format string, a ...any) {
+		if first == nil {
+			first = fmt.Errorf(format, a...)
+		}
+	}
+	hostSet, timeoutSet := false, false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields":
+		case "--host", "--fields", "--timeout":
+			hostSet = hostSet || flag == "--host"
+			timeoutSet = timeoutSet || flag == "--timeout"
 			if !assigned {
-				i++
-				if i >= len(args) || strings.HasPrefix(args[i], "-") {
-					return opts, fmt.Errorf("%s requires a value", flag)
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+					fail("%s requires a value", flag)
+					continue
 				}
+				i++
 				value = args[i]
 			}
 			if strings.TrimSpace(value) == "" {
-				return opts, fmt.Errorf("%s requires a non-empty value", flag)
+				fail("%s requires a non-empty value", flag)
+				continue
 			}
-			if flag == "--host" {
+			switch flag {
+			case "--host":
 				opts.host = value
-			} else {
+			case "--timeout":
+				seconds, err := strconv.Atoi(value)
+				if err != nil || seconds < 1 || seconds > maxDiscoverTimeout {
+					fail("--timeout requires whole seconds from 1 to %d", maxDiscoverTimeout)
+					continue
+				}
+				opts.timeout = seconds
+			default:
 				opts.fields = strings.Split(value, ",")
 				seen := map[string]bool{}
 				for j, field := range opts.fields {
 					field = strings.TrimSpace(field)
 					if field == "" || seen[field] {
-						return opts, fmt.Errorf("--fields requires unique non-empty comma-separated field names")
+						fail("--fields requires unique non-empty comma-separated field names")
+						break
 					}
 					seen[field] = true
 					opts.fields[j] = field
@@ -60,21 +106,30 @@ func parse(args []string) (options, error) {
 			}
 		case "--help", "-v", "-V", "--version":
 			if assigned {
-				return opts, fmt.Errorf("%s does not accept a value", flag)
+				fail("%s does not accept a value", flag)
+				continue
 			}
 			opts.help = opts.help || flag == "--help"
 			opts.version = opts.version || flag != "--help"
 		default:
 			if strings.HasPrefix(arg, "-") {
-				return opts, fmt.Errorf("unknown flag %s", flag)
+				fail("unknown flag %s", flag)
+				continue
 			}
-			if opts.command != "" || (arg != "info" && arg != "asic" && arg != "stats") {
-				return opts, fmt.Errorf("unknown command or argument %s; valid commands: info, asic, stats", arg)
+			if opts.command != "" || !slices.Contains(commandNames, arg) {
+				fail("unknown command or argument %s; valid commands: %s", arg, commands())
+				continue
 			}
 			opts.command = arg
 		}
 	}
-	return opts, nil
+	if opts.command == "discover" && hostSet {
+		return opts, errors.New("unknown flag --host for `discover`; it browses the local network")
+	}
+	if opts.command != "discover" && timeoutSet {
+		return opts, errors.New("unknown flag --timeout; it is a flag of `discover` only")
+	}
+	return opts, first
 }
 
 func write(w io.Writer, fields output.Object) int {
@@ -94,7 +149,7 @@ func failure(w io.Writer, exit int, code, message, help string) int {
 func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	opts, err := parse(args)
 	if err != nil {
-		return failure(stdout, 2, "usage", err.Error(), "valid flags: "+validFlags+"; commands: info, asic, stats")
+		return failure(stdout, 2, "usage", err.Error(), "valid flags: "+validFlags(opts.command)+"; commands: "+commands())
 	}
 	if opts.version {
 		if _, err := fmt.Fprintln(stdout, a.Version); err != nil {
@@ -105,11 +160,14 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.help {
 		return write(stdout, help(opts.command))
 	}
+	if opts.command == "discover" {
+		return a.discover(ctx, opts, stdout)
+	}
 	if opts.host == "" {
 		opts.host = a.getenv("AXEOS_HOST")
 	}
 	if opts.host == "" {
-		return failure(stdout, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi --host 192.0.2.10")
+		return failure(stdout, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>")
 	}
 	client, err := axeos.New(opts.host)
 	if err != nil {
@@ -195,6 +253,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi info --host " + hostArg + " for system and network detail",
 			"axeos-axi asic --host " + hostArg + " for hardware and tuning",
 			"axeos-axi stats --host " + hostArg + " for recorded statistics",
+			"axeos-axi discover to find AxeOS miners on the local network",
 		}})
 	}
 	return write(stdout, fields)
@@ -203,14 +262,20 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
 func help(command string) output.Object {
+	if command == "discover" {
+		return discoverHelp()
+	}
 	label := command
 	if label == "" {
 		label = "home"
 	}
 	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
-	return output.Object{
-		{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]},
+	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
+	if command == "" {
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host"})
+	}
+	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"},
 			{Name: "fields", Value: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"},
@@ -221,5 +286,5 @@ func help(command string) output.Object {
 		{Name: "view_fields", Value: viewNames(command)},
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},
 		{Name: "examples", Value: []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}},
-	}
+	}...)
 }

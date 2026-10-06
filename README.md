@@ -13,14 +13,16 @@ bin/axeos-axi
 bin/axeos-axi info
 bin/axeos-axi asic
 bin/axeos-axi stats
+bin/axeos-axi discover
 ```
 
-`--host <address>` overrides `AXEOS_HOST`. There is no configuration file or discovery.
+`--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds. Redirects are refused.
 This version sends only GET requests to `/api/system/info`, `/api/system/asic` and
-`/api/system/statistics`; it has no commands that change the miner.
+`/api/system/statistics`, and mDNS queries from `discover`; it has no commands that
+change the miner.
 
 | Command | Default view |
 | --- | --- |
@@ -28,11 +30,32 @@ This version sends only GET requests to `/api/system/info`, `/api/system/asic` a
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
+| `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
 `--help` works on every command without contacting a miner. `-v`, `-V` and `--version`
 print the bare version. Unknown flags and arguments are rejected.
+
+## Discovery
+
+`discover` browses mDNS for the service type `_axeos._sub._http._tcp.local`, the `_axeos`
+subtype that AxeOS registers on its HTTP service. It takes neither `--host` nor `AXEOS_HOST`,
+sends only mDNS queries and calls no miner API. It stores nothing: no cache and no default host.
+The command always waits the full `--timeout <seconds>` (default 3, whole seconds from 1 to 60).
+Zero miners is a definitive result with exit code 0.
+
+```sh
+bin/axeos-axi discover
+bin/axeos-axi discover --timeout 10 --fields address,hostname,board,asic,asic_count
+```
+
+`address` is the IPv4 address, or the `.local` hostname when the miner advertised no address;
+a port other than 80 is appended. `family`, `firmware`, `board`, `asic` and `asic_count` come
+from the TXT records of the advertisement and are `null` when a miner does not send them.
+`port` is the advertised HTTP port. `instance` is the service instance name; it carries a MAC
+suffix and is absent from default output. mDNS stays inside one network segment, and firmware
+that does not register the `_axeos` subtype is not found.
 
 ## Fields, units and privacy
 
@@ -40,7 +63,8 @@ Default views are deliberately small. `--fields` replaces the data fields with a
 comma-separated selection, preserving the requested order. Select the view names
 listed in command help or exact top-level JSON field names from the
 [AxeOS API](https://github.com/bitaxeorg/ESP-Miner/blob/master/main/http_server/openapi.yaml).
-`asic` also accepts fields from `info`; `stats` accepts its statistics-response fields.
+`asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
+`discover` accepts only the view names in its help.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 
@@ -69,9 +93,11 @@ An empty-state explanation remains present with `--fields`.
 ## Development
 
 The layout follows [router-axi](https://github.com/Azd325/router-axi): `cmd/` entry
-point, `internal/app` commands, `internal/axeos` API client and `internal/output` TOON.
+point, `internal/app` commands, `internal/axeos` API client, `internal/mdns` browser
+and `internal/output` TOON.
 Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest` and run
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
+`discover` is tested against a fake browser and hand-built mDNS packets.
 The output layer keeps ordered view fields and sorts raw API object keys.
 API JSON numbers use Go's float64 precision.
 
