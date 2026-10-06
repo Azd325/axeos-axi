@@ -184,8 +184,8 @@ Without `--confirm` the command sends no write request. It prints `sent: false`,
 its `body`, one `settings` row for each named setting with its present value and its new value,
 the effect and, as `execute`, the command line that performs the change. HTTP 200 is success for
 the confirmed call: the command prints `sent: true` and, in `help`, the command line that sets
-the previous values again. Each printed command line has the form `--flag=value`, which the
-command also accepts for a value that starts with `-`.
+the previous values again. Each pool flag in a printed command line has the form
+`--flag=value`, which the command also accepts for a value that starts with `-`.
 
 The pool user can identify the owner. By default a `settings` row for a user prints `set` as the
 present and as the new value, with `changes`, and the `body` and `execute` print a placeholder.
