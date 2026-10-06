@@ -48,6 +48,7 @@ func TestProtocolErrorsAreSanitized(t *testing.T) {
 		{"invalid JSON", "private-identifier", "invalid JSON", 200},
 		{"null JSON", "null", "invalid JSON", 200},
 		{"bad status", "private-identifier", "HTTP 503", 503},
+		{"not found", "private-identifier", "HTTP 404 for info", 404},
 		{"oversized", strings.Repeat("x", (4<<20)+1), "4 MiB", 200},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -13,6 +13,7 @@ bin/axeos-axi
 bin/axeos-axi info
 bin/axeos-axi asic
 bin/axeos-axi stats
+bin/axeos-axi firmware
 bin/axeos-axi discover
 ```
 
@@ -20,9 +21,9 @@ bin/axeos-axi discover
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds. Redirects are refused.
-This version sends only GET requests to `/api/system/info`, `/api/system/asic` and
-`/api/system/statistics`, and mDNS queries from `discover`; it has no commands that
-change the miner.
+This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
+`/api/system/statistics` and `/api/system/firmware/checksum`, and mDNS queries from
+`discover`; it has no commands that change the miner.
 
 | Command | Default view |
 | --- | --- |
@@ -30,6 +31,7 @@ change the miner.
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
+| `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -64,6 +66,7 @@ comma-separated selection, preserving the requested order. Select the view names
 listed in command help or exact top-level JSON field names from the
 [AxeOS API](https://github.com/bitaxeorg/ESP-Miner/blob/master/main/http_server/openapi.yaml).
 `asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
+`firmware` accepts its checksum-response fields;
 `discover` accepts only the view names in its help.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
@@ -89,6 +92,9 @@ Statistics timestamps are milliseconds since miner boot, not wall-clock dates.
 reports zero recorded samples when enabled logging has no data. Extra sample history
 is available only through explicit field selection; it is not dumped by default.
 An empty-state explanation remains present with `--fields`.
+`firmware` sends one request, to the checksum path only. Its `sha256` is lowercase hex and
+matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
+HTTP 404; the command then reports `not_supported` with exit code 1.
 
 ## Development
 
@@ -97,6 +103,7 @@ point, `internal/app` commands, `internal/axeos` API client, `internal/mdns` bro
 and `internal/output` TOON.
 Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest` and run
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
+The firmware checksum fixture is written from the API schema, not recorded.
 `discover` is tested against a fake browser and hand-built mDNS packets.
 The output layer keeps ordered view fields and sorts raw API object keys.
 API JSON numbers use Go's float64 precision.

@@ -115,6 +115,13 @@ func asicView(m map[string]any) output.Object {
 	}
 }
 
+func firmwareView(m map[string]any) output.Object {
+	return output.Object{
+		{Name: "partition", Value: m["partition"]}, {Name: "version", Value: m["version"]},
+		{Name: "size_bytes", Value: m["size"]}, {Name: "sha256", Value: m["sha256"]},
+	}
+}
+
 func statsView(info, stats map[string]any) (output.Object, error) {
 	frequency, frequencyOK := number(info, "statsFrequency")
 	if frequencyOK && frequency == 0 {
@@ -171,6 +178,8 @@ func viewNames(command string) string {
 		fields = infoView(nil)
 	case "asic":
 		fields = asicView(nil)
+	case "firmware":
+		fields = firmwareView(nil)
 	case "stats":
 		fields, _ = statsView(map[string]any{"statsFrequency": float64(120)}, map[string]any{"labels": []any{"timestamp"}, "statistics": []any{[]any{float64(0)}}})
 	default:
@@ -194,6 +203,8 @@ func exampleFields(command string) string {
 		return "frequency_mhz,core_voltage_actual_mv"
 	case "stats":
 		return "sample_count,power_w"
+	case "firmware":
+		return "version,sha256"
 	default:
 		return "hashrate,temperature,power_w"
 	}

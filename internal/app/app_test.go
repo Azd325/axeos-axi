@@ -27,7 +27,7 @@ func fixture(t *testing.T, name string) map[string]any {
 
 func miner(t *testing.T, info map[string]any) (string, func() []string) {
 	t.Helper()
-	responses := map[string]map[string]any{"info": info, "asic": fixture(t, "asic"), "statistics": fixture(t, "statistics")}
+	responses := map[string]map[string]any{"info": info, "asic": fixture(t, "asic"), "statistics": fixture(t, "statistics"), "firmware/checksum": fixture(t, "firmware_checksum")}
 	var mu sync.Mutex
 	var requests []string
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +71,7 @@ func TestRecordedViews(t *testing.T) {
 		{"info", "board: \"601\"", []string{"GET /api/system/info"}},
 		{"asic", "device_model: Gamma", []string{"GET /api/system/info", "GET /api/system/asic"}},
 		{"stats", "sample_count: 3", []string{"GET /api/system/info", "GET /api/system/statistics"}},
+		{"firmware", "partition: ota_1\nversion: v2.15.3\nsize_bytes: 1638400\nsha256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n", []string{"GET /api/system/firmware/checksum"}},
 	} {
 		t.Run(tc.command, func(t *testing.T) {
 			host, calls := miner(t, fixture(t, "info"))
@@ -100,7 +101,7 @@ func TestRecordedViews(t *testing.T) {
 						t.Errorf("missing %s", field)
 					}
 				}
-				if !strings.Contains(out, "--host '"+host+"'") {
+				if !strings.Contains(out, "axeos-axi firmware --host '"+host+"'") {
 					t.Fatal("home help lost explicit target")
 				}
 			}
@@ -162,7 +163,7 @@ func TestHelpAndVersionOffline(t *testing.T) {
 			t.Fatalf("%s: %d %s", flag, code, out)
 		}
 	}
-	for _, command := range []string{"", "info", "asic", "stats"} {
+	for _, command := range []string{"", "info", "asic", "stats", "firmware"} {
 		args := []string{"--help"}
 		if command != "" {
 			args = append([]string{command}, args...)
@@ -185,6 +186,36 @@ func TestMissingHostAndUnreachable(t *testing.T) {
 	code, out = execute(t, New(func(string) string { return host }), "info")
 	if code != 1 || !strings.Contains(out, "miner unreachable") || strings.Contains(out, host) {
 		t.Fatal(out)
+	}
+}
+
+func TestFirmwareChecksum(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	code, out := execute(t, New(func(string) string { return host }), "firmware", "--fields", "sha256,size")
+	if code != 0 || out != "sha256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\nsize: 1638400\n" {
+		t.Fatalf("%d %s", code, out)
+	}
+	var requests []string
+	old := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer old.Close()
+	code, out = execute(t, New(func(string) string { return old.URL }), "firmware")
+	if code != 1 || !strings.Contains(out, "code: not_supported") || !strings.Contains(out, "not supported by this firmware") || !strings.Contains(out, "axeos-axi info --host '"+old.URL+"'") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if strings.Join(requests, ",") != "GET /api/system/firmware/checksum" {
+		t.Fatal(requests)
+	}
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer failing.Close()
+	code, out = execute(t, New(func(string) string { return failing.URL }), "firmware")
+	if code != 1 || !strings.Contains(out, "code: miner_read_failed") || !strings.Contains(out, "HTTP 500") {
+		t.Fatalf("%d %s", code, out)
 	}
 }
 
