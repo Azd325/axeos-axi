@@ -409,8 +409,15 @@ func TestPoolWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"axeos-axi info --host '"+host+"' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows") || strings.Contains(out, "private-identifier") || strings.Contains(out, "example-worker") {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
+			if !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --url='pool.example.org' --confirm sets the previous values again\"\n") {
+				t.Fatalf("no command for the previous values\n%s", out)
+			}
 			if calls() != poolRead+","+sentPools(sentPool(primaryPool, "new.example.org", 3333, "example-worker")) {
 				t.Fatalf("requests=%s", calls())
+			}
+			code, out = execute(t, New(func(string) string { return host }), "pool", "--fallback-user", "other-worker", "--show-user", "--confirm")
+			if code != 1 || !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --fallback-user='example-worker' --show-user --confirm sets the previous values again\"\n") {
+				t.Fatalf("code=%d\n%s", code, out)
 			}
 		})
 	}

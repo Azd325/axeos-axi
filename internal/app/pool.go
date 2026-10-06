@@ -202,21 +202,22 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		return write(stdout, fields)
 	}
 	verify := "axeos-axi info --host " + hostArg + " --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the stored URL and port of each pool; stratumUser and fallbackStratumUser show the users"
+	previous := revert + " --confirm sets the previous values again"
 	err = client.PatchPools(ctx, records)
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
 		return failure(stdout, 1, "pool_not_sent", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
 	case errors.Is(err, axeos.ErrNoAnswer):
-		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; read them before another write")
+		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; read them before another write; "+previous)
 	case err != nil:
-		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify)
+		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify+"; "+previous)
 	}
 	return write(stdout, append(fields,
 		output.Field{Name: "result", Value: "the miner accepted the request; " + poolEffect},
 		output.Field{Name: "help", Value: []any{
 			verify,
 			"axeos-axi restart --host " + hostArg + " for a preview of the restart that makes the miner use the stored values",
-			revert + " --confirm sets the previous values again",
+			previous,
 		}},
 	))
 }

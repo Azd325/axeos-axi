@@ -214,7 +214,9 @@ A failed read is `miner_read_failed`. Each failed write states whether the reque
 `pool_not_sent`, `pool_unconfirmed` when the miner closed the connection or did not answer in
 four seconds, and `pool_failed` when the miner answered a status other than 200, such as 400
 for a rejected record or 401 for a client outside the allowed network range. The firmware
-checks each record before it stores one. The command does not repeat the request;
+checks each record before it stores one. When the request was sent, `help` also has the command
+line that sets the previous values again; a user is in it only with `--show-user`. The command
+does not repeat the request;
 `info --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` shows the stored
 values after the change.
 
