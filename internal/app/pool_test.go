@@ -313,9 +313,9 @@ func TestPoolRefusalsSendNoWrite(t *testing.T) {
 		{"present URL with a scheme", "code: not_reversible\n  message: \"the present URL of the primary pool is not a host name or an address of 1 to 255 bytes, without a scheme, a port or a space, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) {
 			pools[0]["stratumURL"] = "stratum+tcp://pool.example.org"
 		}, []string{"--url", "new.example.org"}},
-		{"present URL in brackets with a port", "code: not_reversible\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumURL"] = "[2001:db8::10]:3333" }, []string{"--port", "4444"}},
+		{"present URL in brackets with a port", "code: not_reversible\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumURL"] = "[2001:db8::10]:3333" }, []string{"--url", "new.example.org"}},
 		{"present port outside the range", "code: not_reversible\n  message: \"the present port of the fallback pool is not a whole number from 1 to 65535, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) { pools[1]["stratumPort"] = float64(0) }, []string{"--fallback-port", "4444"}},
-		{"present user that is empty and not named", "code: not_reversible\n  message: \"the present user of the primary pool is not a value of 1 to 255 bytes, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumUser"] = "" }, []string{"--port", "4444"}},
+		{"present user that is empty", "code: not_reversible\n  message: \"the present user of the primary pool is not a value of 1 to 255 bytes, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumUser"] = "" }, []string{"--user", "other-worker", "--show-user"}},
 	} {
 		for _, confirm := range []bool{false, true} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -333,6 +333,20 @@ func TestPoolRefusalsSendNoWrite(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestPoolSendsBackAnUnnamedSettingOutsideItsRuleAsRead(t *testing.T) {
+	host, calls := poolMiner(t, func(_ map[string]any, pools []map[string]any) {
+		pools[0]["stratumURL"] = "stratum+tcp://pool.example.org"
+		pools[0]["stratumUser"] = ""
+	}, settingsSaved)
+	code, out := execute(t, New(func(string) string { return host }), "pool", "--port", "4444", "--confirm")
+	if code != 0 || !strings.Contains(out, "sent: true\n") || !strings.Contains(out, "--port=3333 --confirm sets the previous values again") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	if calls() != poolRead+","+sentPools(sentPool(primaryPool, "stratum+tcp://pool.example.org", 4444, "")) {
+		t.Fatalf("requests=%s", calls())
 	}
 }
 

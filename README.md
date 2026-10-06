@@ -206,8 +206,10 @@ without that list is not traced;
 `no_pool_in_slot` when the slot of a named pool has no pool, because the command cannot remove
 a pool again;
 `present_value_unknown` when the miner reports no URL, port or user for a named pool; and
-`not_reversible` when the present URL, port or user of a named pool is outside the rule of its
-flag, because the command could not set that value again.
+`not_reversible` when the present value of a named setting is outside the rule of its flag,
+because the command could not set that value again. A setting that the call does not name goes
+back to the miner as read, also when it is outside the rule; the firmware answers 400 for an
+empty text, and the command then reports `pool_failed`.
 A failed read is `miner_read_failed`. Each failed write states whether the request was sent:
 `pool_not_sent`, `pool_unconfirmed` when the miner closed the connection or did not answer in
 four seconds, and `pool_failed` when the miner answered a status other than 200, such as 400

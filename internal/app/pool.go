@@ -159,12 +159,12 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 			if !known {
 				return failure(stdout, 1, "present_value_unknown", "the miner reports no present "+s.label+" for the "+role.name+" pool; the write is refused", configuration)
 			}
-			if !accepted {
-				return failure(stdout, 1, "not_reversible", "the present "+s.label+" of the "+role.name+" pool is not "+poolValueRules[s.field]+", so this tool cannot set it again; the write is refused", configuration)
-			}
 			value, named := opts.pool[s.flag]
 			if !named {
 				continue
+			}
+			if !accepted {
+				return failure(stdout, 1, "not_reversible", "the present "+s.label+" of the "+role.name+" pool is not "+poolValueRules[s.field]+", so this tool cannot set it again; the write is refused", configuration)
 			}
 			next[s.field] = value
 			changes := old != value
