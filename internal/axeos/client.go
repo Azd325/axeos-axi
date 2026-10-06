@@ -8,8 +8,10 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,6 +25,8 @@ var (
 	ErrHost         = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
 	ErrNotFound     = errors.New("miner returned HTTP 404")
 	ErrRootRedirect = errors.New("miner returned HTTP 302")
+	ErrNotSent      = errors.New("the request was not sent")
+	ErrNoAnswer     = errors.New("the request was sent, but the miner closed the connection or did not answer in time")
 	errInvalidJSON  = errors.New("miner returned invalid JSON; check AxeOS API compatibility")
 	errNotText      = errors.New("miner returned a response that is not plain text; check AxeOS API compatibility")
 )
@@ -93,6 +97,33 @@ func (c *Client) GetText(ctx context.Context, endpoint string) (string, error) {
 		return "", errNotText
 	}
 	return string(body), nil
+}
+
+// The firmware answers HTTP 200 before it restarts (POST_restart in ESP-Miner main/http_server/http_server.c):
+// JSON from v2.13.0, plain text before, so the body is not read.
+func (c *Client) Post(ctx context.Context, endpoint string) error {
+	if endpoint != "restart" {
+		return errors.New("unsupported write endpoint")
+	}
+	// WroteRequest can fire after Do returns, so an established connection counts as sent.
+	var sent atomic.Bool
+	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { sent.Store(true) }}
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodPost, c.base+"/api/system/"+endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("cannot create miner request; %w", ErrNotSent)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		if sent.Load() {
+			return ErrNoAnswer
+		}
+		return fmt.Errorf("miner unreachable or request timed out; %w", ErrNotSent)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("the request was sent; miner returned HTTP %d for %s", resp.StatusCode, endpoint)
+	}
+	return nil
 }
 
 func (c *Client) read(ctx context.Context, endpoint string, data any) error {

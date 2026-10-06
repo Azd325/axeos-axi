@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -223,4 +224,44 @@ func TestBodyReadFailureIsNotTheSizeLimit(t *testing.T) {
 	stall = true
 	_, err = c.GetText(context.Background(), "logs")
 	check("timed out text", err)
+}
+
+func TestWriteAllowlistAndUnansweredRequest(t *testing.T) {
+	var requests atomic.Int32
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if r.Method != http.MethodPost || r.URL.RequestURI() != "/api/system/restart" {
+			t.Errorf("request=%s %s", r.Method, r.URL.RequestURI())
+		}
+		<-r.Context().Done()
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, endpoint := range []string{"info", "asic", "statistics", "firmware/checksum", "scoreboard", "logs", "pause", "OTA", "restart?x=1", ""} {
+		if err := c.Post(context.Background(), endpoint); err == nil {
+			t.Errorf("unapproved write endpoint %q", endpoint)
+		}
+	}
+	if _, err := c.Get(context.Background(), "restart"); err == nil {
+		t.Fatal("restart accepted as a read endpoint")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := c.Post(ctx, "restart"); !errors.Is(err, ErrNotSent) {
+		t.Fatalf("cancelled before the connection: %v", err)
+	}
+	if requests.Load() != 0 {
+		t.Fatalf("requests=%d", requests.Load())
+	}
+	c.http.Timeout = 25 * time.Millisecond
+	start := time.Now()
+	if err := c.Post(context.Background(), "restart"); !errors.Is(err, ErrNoAnswer) || time.Since(start) > time.Second {
+		t.Fatalf("unanswered request: %v", err)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("requests=%d", requests.Load())
+	}
 }

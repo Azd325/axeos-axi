@@ -1,6 +1,7 @@
 # axeos-axi
 
-A read-only, agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
+An agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
+It reads a miner and has one command that changes it: `restart`.
 This is an independent tool, not affiliated with the Bitaxe project.
 The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
@@ -17,15 +18,17 @@ bin/axeos-axi firmware
 bin/axeos-axi scoreboard
 bin/axeos-axi logs
 bin/axeos-axi discover
+bin/axeos-axi restart
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
-This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
+The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`; it has no commands that change the miner.
+`/api/system/logs`, and mDNS queries from `discover`. `restart` is the one command that changes
+the miner: with `--confirm` it sends one POST request to `/api/system/restart`.
 
 | Command | Default view |
 | --- | --- |
@@ -37,6 +40,7 @@ This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
+| `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
@@ -63,6 +67,29 @@ from the TXT records of the advertisement and are `null` when a miner does not s
 suffix and is absent from default output. mDNS stays inside one network segment, and firmware
 that does not register the `_axeos` subtype is not found.
 
+## Restart
+
+`restart` changes the miner: the miner restarts and stops hashing until it is up again.
+It takes one miner, through `--host` or `AXEOS_HOST`, and no `--fields`.
+
+```sh
+bin/axeos-axi restart --host 192.0.2.10
+bin/axeos-axi restart --host 192.0.2.10 --confirm
+```
+
+Without `--confirm` the command sends no request. It prints `sent: false`, the host, the
+request, the effect and, as `execute`, the command line that performs the restart.
+With `--confirm` it sends exactly one request, `POST /api/system/restart`, without a query or
+a body and with no read before or after it. The miner answers before it restarts.
+HTTP 200 is success: the command prints `sent: true` and exits with code 0. Firmware v2.13.0
+and newer answers JSON and older firmware answers plain text; the command does not read the body.
+Each other outcome is an error with exit code 1 that states whether the request was sent:
+`restart_not_sent` when no connection to the miner was made, `restart_unconfirmed` when the
+miner closed the connection or did not answer in four seconds, and `restart_failed` when the
+miner answered a status other than 200, such as 401 for a client outside the allowed
+network range. The command does not repeat the request and does not wait for the miner to
+come up again; `info` shows `uptime_s` and `reset_reason` after the restart.
+
 ## Fields, units and privacy
 
 Default views are deliberately small. `--fields` replaces the data fields with a
@@ -73,7 +100,7 @@ listed in command help or exact top-level JSON field names from the
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
-`logs` does not take `--fields`.
+`logs` and `restart` do not take `--fields`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 

@@ -1,5 +1,5 @@
 {
-  description = "Agent-ergonomic read-only AxeOS miner CLI";
+  description = "Agent-ergonomic AxeOS miner CLI";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";

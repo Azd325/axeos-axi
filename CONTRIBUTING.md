@@ -11,5 +11,5 @@ The same checks run in CI: offline tests, `go vet` and `golangci-lint`.
 Use only sanitized fixtures. Replace hostnames, network addresses, MACs, Wi-Fi names,
 stratum users and Bitcoin addresses, including nested pool/coinbase data and scriptsig.
 Use documentation addresses such as `192.0.2.10` in examples.
-Never send write requests in tests or live verification of this read-only surface.
+Never send a write request to a real miner in tests or live verification; tests send writes to `httptest` only.
 Keep live checks manual and out of CI. Do not publish their unsanitized output.
