@@ -310,7 +310,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(bin, home+string(filepath.Separator)) {
 			bin = "~" + strings.TrimPrefix(bin, home)
 		}
-		fields = append(output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read an AxeOS Bitcoin miner from a predictable command line"}}, fields...)
+		fields = append(output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}, fields...)
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{
