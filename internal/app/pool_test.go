@@ -79,7 +79,7 @@ func printedBody(rows ...string) string {
 
 type poolCase struct {
 	name, body, rows, private, command, revert, write string
-	hiddenUserChanges                                 bool
+	hiddenUser                                        bool
 	args                                              []string
 }
 
@@ -89,8 +89,8 @@ var poolCases = []poolCase{
 		body:    printedBody(printedRow(primaryPool, "new.example.org", 3333, "<not printed>")),
 		rows:    "settings[1]{setting,present,new,changes}:\n  url,pool.example.org,new.example.org,true\n",
 		private: poolPrivate,
-		command: "--url 'new.example.org'",
-		revert:  "--url 'pool.example.org'",
+		command: "--url='new.example.org'",
+		revert:  "--url='pool.example.org'",
 		write:   sentPools(sentPool(primaryPool, "new.example.org", 3333, "example-worker")),
 		args:    []string{"pool", "--url", "new.example.org"},
 	},
@@ -99,27 +99,27 @@ var poolCases = []poolCase{
 		body:    printedBody(printedRow(primaryPool, "pool.example.org", 4444, "<not printed>"), printedRow(fallbackPool, "fallback.example.org", 5555, "<not printed>")),
 		rows:    "settings[2]{setting,present,new,changes}:\n  port,3333,4444,true\n  fallback_port,3333,5555,true\n",
 		private: poolPrivate,
-		command: "--port 4444 --fallback-port 5555",
-		revert:  "--port 3333 --fallback-port 3333",
+		command: "--port=4444 --fallback-port=5555",
+		revert:  "--port=3333 --fallback-port=3333",
 		write:   sentPools(sentPool(primaryPool, "pool.example.org", 4444, "example-worker"), sentPool(fallbackPool, "fallback.example.org", 5555, "example-worker")),
 		args:    []string{"--fallback-port=5555", "pool", "--port", "4444"},
 	},
 	{
-		name:              "user that is not printed",
-		body:              printedBody(printedRow(primaryPool, "pool.example.org", 3333, "<not printed>")),
-		rows:              "settings[1]{setting,present,new,changes}:\n  user,set,set,true\n",
-		private:           poolPrivate,
-		command:           "--user <user>",
-		write:             sentPools(sentPool(primaryPool, "pool.example.org", 3333, "other-worker")),
-		hiddenUserChanges: true,
-		args:              []string{"pool", "--user", "other-worker"},
+		name:       "user that is not printed",
+		body:       printedBody(printedRow(primaryPool, "pool.example.org", 3333, "<not printed>")),
+		rows:       "settings[1]{setting,present,new,changes}:\n  user,set,set,true\n",
+		private:    poolPrivate,
+		command:    "--user=<user> --show-user",
+		write:      sentPools(sentPool(primaryPool, "pool.example.org", 3333, "other-worker")),
+		hiddenUser: true,
+		args:       []string{"pool", "--user", "other-worker"},
 	},
 	{
 		name:    "user that is printed",
 		body:    printedBody(printedRow(fallbackPool, "fallback.example.org", 3333, "other-worker")),
 		rows:    "settings[1]{setting,present,new,changes}:\n  fallback_user,example-worker,other-worker,true\n",
-		command: "--fallback-user 'other-worker' --show-user",
-		revert:  "--fallback-user 'example-worker' --show-user",
+		command: "--fallback-user='other-worker' --show-user",
+		revert:  "--fallback-user='example-worker' --show-user",
 		write:   sentPools(sentPool(fallbackPool, "fallback.example.org", 3333, "other-worker")),
 		args:    []string{"pool", "--show-user", "--fallback-user=other-worker"},
 	},
@@ -128,8 +128,8 @@ var poolCases = []poolCase{
 		body:    printedBody(printedRow(fallbackPool, "fallback.example.org", 4444, "<not printed>")),
 		rows:    "settings[2]{setting,present,new,changes}:\n  fallback_url,fallback.example.org,fallback.example.org,false\n  fallback_port,3333,4444,true\n",
 		private: poolPrivate,
-		command: "--fallback-url 'fallback.example.org' --fallback-port 4444",
-		revert:  "--fallback-url 'fallback.example.org' --fallback-port 3333",
+		command: "--fallback-url='fallback.example.org' --fallback-port=4444",
+		revert:  "--fallback-url='fallback.example.org' --fallback-port=3333",
 		write:   sentPools(sentPool(fallbackPool, "fallback.example.org", 4444, "example-worker")),
 		args:    []string{"pool", "--fallback-port", "4444", "--fallback-url", "fallback.example.org"},
 	},
@@ -137,8 +137,8 @@ var poolCases = []poolCase{
 		name:    "pool with no changed value is in the body",
 		body:    printedBody(printedRow(primaryPool, "pool.example.org", 3333, "example-worker"), printedRow(fallbackPool, "other.example.org", 3333, "example-worker")),
 		rows:    "settings[3]{setting,present,new,changes}:\n  url,pool.example.org,pool.example.org,false\n  user,example-worker,example-worker,false\n  fallback_url,fallback.example.org,other.example.org,true\n",
-		command: "--url 'pool.example.org' --user 'example-worker' --fallback-url 'other.example.org' --show-user",
-		revert:  "--url 'pool.example.org' --user 'example-worker' --fallback-url 'fallback.example.org' --show-user",
+		command: "--url='pool.example.org' --user='example-worker' --fallback-url='other.example.org' --show-user",
+		revert:  "--url='pool.example.org' --user='example-worker' --fallback-url='fallback.example.org' --show-user",
 		write:   sentPools(sentPool(primaryPool, "pool.example.org", 3333, "example-worker"), sentPool(fallbackPool, "other.example.org", 3333, "example-worker")),
 		args:    []string{"pool", "--url", "pool.example.org", "--user", "example-worker", "--fallback-url", "other.example.org", "--show-user"},
 	},
@@ -152,8 +152,8 @@ func TestPoolWithoutConfirmSendsNoWrite(t *testing.T) {
 			want := "host: \"" + host + "\"\n" + tc.body + "sent: false\n" + tc.rows + tc.private +
 				"effect: " + poolEffects + "\n" +
 				"execute: \"axeos-axi pool --host '" + host + "' " + tc.command + " --confirm\"\n"
-			if tc.hiddenUserChanges {
-				want += "help[1]: add --show-user to this preview and record the present pool user before --confirm; the miner does not report it after the change\n"
+			if tc.hiddenUser {
+				want += "help[1]: \"a confirmed change of a pool user needs --show-user, so the execute command has it; replace <user> with the new user\"\n"
 			}
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
@@ -167,7 +167,7 @@ func TestPoolWithoutConfirmSendsNoWrite(t *testing.T) {
 
 func TestPoolWithConfirmSendsOneWriteWithTheCompleteRecord(t *testing.T) {
 	for _, tc := range poolCases {
-		if tc.hiddenUserChanges {
+		if tc.hiddenUser {
 			continue
 		}
 		t.Run(tc.name, func(t *testing.T) {
@@ -274,6 +274,27 @@ func TestPoolConfirmedUserChangeWithoutShowUserSendsNothing(t *testing.T) {
 	}
 }
 
+func TestPoolPrintedCommandsAreAcceptedForAValueThatStartsWithADash(t *testing.T) {
+	host, calls := poolMiner(t, func(_ map[string]any, pools []map[string]any) { pools[0]["stratumUser"] = "-worker" }, settingsSaved)
+	a := New(func(string) string { return host })
+	code, out := execute(t, a, "pool", "--user=-other", "--show-user")
+	if code != 0 || !strings.Contains(out, "execute: \"axeos-axi pool --host '"+host+"' --user='-other' --show-user --confirm\"\n") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	code, out = execute(t, a, "pool", "--user=-other", "--show-user", "--confirm")
+	if code != 0 || !strings.Contains(out, "\"axeos-axi pool --host '"+host+"' --user='-worker' --show-user --confirm sets the previous values again\"") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	code, out = execute(t, a, "pool", "--user=-worker", "--show-user", "--confirm")
+	if code != 0 || !strings.Contains(out, "sent: true\n") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	write := sentPools(sentPool(primaryPool, "pool.example.org", 3333, "-other"))
+	if calls() != poolRead+","+poolRead+","+write+","+poolRead+","+sentPools(sentPool(primaryPool, "pool.example.org", 3333, "-worker")) {
+		t.Fatalf("requests=%s", calls())
+	}
+}
+
 func TestPoolRefusalsSendNoWrite(t *testing.T) {
 	for _, tc := range []struct {
 		name, want string
@@ -292,6 +313,7 @@ func TestPoolRefusalsSendNoWrite(t *testing.T) {
 		{"present URL with a scheme", "code: not_reversible\n  message: \"the present URL of the primary pool is not a host name or an address of 1 to 255 bytes, without a scheme, a port or a space, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) {
 			pools[0]["stratumURL"] = "stratum+tcp://pool.example.org"
 		}, []string{"--url", "new.example.org"}},
+		{"present URL in brackets with a port", "code: not_reversible\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumURL"] = "[2001:db8::10]:3333" }, []string{"--port", "4444"}},
 		{"present port outside the range", "code: not_reversible\n  message: \"the present port of the fallback pool is not a whole number from 1 to 65535, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) { pools[1]["stratumPort"] = float64(0) }, []string{"--fallback-port", "4444"}},
 		{"present user that is empty and not named", "code: not_reversible\n  message: \"the present user of the primary pool is not a value of 1 to 255 bytes, so this tool cannot set it again; the write is refused\"\n", func(_ map[string]any, pools []map[string]any) { pools[0]["stratumUser"] = "" }, []string{"--port", "4444"}},
 	} {
@@ -387,7 +409,7 @@ func TestPoolRejectsInputBeforeNetwork(t *testing.T) {
 	for _, args := range [][]string{
 		{"pool"}, {"pool", "--confirm"}, {"pool", "--show-user"}, {"--show-user", "--confirm", "pool"},
 		{"pool", "--url"}, {"pool", "--url", "--confirm"}, {"pool", "--url="}, {"pool", "--url", " "},
-		{"pool", "--url", "stratum+tcp://pool.example.org"}, {"pool", "--url", "stratum+tcp://pool.example.org:3333"}, {"pool", "--url", "pool.example.org:3333"}, {"pool", "--url", "pool example.org"}, {"pool", "--url", long},
+		{"pool", "--url", "stratum+tcp://pool.example.org"}, {"pool", "--url", "stratum+tcp://pool.example.org:3333"}, {"pool", "--url", "pool.example.org:3333"}, {"pool", "--url", "[2001:db8::10]:3333"}, {"pool", "--url", "[2001:db8::10]"}, {"pool", "--url", "pool example.org"}, {"pool", "--url", long},
 		{"pool", "--fallback-url", "stratum+ssl://pool.example.org"}, {"pool", "--fallback-url", "pool.example.org:3333"},
 		{"pool", "--port", "0"}, {"pool", "--port", "65536"}, {"pool", "--port", "33.3"}, {"pool", "--port", "stratum"}, {"pool", "--port=-1"}, {"pool", "--fallback-port", "70000"},
 		{"pool", "--user="}, {"pool", "--user", long}, {"pool", "--fallback-user", long},

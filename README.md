@@ -163,7 +163,7 @@ bin/axeos-axi pool --host 192.0.2.10 --fallback-user example-worker --show-user 
 A call with none of these flags, with one of them given more than once, or with a value outside
 its rule is a usage error with exit code 2 and sends no request. Firmware v2.15.3 also stores a
 URL with a scheme such as `stratum+tcp://` or with a port, and the miner cannot connect to it;
-the command refuses both.
+the command refuses both, also an address in brackets such as `[2001:db8::10]:3333`.
 
 Firmware v2.15.3 keeps the pools as a list `pools` of at most 8 slots. `primaryPoolIndex` and
 `secondaryPoolIndex` name the slot of the primary pool and of the fallback pool. The firmware
@@ -184,14 +184,16 @@ Without `--confirm` the command sends no write request. It prints `sent: false`,
 its `body`, one `settings` row for each named setting with its present value and its new value,
 the effect and, as `execute`, the command line that performs the change. HTTP 200 is success for
 the confirmed call: the command prints `sent: true` and, in `help`, the command line that sets
-the previous values again.
+the previous values again. Each printed command line has the form `--flag=value`, which the
+command also accepts for a value that starts with `-`.
 
 The pool user can identify the owner. By default a `settings` row for a user prints `set` as the
-present and as the new value, with `changes`, and the `body`, `execute` and the command line in
-`help` print a placeholder. `--show-user` prints each user. The miner does not report the previous
-user after a change. With `--confirm`, a call that names `--user` or `--fallback-user` without
-`--show-user` is therefore a usage error with exit code 2 and sends no request. With `--show-user`
-the confirmed result prints the previous user in the command line that sets it again.
+present and as the new value, with `changes`, and the `body` and `execute` print a placeholder.
+`--show-user` prints each user. The miner does not report the previous user after a change. With
+`--confirm`, a call that names `--user` or `--fallback-user` without `--show-user` is therefore a
+usage error with exit code 2 and sends no request. The `execute` line of a preview that names a
+user without `--show-user` has `--show-user`, and `help` says so. With `--show-user` the
+confirmed result prints the previous user in the command line that sets it again.
 The command cannot set a password and never prints one. The miner reports each password as
 `*****`, and a record with that value keeps the stored password, so each write sends it. The
 pool certificate is carried in the request and printed as `<not printed>`.

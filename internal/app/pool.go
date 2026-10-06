@@ -76,7 +76,7 @@ func poolValue(field string, v any) (known, accepted bool) {
 	s, ok := v.(string)
 	accepted = ok && s != "" && len(s) <= maxPoolTextBytes
 	if field == "stratumURL" {
-		accepted = accepted && !strings.Contains(s, "://") && strings.Count(s, ":") != 1 && !strings.ContainsFunc(s, unicode.IsSpace)
+		accepted = accepted && !strings.Contains(s, "://") && !strings.HasPrefix(s, "[") && strings.Count(s, ":") != 1 && !strings.ContainsFunc(s, unicode.IsSpace)
 	}
 	return ok, accepted
 }
@@ -141,7 +141,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	var records []map[string]any
 	var printed, rows []any
 	execute, revert := command, command
-	hiddenUserChanges := false
+	hiddenUser := false
 	for _, role := range poolRoles {
 		if !slices.ContainsFunc(role.settings, func(s poolSetting) bool { _, named := opts.pool[s.flag]; return named }) {
 			continue
@@ -171,11 +171,11 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 			presentCell, newCell, argument := old, value, poolArgument(value)
 			if s.field == "stratumUser" && !opts.showUser {
 				presentCell, newCell, argument = "set", "set", "<user>"
-				hiddenUserChanges = hiddenUserChanges || changes
+				hiddenUser = true
 			}
 			rows = append(rows, output.Object{{Name: "setting", Value: s.view}, {Name: "present", Value: presentCell}, {Name: "new", Value: newCell}, {Name: "changes", Value: changes}})
-			execute += " " + s.flag + " " + argument
-			revert += " " + s.flag + " " + poolArgument(old)
+			execute += " " + s.flag + "=" + argument
+			revert += " " + s.flag + "=" + poolArgument(old)
 		}
 		records = append(records, next)
 		printed = append(printed, printedPool(next, opts.showUser))
@@ -187,16 +187,17 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		{Name: "sent", Value: opts.confirm},
 		{Name: "settings", Value: rows},
 	}
-	if opts.showUser {
+	if opts.showUser || hiddenUser {
 		execute += " --show-user"
 		revert += " --show-user"
-	} else {
+	}
+	if !opts.showUser {
 		fields = append(fields, output.Field{Name: "private", Value: "the pool user is not printed; --show-user prints it"})
 	}
 	if !opts.confirm {
 		fields = append(fields, output.Field{Name: "effect", Value: poolEffect}, output.Field{Name: "execute", Value: execute + " --confirm"})
-		if hiddenUserChanges {
-			fields = append(fields, output.Field{Name: "help", Value: []any{"add --show-user to this preview and record the present pool user before --confirm; the miner does not report it after the change"}})
+		if hiddenUser {
+			fields = append(fields, output.Field{Name: "help", Value: []any{"a confirmed change of a pool user needs --show-user, so the execute command has it; replace <user> with the new user"}})
 		}
 		return write(stdout, fields)
 	}
