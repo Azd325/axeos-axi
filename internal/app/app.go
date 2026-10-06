@@ -19,7 +19,7 @@ import (
 
 const commonFlags = "--fields, --help, -v, -V, --version"
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "discover"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "discover"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -146,6 +146,13 @@ func failure(w io.Writer, exit int, code, message, help string) int {
 	return exit
 }
 
+func optionalReadFailure(w io.Writer, err error, subject, host string) int {
+	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
+		return failure(w, 1, "not_supported", subject+" is not supported by this firmware", "axeos-axi info --host "+shellQuote(host)+" shows the firmware version")
+	}
+	return failure(w, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+}
+
 func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	opts, err := parse(args)
 	if err != nil {
@@ -173,6 +180,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if err != nil {
 		return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
 	}
+	if opts.command == "scoreboard" {
+		return scoreboard(ctx, client, opts, stdout)
+	}
 	var info map[string]any
 	if opts.command != "firmware" {
 		info, err = client.Get(ctx, "info")
@@ -185,11 +195,8 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	switch opts.command {
 	case "firmware":
 		checksum, readErr := client.Get(ctx, "firmware/checksum")
-		if errors.Is(readErr, axeos.ErrNotFound) || errors.Is(readErr, axeos.ErrRootRedirect) {
-			return failure(stdout, 1, "not_supported", "firmware checksum is not supported by this firmware", "axeos-axi info --host "+shellQuote(opts.host)+" shows the firmware version")
-		}
 		if readErr != nil {
-			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check --host or AXEOS_HOST and local network connectivity")
+			return optionalReadFailure(stdout, readErr, "firmware checksum", opts.host)
 		}
 		raw = checksum
 		fields = firmwareView(checksum)
@@ -267,6 +274,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi asic --host " + hostArg + " for hardware and tuning",
 			"axeos-axi stats --host " + hostArg + " for recorded statistics",
 			"axeos-axi firmware --host " + hostArg + " for the running firmware checksum",
+			"axeos-axi scoreboard --host " + hostArg + " for the best-difficulty shares",
 			"axeos-axi discover to find AxeOS miners on the local network",
 		}})
 	}
@@ -283,7 +291,7 @@ func help(command string) output.Object {
 	if label == "" {
 		label = "home"
 	}
-	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin"}
+	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {

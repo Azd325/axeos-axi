@@ -14,6 +14,7 @@ bin/axeos-axi info
 bin/axeos-axi asic
 bin/axeos-axi stats
 bin/axeos-axi firmware
+bin/axeos-axi scoreboard
 bin/axeos-axi discover
 ```
 
@@ -22,8 +23,8 @@ Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accept
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds. Redirects are refused.
 This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
-`/api/system/statistics` and `/api/system/firmware/checksum`, and mDNS queries from
-`discover`; it has no commands that change the miner.
+`/api/system/statistics`, `/api/system/firmware/checksum` and `/api/system/scoreboard`,
+and mDNS queries from `discover`; it has no commands that change the miner.
 
 | Command | Default view |
 | --- | --- |
@@ -32,6 +33,7 @@ This version sends only GET requests to `/api/system/info`, `/api/system/asic`,
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
+| `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -67,6 +69,7 @@ listed in command help or exact top-level JSON field names from the
 [AxeOS API](https://github.com/bitaxeorg/ESP-Miner/blob/master/main/http_server/openapi.yaml).
 `asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
 `firmware` accepts its checksum-response fields;
+`scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
@@ -76,6 +79,7 @@ bin/axeos-axi --host 192.0.2.10 --fields hashrate,temperature,power_w
 bin/axeos-axi info --fields firmware,board,heap_free_bytes
 bin/axeos-axi asic --fields frequencyOptions,voltageOptions
 bin/axeos-axi stats --fields labels,statistics
+bin/axeos-axi scoreboard --fields rank,difficulty,job_id,nonce
 bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 ```
 
@@ -96,6 +100,13 @@ An empty-state explanation remains present with `--fields`.
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
 reports `not_supported` with exit code 1 and does not follow the redirect.
+`scoreboard` sends one request, to the scoreboard path only. The miner keeps at most 20 shares,
+sorted by difficulty, and keeps them across restarts. `rank` is the position in that list;
+the API does not send it. `ntime` is the block-header time of the share in Unix seconds.
+`job_id`, `extranonce2`, `nonce` and `version_bits` are the proof fields of the share; they
+identify neither the owner nor the network and appear only through `--fields`.
+Zero shares is a definitive result with exit code 0. Firmware without the path gives
+`not_supported`, by the same rule as `firmware`.
 
 ## Development
 
@@ -104,7 +115,7 @@ point, `internal/app` commands, `internal/axeos` API client, `internal/mdns` bro
 and `internal/output` TOON.
 Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest` and run
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
-The firmware checksum fixture is written from the API schema, not recorded.
+The firmware checksum and scoreboard fixtures are written from the API schema, not recorded.
 `discover` is tested against a fake browser and hand-built mDNS packets.
 The output layer keeps ordered view fields and sorts raw API object keys.
 API JSON numbers use Go's float64 precision.

@@ -109,4 +109,36 @@ func TestBoundedTimeoutAndCancellation(t *testing.T) {
 	if _, err = c.Get(context.Background(), "reboot"); err == nil {
 		t.Fatal("unapproved endpoint")
 	}
+	if _, err = c.GetList(context.Background(), "info"); err == nil {
+		t.Fatal("unapproved list endpoint")
+	}
+}
+
+func TestListRead(t *testing.T) {
+	body := ""
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/system/scoreboard" {
+			t.Errorf("request=%s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		body  string
+		count int
+		fails bool
+	}{{`[{"difficulty":5},{"difficulty":3}]`, 2, false}, {"[]", 0, false}, {"null", 0, true}, {`{"difficulty":5}`, 0, true}, {"private-identifier", 0, true}} {
+		body = tc.body
+		list, err := c.GetList(context.Background(), "scoreboard")
+		if (err != nil) != tc.fails || len(list) != tc.count || (err == nil && list == nil) {
+			t.Errorf("body=%s list=%v error=%v", tc.body, list, err)
+		}
+		if err != nil && (!strings.Contains(err.Error(), "invalid JSON") || strings.Contains(err.Error(), "private-identifier")) {
+			t.Errorf("error=%v", err)
+		}
+	}
 }

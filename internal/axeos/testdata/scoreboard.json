@@ -1,0 +1,26 @@
+[
+  {
+    "difficulty": 42896578860.4,
+    "job_id": "6a1f03",
+    "extranonce2": "0000002a",
+    "ntime": 1759000000,
+    "nonce": "1A2B3C4D",
+    "version_bits": "0034C000"
+  },
+  {
+    "difficulty": 634703787.2,
+    "job_id": "6a2b10",
+    "extranonce2": "00000107",
+    "ntime": 1759100000,
+    "nonce": "00FFAA10",
+    "version_bits": "1FFFE000"
+  },
+  {
+    "difficulty": 9120344.5,
+    "job_id": "6a2c44",
+    "extranonce2": "00000003",
+    "ntime": 1759200000,
+    "nonce": "DEADBEEF",
+    "version_bits": "00000000"
+  }
+]

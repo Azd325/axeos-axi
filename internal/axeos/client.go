@@ -18,6 +18,7 @@ var (
 	ErrHost         = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
 	ErrNotFound     = errors.New("miner returned HTTP 404")
 	ErrRootRedirect = errors.New("miner returned HTTP 302")
+	errInvalidJSON  = errors.New("miner returned invalid JSON; check AxeOS API compatibility")
 )
 
 type Client struct {
@@ -45,32 +46,56 @@ func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, erro
 	default:
 		return nil, errors.New("unsupported read endpoint")
 	}
+	var data map[string]any
+	if err := c.read(ctx, endpoint, &data); err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, errInvalidJSON
+	}
+	return data, nil
+}
+
+func (c *Client) GetList(ctx context.Context, endpoint string) ([]any, error) {
+	if endpoint != "scoreboard" {
+		return nil, errors.New("unsupported read endpoint")
+	}
+	var data []any
+	if err := c.read(ctx, endpoint, &data); err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, errInvalidJSON
+	}
+	return data, nil
+}
+
+func (c *Client) read(ctx context.Context, endpoint string, data any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/system/"+endpoint, nil)
 	if err != nil {
-		return nil, errors.New("cannot create miner request")
+		return errors.New("cannot create miner request")
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, errors.New("miner unreachable or request timed out; check the host and network")
+		return errors.New("miner unreachable or request timed out; check the host and network")
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("%w for %s", ErrNotFound, endpoint)
+		return fmt.Errorf("%w for %s", ErrNotFound, endpoint)
 	}
 	if resp.StatusCode == http.StatusFound && resp.Header.Get("Location") == "/" {
-		return nil, fmt.Errorf("%w for %s", ErrRootRedirect, endpoint)
+		return fmt.Errorf("%w for %s", ErrRootRedirect, endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("miner returned HTTP %d for %s", resp.StatusCode, endpoint)
+		return fmt.Errorf("miner returned HTTP %d for %s", resp.StatusCode, endpoint)
 	}
 	const maxBytes = 4 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil || len(body) > maxBytes {
-		return nil, errors.New("cannot read miner response within the 4 MiB limit")
+		return errors.New("cannot read miner response within the 4 MiB limit")
 	}
-	var data map[string]any
-	if err := json.Unmarshal(body, &data); err != nil || data == nil {
-		return nil, errors.New("miner returned invalid JSON; check AxeOS API compatibility")
+	if err := json.Unmarshal(body, data); err != nil {
+		return errInvalidJSON
 	}
-	return data, nil
+	return nil
 }
