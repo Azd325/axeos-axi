@@ -22,7 +22,7 @@ const (
 	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -32,6 +32,8 @@ func validFlags(command string) string {
 		return "--timeout, --fields, " + universalFlags
 	case "logs":
 		return "--host, --lines, " + universalFlags
+	case "restart":
+		return "--host, --confirm, " + universalFlags
 	}
 	return "--host, --fields, " + universalFlags
 }
@@ -51,10 +53,10 @@ func New(getenv func(string) string) *App {
 }
 
 type options struct {
-	command, host  string
-	timeout, lines int
-	fields         []string
-	help, version  bool
+	command, host          string
+	timeout, lines         int
+	fields                 []string
+	help, version, confirm bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
@@ -122,13 +124,19 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version":
+		case "--help", "-v", "-V", "--version", "--confirm":
 			if assigned {
 				fail("%s does not accept a value", flag)
 				continue
 			}
-			opts.help = opts.help || flag == "--help"
-			opts.version = opts.version || flag != "--help"
+			switch flag {
+			case "--help":
+				opts.help = true
+			case "--confirm":
+				opts.confirm = true
+			default:
+				opts.version = true
+			}
 		default:
 			if strings.HasPrefix(arg, "-") {
 				fail("unknown flag %s", flag)
@@ -152,6 +160,12 @@ func parse(args []string) (options, error) {
 	}
 	if opts.command == "logs" && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")
+	}
+	if opts.command != "restart" && opts.confirm {
+		return opts, errors.New("unknown flag --confirm; it is a flag of `restart` only")
+	}
+	if opts.command == "restart" && fieldsSet {
+		return opts, errors.New("unknown flag --fields for `restart`; it prints a fixed result")
 	}
 	return opts, first
 }
@@ -209,6 +223,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "logs" {
 		return logs(ctx, client, opts, stdout)
+	}
+	if opts.command == "restart" {
+		return restart(ctx, client, opts, stdout)
 	}
 	var info map[string]any
 	if opts.command != "firmware" {
@@ -293,7 +310,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(bin, home+string(filepath.Separator)) {
 			bin = "~" + strings.TrimPrefix(bin, home)
 		}
-		fields = append(output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read an AxeOS Bitcoin miner from a predictable command line"}}, fields...)
+		fields = append(output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}, fields...)
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{
@@ -304,6 +321,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi scoreboard --host " + hostArg + " for the best-difficulty shares",
 			"axeos-axi logs --host " + hostArg + " for the log line count and size",
 			"axeos-axi discover to find AxeOS miners on the local network",
+			"axeos-axi restart --host " + hostArg + " for a preview of a miner restart; it sends no request without --confirm",
 		}})
 	}
 	return write(stdout, fields)
@@ -318,6 +336,9 @@ func help(command string) output.Object {
 	if command == "logs" {
 		return logsHelp()
 	}
+	if command == "restart" {
+		return restartHelp()
+	}
 	label := command
 	if label == "" {
 		label = "home"
@@ -326,7 +347,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart changes the miner and sends no request without --confirm"})
 	}
 	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{

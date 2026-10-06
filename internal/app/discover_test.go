@@ -148,7 +148,7 @@ func TestDiscoverIsNamedWhereAHostIsNeeded(t *testing.T) {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	code, out = execute(t, a, "--help")
-	if code != 0 || !strings.Contains(out, "commands: \"info, asic, stats, firmware, scoreboard, logs, discover; ") {
+	if code != 0 || !strings.Contains(out, "commands: \"info, asic, stats, firmware, scoreboard, logs, discover, restart; ") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if len(browser.calls) != 0 {
