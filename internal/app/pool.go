@@ -22,6 +22,7 @@ const (
 	// the stratum task reads it only when it opens a connection (stratum_v1_task in main/tasks/stratum_v1_task.c).
 	poolEffect       = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
 	poolUsage        = "pool requires one or more of --url, --port, --user, --fallback-url, --fallback-port and --fallback-user"
+	poolUserUsage    = " with --confirm requires --show-user; the miner does not report the previous pool user after the change, so the result must print it in the command that sets it again"
 	poolNotPrinted   = "<not printed>"
 	maxPoolTextBytes = 255
 )
@@ -152,7 +153,6 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		}
 		next := maps.Clone(present)
 		next["stratumPassword"] = axeos.KeepPassword
-		changed := false
 		for _, s := range role.settings {
 			old := present[s.field]
 			known, accepted := poolValue(s.field, old)
@@ -168,28 +168,17 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 			}
 			next[s.field] = value
 			changes := old != value
-			changed = changed || changes
-			presentCell, newCell, argument, previous := old, value, poolArgument(value), poolArgument(old)
+			presentCell, newCell, argument := old, value, poolArgument(value)
 			if s.field == "stratumUser" && !opts.showUser {
-				presentCell, newCell, argument, previous = "set", "set", "<user>", "<previous user>"
+				presentCell, newCell, argument = "set", "set", "<user>"
 				hiddenUserChanges = hiddenUserChanges || changes
 			}
 			rows = append(rows, output.Object{{Name: "setting", Value: s.view}, {Name: "present", Value: presentCell}, {Name: "new", Value: newCell}, {Name: "changes", Value: changes}})
 			execute += " " + s.flag + " " + argument
-			revert += " " + s.flag + " " + previous
+			revert += " " + s.flag + " " + poolArgument(old)
 		}
-		if changed {
-			records = append(records, next)
-			printed = append(printed, printedPool(next, opts.showUser))
-		}
-	}
-	if len(records) == 0 {
-		return write(stdout, output.Object{
-			{Name: "host", Value: opts.host},
-			{Name: "sent", Value: false},
-			{Name: "settings", Value: rows},
-			{Name: "result", Value: "each new value equals the present value; the command sends no write request"},
-		})
+		records = append(records, next)
+		printed = append(printed, printedPool(next, opts.showUser))
 	}
 	fields := output.Object{
 		{Name: "host", Value: opts.host},
@@ -234,7 +223,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 func poolHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "pool"},
-		{Name: "description", Value: "Changes the miner: sets the URL, the port or the user of the primary pool and of the fallback pool; " + poolEffect + "; each call reads the present pool configuration with GET /api/system/info; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + poolRequest + "; the firmware replaces the whole record of a pool, so the body carries the complete record that was read, with the named settings replaced and with the password value that keeps the stored password; a pool with no changed value is not in the body, and when no value changes the command sends no write request; the command cannot set a password and does not restart the miner"},
+		{Name: "description", Value: "Changes the miner: sets the URL, the port or the user of the primary pool and of the fallback pool; " + poolEffect + "; each call reads the present pool configuration with GET /api/system/info; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + poolRequest + "; the firmware replaces the whole record of a pool, so the body carries the complete record that was read, with the named settings replaced and with the password value that keeps the stored password; the body carries each pool with a named setting, also when a new value equals the present value; with --confirm, --user and --fallback-user require --show-user, because the miner does not report the previous user after the change; the command cannot set a password and does not restart the miner"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
 			{Name: "url", Value: "--url <host>; primary pool; " + poolValueRules["stratumURL"]},
@@ -243,7 +232,7 @@ func poolHelp() output.Object {
 			{Name: "fallback_url", Value: "--fallback-url <host>; fallback pool; same rule as --url"},
 			{Name: "fallback_port", Value: "--fallback-port <port>; fallback pool; same rule as --port"},
 			{Name: "fallback_user", Value: "--fallback-user <user>; fallback pool; same rule as --user"},
-			{Name: "show_user", Value: "--show-user; prints each pool user; default prints the word set in place of a pool user"},
+			{Name: "show_user", Value: "--show-user; prints each pool user; default prints the word set in place of a pool user; required with --confirm when --user or --fallback-user is named"},
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},

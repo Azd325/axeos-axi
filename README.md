@@ -174,7 +174,8 @@ its default. The command therefore reads the record and sends it back complete:
 2. For each pool with a named setting, the command copies the record that the miner reported
    and replaces the named settings.
 3. With `--confirm` it sends exactly one request, `PATCH /api/system`, with the body
-   `{"pools":[...]}`. The body carries each record that has a changed value, complete.
+   `{"pools":[...]}`. The body carries the complete record of each pool with a named setting,
+   also when a new value equals the present value.
 
 The values between the read and the write are not locked. When a second client changes a field
 of the same pool after the read, the write sets that field back to the value that was read.
@@ -183,14 +184,14 @@ Without `--confirm` the command sends no write request. It prints `sent: false`,
 its `body`, one `settings` row for each named setting with its present value and its new value,
 the effect and, as `execute`, the command line that performs the change. HTTP 200 is success for
 the confirmed call: the command prints `sent: true` and, in `help`, the command line that sets
-the previous values again. When each new value equals the present value, the command prints
-`sent: false` and that result, sends no write request, also with `--confirm`, and exits with
-code 0. A pool with no changed value is not in the body.
+the previous values again.
 
 The pool user can identify the owner. By default a `settings` row for a user prints `set` as the
 present and as the new value, with `changes`, and the `body`, `execute` and the command line in
 `help` print a placeholder. `--show-user` prints each user. The miner does not report the previous
-user after a change: run the preview with `--show-user` and record the user before `--confirm`.
+user after a change. With `--confirm`, a call that names `--user` or `--fallback-user` without
+`--show-user` is therefore a usage error with exit code 2 and sends no request. With `--show-user`
+the confirmed result prints the previous user in the command line that sets it again.
 The command cannot set a password and never prints one. The miner reports each password as
 `*****`, and a record with that value keeps the stored password, so each write sends it. The
 pool certificate is carried in the request and printed as `<not printed>`.

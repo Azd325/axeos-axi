@@ -110,7 +110,6 @@ var poolCases = []poolCase{
 		rows:              "settings[1]{setting,present,new,changes}:\n  user,set,set,true\n",
 		private:           poolPrivate,
 		command:           "--user <user>",
-		revert:            "--user <previous user>",
 		write:             sentPools(sentPool(primaryPool, "pool.example.org", 3333, "other-worker")),
 		hiddenUserChanges: true,
 		args:              []string{"pool", "--user", "other-worker"},
@@ -135,14 +134,13 @@ var poolCases = []poolCase{
 		args:    []string{"pool", "--fallback-port", "4444", "--fallback-url", "fallback.example.org"},
 	},
 	{
-		name:    "pool with no changed value is not in the body",
-		body:    printedBody(printedRow(fallbackPool, "other.example.org", 3333, "<not printed>")),
-		rows:    "settings[3]{setting,present,new,changes}:\n  url,pool.example.org,pool.example.org,false\n  user,set,set,false\n  fallback_url,fallback.example.org,other.example.org,true\n",
-		private: poolPrivate,
-		command: "--url 'pool.example.org' --user <user> --fallback-url 'other.example.org'",
-		revert:  "--url 'pool.example.org' --user <previous user> --fallback-url 'fallback.example.org'",
-		write:   sentPools(sentPool(fallbackPool, "other.example.org", 3333, "example-worker")),
-		args:    []string{"pool", "--url", "pool.example.org", "--user", "example-worker", "--fallback-url", "other.example.org"},
+		name:    "pool with no changed value is in the body",
+		body:    printedBody(printedRow(primaryPool, "pool.example.org", 3333, "example-worker"), printedRow(fallbackPool, "other.example.org", 3333, "example-worker")),
+		rows:    "settings[3]{setting,present,new,changes}:\n  url,pool.example.org,pool.example.org,false\n  user,example-worker,example-worker,false\n  fallback_url,fallback.example.org,other.example.org,true\n",
+		command: "--url 'pool.example.org' --user 'example-worker' --fallback-url 'other.example.org' --show-user",
+		revert:  "--url 'pool.example.org' --user 'example-worker' --fallback-url 'fallback.example.org' --show-user",
+		write:   sentPools(sentPool(primaryPool, "pool.example.org", 3333, "example-worker"), sentPool(fallbackPool, "other.example.org", 3333, "example-worker")),
+		args:    []string{"pool", "--url", "pool.example.org", "--user", "example-worker", "--fallback-url", "other.example.org", "--show-user"},
 	},
 }
 
@@ -169,9 +167,12 @@ func TestPoolWithoutConfirmSendsNoWrite(t *testing.T) {
 
 func TestPoolWithConfirmSendsOneWriteWithTheCompleteRecord(t *testing.T) {
 	for _, tc := range poolCases {
+		if tc.hiddenUserChanges {
+			continue
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := poolMiner(t, nil, settingsSaved)
-			code, out := execute(t, New(func(string) string { return host }), append(tc.args, "--confirm")...)
+			code, out := execute(t, New(func(string) string { return host }), append(slices.Clone(tc.args), "--confirm")...)
 			want := "host: \"" + host + "\"\n" + tc.body + "sent: true\n" + tc.rows + tc.private +
 				"result: the miner accepted the request; " + poolEffects + "\n" +
 				"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the stored URL and port of each pool; stratumUser and fallbackStratumUser show the users\"," +
@@ -192,7 +193,7 @@ func TestPoolPrintsNoUserWithoutShowUser(t *testing.T) {
 		host, _ := poolMiner(t, nil, settingsSaved)
 		args := []string{"pool", "--user", "other-worker", "--fallback-url", "other.example.org"}
 		if confirm {
-			args = append(args, "--confirm")
+			args = []string{"pool", "--fallback-url", "other.example.org", "--confirm"}
 		}
 		code, out := execute(t, New(func(string) string { return host }), args...)
 		if code != 0 || strings.Contains(out, "example-worker") || strings.Contains(out, "other-worker") {
@@ -227,32 +228,49 @@ func TestPoolSendsBackEachUnnamedFieldOfTheRecord(t *testing.T) {
 	}
 }
 
-func TestPoolWithNoChangeSendsNoWrite(t *testing.T) {
+func TestPoolWithNoChangeSendsOneWriteWithEachNamedPool(t *testing.T) {
 	for _, tc := range []struct {
-		name, rows string
-		args       []string
+		name, rows, write string
+		args              []string
 	}{
-		{"one value", "settings[1]{setting,present,new,changes}:\n  fallback_port,3333,3333,false\n", []string{"pool", "--fallback-port", "3333"}},
-		{"each value of each pool", "settings[6]{setting,present,new,changes}:\n  url,pool.example.org,pool.example.org,false\n  port,3333,3333,false\n  user,set,set,false\n  fallback_url,fallback.example.org,fallback.example.org,false\n  fallback_port,3333,3333,false\n  fallback_user,set,set,false\n",
-			[]string{"pool", "--url", "pool.example.org", "--port", "3333", "--user", "example-worker", "--fallback-url", "fallback.example.org", "--fallback-port", "3333", "--fallback-user", "example-worker"}},
+		{"one value", "settings[1]{setting,present,new,changes}:\n  fallback_port,3333,3333,false\n", sentPools(sentPool(fallbackPool, "fallback.example.org", 3333, "example-worker")), []string{"pool", "--fallback-port", "3333"}},
+		{"each value of each pool", "settings[6]{setting,present,new,changes}:\n  url,pool.example.org,pool.example.org,false\n  port,3333,3333,false\n  user,example-worker,example-worker,false\n  fallback_url,fallback.example.org,fallback.example.org,false\n  fallback_port,3333,3333,false\n  fallback_user,example-worker,example-worker,false\n",
+			sentPools(sentPool(primaryPool, "pool.example.org", 3333, "example-worker"), sentPool(fallbackPool, "fallback.example.org", 3333, "example-worker")),
+			[]string{"pool", "--show-user", "--url", "pool.example.org", "--port", "3333", "--user", "example-worker", "--fallback-url", "fallback.example.org", "--fallback-port", "3333", "--fallback-user", "example-worker"}},
 	} {
 		for _, confirm := range []bool{false, true} {
 			t.Run(tc.name, func(t *testing.T) {
 				host, calls := poolMiner(t, nil, settingsSaved)
-				args := tc.args
+				args, sent, requests := tc.args, "sent: false\n", poolRead
 				if confirm {
-					args = append(slices.Clone(args), "--confirm")
+					args, sent, requests = append(slices.Clone(args), "--confirm"), "sent: true\n", poolRead+","+tc.write
 				}
 				code, out := execute(t, New(func(string) string { return host }), args...)
-				want := "host: \"" + host + "\"\nsent: false\n" + tc.rows + "result: each new value equals the present value; the command sends no write request\n"
-				if code != 0 || out != want {
-					t.Fatalf("args=%v code=%d\n%s\nwant\n%s", args, code, out, want)
+				if code != 0 || !strings.Contains(out, "request: PATCH /api/system\n") || !strings.Contains(out, sent+tc.rows) {
+					t.Fatalf("args=%v code=%d\n%s", args, code, out)
 				}
-				if calls() != poolRead {
+				if calls() != requests {
 					t.Fatalf("requests=%s", calls())
 				}
 			})
 		}
+	}
+}
+
+func TestPoolConfirmedUserChangeWithoutShowUserSendsNothing(t *testing.T) {
+	host, calls := poolMiner(t, nil, settingsSaved)
+	a := New(func(string) string { return host })
+	for flag, args := range map[string][]string{
+		"--user":          {"pool", "--user", "other-worker", "--confirm"},
+		"--fallback-user": {"--confirm", "pool", "--url", "new.example.org", "--fallback-user=other-worker"},
+	} {
+		code, out := execute(t, a, args...)
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, flag+" with --confirm requires --show-user") || strings.Contains(out, "other-worker") || strings.Contains(out, "example-worker") {
+			t.Errorf("args=%v code=%d out=%s", args, code, out)
+		}
+	}
+	if calls() != "" {
+		t.Fatalf("requests=%s", calls())
 	}
 }
 
@@ -420,7 +438,7 @@ func TestPoolRejectsInputBeforeNetwork(t *testing.T) {
 func TestPoolAcceptsTheLimitsOfEachValue(t *testing.T) {
 	host, calls := poolMiner(t, nil, settingsSaved)
 	longest := strings.Repeat("a", 255)
-	code, out := execute(t, New(func(string) string { return host }), "pool", "--url", "2001:db8::10", "--port", "65535", "--user="+longest, "--fallback-url", longest, "--fallback-port", "1", "--confirm")
+	code, out := execute(t, New(func(string) string { return host }), "pool", "--url", "2001:db8::10", "--port", "65535", "--user="+longest, "--fallback-url", longest, "--fallback-port", "1", "--show-user", "--confirm")
 	if code != 0 || !strings.Contains(out, "sent: true\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}

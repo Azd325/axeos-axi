@@ -222,6 +222,13 @@ func parse(args []string) (options, error) {
 	if first == nil && opts.command == "pool" && len(poolFlags) == 0 && !opts.help && !opts.version {
 		return opts, errors.New(poolUsage)
 	}
+	if first == nil && opts.confirm && !opts.showUser && !opts.help && !opts.version {
+		for _, flag := range poolFlags {
+			if field, _ := poolFlagField(flag); field == "stratumUser" {
+				return opts, errors.New(flag + poolUserUsage)
+			}
+		}
+	}
 	return opts, first
 }
 
