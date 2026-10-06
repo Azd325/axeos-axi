@@ -2,7 +2,7 @@
 
 A read-only, agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
 This is an independent tool, not affiliated with the Bitaxe project.
-The [vision](VISION.md) records the agreed interface and ten proposals for review.
+The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
 ## Build and use
 
