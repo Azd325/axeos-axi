@@ -23,7 +23,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 
 ## Writes are previewed and confirmed
 
-- A state-changing command without the confirmation flag sends nothing and prints the present value and the new value.
+- A state-changing command without the confirmation flag sends no state-changing request; it may read the present value to show it, and it prints the present value and the new value.
 - With the confirmation flag it sends exactly one request for each miner; the flag is valid in the first call.
 - A write can name several miners as an explicit list, and the preview lists each miner with its present value; a write to every discovered miner is refused.
 - Restart, tuning (frequency and core voltage) and pool configuration are accepted writes.
