@@ -22,7 +22,7 @@ const (
 	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -34,6 +34,8 @@ func validFlags(command string) string {
 		return "--host, --lines, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
+	case "tuning":
+		return "--host, --frequency, --core-voltage, --confirm, " + universalFlags
 	}
 	return "--host, --fields, " + universalFlags
 }
@@ -56,13 +58,14 @@ type options struct {
 	command, host          string
 	timeout, lines         int
 	fields                 []string
+	tuning                 map[string]int
 	help, version, confirm bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
 // to report the valid flags of the right command.
 func parse(args []string) (options, error) {
-	opts := options{timeout: defaultDiscoverTimeout}
+	opts := options{timeout: defaultDiscoverTimeout, tuning: map[string]int{}}
 	var first error
 	fail := func(format string, a ...any) {
 		if first == nil {
@@ -70,13 +73,20 @@ func parse(args []string) (options, error) {
 		}
 	}
 	hostSet, timeoutSet, fieldsSet, linesSet := false, false, false, false
+	var tuningFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines":
+		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage":
 			if flag == "--host" && hostSet {
 				fail("--host was given more than once; a command takes one miner")
+			}
+			if slices.Contains(tuningFlags, flag) {
+				fail("%s was given more than once", flag)
+			}
+			if isTuningFlag(flag) {
+				tuningFlags = append(tuningFlags, flag)
 			}
 			hostSet = hostSet || flag == "--host"
 			timeoutSet = timeoutSet || flag == "--timeout"
@@ -104,6 +114,13 @@ func parse(args []string) (options, error) {
 					continue
 				}
 				opts.timeout = seconds
+			case "--frequency", "--core-voltage":
+				number, err := strconv.Atoi(value)
+				if err != nil || number < 1 {
+					fail("%s requires a whole number from 1", flag)
+					continue
+				}
+				opts.tuning[flag] = number
 			case "--lines":
 				opts.lines = allLogLines
 				if value != "all" {
@@ -164,11 +181,18 @@ func parse(args []string) (options, error) {
 	if opts.command == "logs" && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")
 	}
-	if opts.command != "restart" && opts.confirm {
-		return opts, errors.New("unknown flag --confirm; it is a flag of `restart` only")
+	writes := opts.command == "restart" || opts.command == "tuning"
+	if !writes && opts.confirm {
+		return opts, errors.New("unknown flag --confirm; it is a flag of `restart` and `tuning` only")
 	}
-	if opts.command == "restart" && fieldsSet {
-		return opts, errors.New("unknown flag --fields for `restart`; it prints a fixed result")
+	if writes && fieldsSet {
+		return opts, errors.New("unknown flag --fields for `" + opts.command + "`; it prints a fixed result")
+	}
+	if opts.command != "tuning" && len(tuningFlags) != 0 {
+		return opts, errors.New("unknown flag " + tuningFlags[0] + "; it is a flag of `tuning` only")
+	}
+	if first == nil && opts.command == "tuning" && len(tuningFlags) == 0 && !opts.help && !opts.version {
+		return opts, errors.New(tuningUsage)
 	}
 	return opts, first
 }
@@ -229,6 +253,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "restart" {
 		return restart(ctx, client, opts, stdout)
+	}
+	if opts.command == "tuning" {
+		return tuning(ctx, client, opts, stdout)
 	}
 	var info map[string]any
 	if opts.command != "firmware" {
@@ -325,6 +352,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi logs --host " + hostArg + " for the log line count and size",
 			"axeos-axi discover to find AxeOS miners on the local network",
 			"axeos-axi restart --host " + hostArg + " for a preview of a miner restart; it sends no request without --confirm",
+			"axeos-axi tuning --host " + hostArg + " --frequency <MHz> --core-voltage <mV> for a preview of a tuning change; it sends no write request without --confirm",
 		}})
 	}
 	return write(stdout, fields)
@@ -342,6 +370,9 @@ func help(command string) output.Object {
 	if command == "restart" {
 		return restartHelp()
 	}
+	if command == "tuning" {
+		return tuningHelp()
+	}
 	label := command
 	if label == "" {
 		label = "home"
@@ -350,7 +381,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart changes the miner and sends no request without --confirm"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart and tuning change the miner and send no write request without --confirm"})
 	}
 	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{

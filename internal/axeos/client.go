@@ -1,6 +1,7 @@
 package axeos
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -108,12 +109,41 @@ func (c *Client) Post(ctx context.Context, endpoint string) error {
 	if endpoint != "restart" {
 		return errors.New("unsupported write endpoint")
 	}
+	return c.send(ctx, http.MethodPost, "/"+endpoint, nil, endpoint)
+}
+
+// The firmware writes only the keys of the body and answers HTTP 200 with an empty body
+// (PATCH_update_settings in ESP-Miner main/http_server/http_server.c).
+func (c *Client) Patch(ctx context.Context, settings map[string]int) error {
+	if len(settings) == 0 {
+		return errors.New("unsupported write setting")
+	}
+	for name := range settings {
+		if name != "frequency" && name != "coreVoltage" {
+			return errors.New("unsupported write setting")
+		}
+	}
+	body, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("cannot create miner request; %w", ErrNotSent)
+	}
+	return c.send(ctx, http.MethodPatch, "", body, "settings")
+}
+
+func (c *Client) send(ctx context.Context, method, path string, body []byte, subject string) error {
 	// WroteRequest can fire after Do returns, so an established connection counts as sent.
 	var sent atomic.Bool
 	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) { sent.Store(true) }}
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), http.MethodPost, c.base+"/api/system/"+endpoint, nil)
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, c.base+"/api/system"+path, reader)
 	if err != nil {
 		return fmt.Errorf("cannot create miner request; %w", ErrNotSent)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -124,7 +154,7 @@ func (c *Client) Post(ctx context.Context, endpoint string) error {
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("the request was sent; miner returned HTTP %d for %s", resp.StatusCode, endpoint)
+		return fmt.Errorf("the request was sent; miner returned HTTP %d for %s", resp.StatusCode, subject)
 	}
 	return nil
 }
