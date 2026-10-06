@@ -22,7 +22,7 @@ const (
 	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning", "pool"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -36,6 +36,8 @@ func validFlags(command string) string {
 		return "--host, --confirm, " + universalFlags
 	case "tuning":
 		return "--host, --frequency, --core-voltage, --confirm, " + universalFlags
+	case "pool":
+		return "--host, --url, --port, --user, --fallback-url, --fallback-port, --fallback-user, --show-user, --confirm, " + universalFlags
 	}
 	return "--host, --fields, " + universalFlags
 }
@@ -59,13 +61,15 @@ type options struct {
 	timeout, lines         int
 	fields                 []string
 	tuning                 map[string]int
+	pool                   map[string]any
 	help, version, confirm bool
+	showUser               bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
 // to report the valid flags of the right command.
 func parse(args []string) (options, error) {
-	opts := options{timeout: defaultDiscoverTimeout, tuning: map[string]int{}}
+	opts := options{timeout: defaultDiscoverTimeout, tuning: map[string]int{}, pool: map[string]any{}}
 	var first error
 	fail := func(format string, a ...any) {
 		if first == nil {
@@ -73,20 +77,24 @@ func parse(args []string) (options, error) {
 		}
 	}
 	hostSet, timeoutSet, fieldsSet, linesSet := false, false, false, false
-	var tuningFlags []string
+	var tuningFlags, poolFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage":
+		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user":
 			if flag == "--host" && hostSet {
 				fail("--host was given more than once; a command takes one miner")
 			}
-			if slices.Contains(tuningFlags, flag) {
+			if slices.Contains(tuningFlags, flag) || slices.Contains(poolFlags, flag) {
 				fail("%s was given more than once", flag)
 			}
 			if isTuningFlag(flag) {
 				tuningFlags = append(tuningFlags, flag)
+			}
+			poolField, isPoolFlag := poolFlagField(flag)
+			if isPoolFlag {
+				poolFlags = append(poolFlags, flag)
 			}
 			hostSet = hostSet || flag == "--host"
 			timeoutSet = timeoutSet || flag == "--timeout"
@@ -102,6 +110,15 @@ func parse(args []string) (options, error) {
 			}
 			if strings.TrimSpace(value) == "" {
 				fail("%s requires a non-empty value", flag)
+				continue
+			}
+			if isPoolFlag {
+				parsed, accepted := poolFlagValue(poolField, value)
+				if !accepted {
+					fail("%s requires %s", flag, poolValueRules[poolField])
+					continue
+				}
+				opts.pool[flag] = parsed
 				continue
 			}
 			switch flag {
@@ -144,7 +161,7 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version", "--confirm":
+		case "--help", "-v", "-V", "--version", "--confirm", "--show-user":
 			if assigned {
 				fail("%s does not accept a value", flag)
 				continue
@@ -154,6 +171,8 @@ func parse(args []string) (options, error) {
 				opts.help = true
 			case "--confirm":
 				opts.confirm = true
+			case "--show-user":
+				opts.showUser = true
 			default:
 				opts.version = true
 			}
@@ -181,9 +200,9 @@ func parse(args []string) (options, error) {
 	if opts.command == "logs" && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")
 	}
-	writes := opts.command == "restart" || opts.command == "tuning"
+	writes := opts.command == "restart" || opts.command == "tuning" || opts.command == "pool"
 	if !writes && opts.confirm {
-		return opts, errors.New("unknown flag --confirm; it is a flag of `restart` and `tuning` only")
+		return opts, errors.New("unknown flag --confirm; it is a flag of `restart`, `tuning` and `pool` only")
 	}
 	if writes && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `" + opts.command + "`; it prints a fixed result")
@@ -193,6 +212,22 @@ func parse(args []string) (options, error) {
 	}
 	if first == nil && opts.command == "tuning" && len(tuningFlags) == 0 && !opts.help && !opts.version {
 		return opts, errors.New(tuningUsage)
+	}
+	if opts.command != "pool" && len(poolFlags) != 0 {
+		return opts, errors.New("unknown flag " + poolFlags[0] + "; it is a flag of `pool` only")
+	}
+	if opts.command != "pool" && opts.showUser {
+		return opts, errors.New("unknown flag --show-user; it is a flag of `pool` only")
+	}
+	if first == nil && opts.command == "pool" && len(poolFlags) == 0 && !opts.help && !opts.version {
+		return opts, errors.New(poolUsage)
+	}
+	if first == nil && opts.confirm && !opts.showUser && !opts.help && !opts.version {
+		for _, flag := range poolFlags {
+			if field, _ := poolFlagField(flag); field == "stratumUser" {
+				return opts, errors.New(flag + poolUserUsage)
+			}
+		}
 	}
 	return opts, first
 }
@@ -256,6 +291,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "tuning" {
 		return tuning(ctx, client, opts, stdout)
+	}
+	if opts.command == "pool" {
+		return pool(ctx, client, opts, stdout)
 	}
 	var info map[string]any
 	if opts.command != "firmware" {
@@ -353,6 +391,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi discover to find AxeOS miners on the local network",
 			"axeos-axi restart --host " + hostArg + " for a preview of a miner restart; it sends no request without --confirm",
 			"axeos-axi tuning --host " + hostArg + " --frequency <MHz> --core-voltage <mV> for a preview of a tuning change; it sends no write request without --confirm",
+			"axeos-axi pool --host " + hostArg + " --url <host> --port <port> --user <user> for a preview of a pool change; it sends no write request without --confirm",
 		}})
 	}
 	return write(stdout, fields)
@@ -373,6 +412,9 @@ func help(command string) output.Object {
 	if command == "tuning" {
 		return tuningHelp()
 	}
+	if command == "pool" {
+		return poolHelp()
+	}
 	label := command
 	if label == "" {
 		label = "home"
@@ -381,7 +423,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart and tuning change the miner and send no write request without --confirm"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm"})
 	}
 	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{
