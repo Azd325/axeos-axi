@@ -17,7 +17,7 @@ It is an independent tool, not affiliated with the Bitaxe project.
 - Small default schemas expose extra fields only through explicit `--fields` selection.
 - Empty results are definitive; useful aggregate state avoids follow-up reads.
 - Every command provides concise `--help`; `-v`, `-V` and `--version` return the version.
-- Private identifiers (pool user, Wi-Fi name and MAC) do not appear in default output.
+- Private identifiers (pool user, Wi-Fi name and MAC) do not appear in default output, except in the log lines that `logs` prints as the miner wrote them.
 - A later state-changing command shows its effect first and requires an explicit confirmation flag.
 - Firmware update is excluded.
 - The tool operates on the local network only and collects no telemetry.

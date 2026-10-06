@@ -142,3 +142,53 @@ func TestListRead(t *testing.T) {
 		}
 	}
 }
+
+func TestTextRead(t *testing.T) {
+	contentType, body := "text/plain", "example-log-line\n"
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/system/logs" {
+			t.Errorf("request=%s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", contentType)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, err := c.GetText(context.Background(), "logs"); err != nil || text != body {
+		t.Fatalf("text=%q error=%v", text, err)
+	}
+	body = ""
+	if text, err := c.GetText(context.Background(), "logs"); err != nil || text != "" {
+		t.Fatalf("text=%q error=%v", text, err)
+	}
+	body = "example-log-line\n"
+	for _, contentType = range []string{"text/html", "application/json", "", "text/plain; charset"} {
+		text, err := c.GetText(context.Background(), "logs")
+		if err == nil || text != "" || !strings.Contains(err.Error(), "not plain text") || strings.Contains(err.Error(), "example-log-line") {
+			t.Errorf("content type %q: text=%q error=%v", contentType, text, err)
+		}
+	}
+	if _, err = c.GetText(context.Background(), "info"); err == nil {
+		t.Fatal("unapproved text endpoint")
+	}
+}
+
+func TestTextReadTimeout(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.logs.Timeout != 15*time.Second || c.http.Timeout != 4*time.Second {
+		t.Fatal(c.logs.Timeout, c.http.Timeout)
+	}
+	c.logs.Timeout = 25 * time.Millisecond
+	start := time.Now()
+	if _, err = c.GetText(context.Background(), "logs"); err == nil || time.Since(start) > time.Second {
+		t.Fatalf("unbounded timeout: %v", err)
+	}
+}
