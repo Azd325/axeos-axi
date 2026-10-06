@@ -22,6 +22,7 @@ bin/axeos-axi restart
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
+A command takes one miner: `--host` given more than once is a usage error with exit code 2, and no request is sent.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.

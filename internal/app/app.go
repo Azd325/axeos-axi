@@ -75,6 +75,9 @@ func parse(args []string) (options, error) {
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
 		case "--host", "--fields", "--timeout", "--lines":
+			if flag == "--host" && hostSet {
+				fail("--host was given more than once; a command takes one miner")
+			}
 			hostSet = hostSet || flag == "--host"
 			timeoutSet = timeoutSet || flag == "--timeout"
 			fieldsSet = fieldsSet || flag == "--fields"

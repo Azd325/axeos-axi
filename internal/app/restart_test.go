@@ -170,6 +170,26 @@ func TestRestartRejectsInputBeforeNetwork(t *testing.T) {
 	}
 }
 
+func TestRestartWithRepeatedHostSendsNothing(t *testing.T) {
+	first, firstCalls := restartMiner(t, accepted())
+	second, secondCalls := restartMiner(t, accepted())
+	a := New(func(string) string { return "" })
+	for _, args := range [][]string{
+		{"restart", "--host", first, "--host", second, "--confirm"},
+		{"restart", "--host=" + first, "--host=" + second, "--confirm"},
+		{"restart", "--confirm", "--host", first, "--host=" + second},
+		{"restart", "--host", first, "--host", second},
+	} {
+		code, out := execute(t, a, args...)
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; a command takes one miner") || !strings.Contains(out, "valid flags: --host, --confirm,") {
+			t.Errorf("args=%v code=%d out=%s", args, code, out)
+		}
+	}
+	if len(firstCalls()) != 0 || len(secondCalls()) != 0 {
+		t.Fatalf("requests after a repeated --host: %v %v", firstCalls(), secondCalls())
+	}
+}
+
 func TestRestartHelpAndVersionSendNothing(t *testing.T) {
 	a := New(func(string) string { t.Fatal("offline command read environment"); return "" })
 	a.Version = "1.2.3"
