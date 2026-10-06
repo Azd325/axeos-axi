@@ -14,7 +14,11 @@ import (
 
 const Timeout = 4 * time.Second
 
-var ErrHost = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
+var (
+	ErrHost         = errors.New("invalid host; use an HTTP or HTTPS address without credentials, path or query")
+	ErrNotFound     = errors.New("miner returned HTTP 404")
+	ErrRootRedirect = errors.New("miner returned HTTP 302")
+)
 
 type Client struct {
 	base string
@@ -37,7 +41,7 @@ func New(host string) (*Client, error) {
 
 func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, error) {
 	switch endpoint {
-	case "info", "asic", "statistics":
+	case "info", "asic", "statistics", "firmware/checksum":
 	default:
 		return nil, errors.New("unsupported read endpoint")
 	}
@@ -50,6 +54,12 @@ func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, erro
 		return nil, errors.New("miner unreachable or request timed out; check the host and network")
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w for %s", ErrNotFound, endpoint)
+	}
+	if resp.StatusCode == http.StatusFound && resp.Header.Get("Location") == "/" {
+		return nil, fmt.Errorf("%w for %s", ErrRootRedirect, endpoint)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("miner returned HTTP %d for %s", resp.StatusCode, endpoint)
 	}

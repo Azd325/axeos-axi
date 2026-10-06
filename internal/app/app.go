@@ -19,7 +19,7 @@ import (
 
 const commonFlags = "--fields, --help, -v, -V, --version"
 
-var commandNames = []string{"info", "asic", "stats", "discover"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "discover"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -173,13 +173,26 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if err != nil {
 		return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
 	}
-	info, err := client.Get(ctx, "info")
-	if err != nil {
-		return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+	var info map[string]any
+	if opts.command != "firmware" {
+		info, err = client.Get(ctx, "info")
+		if err != nil {
+			return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		}
 	}
 	var fields output.Object
 	raw := info
 	switch opts.command {
+	case "firmware":
+		checksum, readErr := client.Get(ctx, "firmware/checksum")
+		if errors.Is(readErr, axeos.ErrNotFound) || errors.Is(readErr, axeos.ErrRootRedirect) {
+			return failure(stdout, 1, "not_supported", "firmware checksum is not supported by this firmware", "axeos-axi info --host "+shellQuote(opts.host)+" shows the firmware version")
+		}
+		if readErr != nil {
+			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		}
+		raw = checksum
+		fields = firmwareView(checksum)
 	case "info":
 		fields = infoView(info)
 	case "asic":
@@ -253,6 +266,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi info --host " + hostArg + " for system and network detail",
 			"axeos-axi asic --host " + hostArg + " for hardware and tuning",
 			"axeos-axi stats --host " + hostArg + " for recorded statistics",
+			"axeos-axi firmware --host " + hostArg + " for the running firmware checksum",
 			"axeos-axi discover to find AxeOS miners on the local network",
 		}})
 	}
@@ -269,7 +283,7 @@ func help(command string) output.Object {
 	if label == "" {
 		label = "home"
 	}
-	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state"}
+	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {

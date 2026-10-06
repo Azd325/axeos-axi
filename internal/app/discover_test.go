@@ -113,7 +113,7 @@ func TestDiscoverRejectsInputBeforeBrowse(t *testing.T) {
 		{"discover", "--timeout", "2.5"}, {"discover", "--timeout=soon"}, {"discover", "extra"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "valid flags: --timeout, --fields, --help, -v, -V, --version; commands: info, asic, stats, discover") {
+		if code != 2 || !strings.Contains(out, "valid flags: --timeout, --fields, --help, -v, -V, --version; commands: info, asic, stats, firmware, discover") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}
@@ -148,7 +148,7 @@ func TestDiscoverIsNamedWhereAHostIsNeeded(t *testing.T) {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	code, out = execute(t, a, "--help")
-	if code != 0 || !strings.Contains(out, "commands: \"info, asic, stats, discover; ") {
+	if code != 0 || !strings.Contains(out, "commands: \"info, asic, stats, firmware, discover; ") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if len(browser.calls) != 0 {
