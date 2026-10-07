@@ -41,7 +41,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
-| `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
+| `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
