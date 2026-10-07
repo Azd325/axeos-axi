@@ -258,8 +258,7 @@ Statistics timestamps are milliseconds since miner boot, not wall-clock dates.
 reports zero recorded samples when enabled logging has no data. Extra sample history
 is available only through explicit field selection; it is not dumped by default.
 An empty-state explanation remains present with `--fields`.
-`firmware` sends one request, to the checksum path only. The path needs firmware newer than
-v2.15.3: v2.15.3 and every older release answer `not_supported`. Its `sha256` is lowercase hex and
+`firmware` sends one request, to the checksum path only. Its `sha256` is lowercase hex and
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
 reports `not_supported` with exit code 1 and does not follow the redirect.
