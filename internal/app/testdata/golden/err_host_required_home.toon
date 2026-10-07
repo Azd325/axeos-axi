@@ -1,0 +1,7 @@
+exit: 2
+bin: BIN
+description: Read and operate an AxeOS Bitcoin miner from a predictable command line
+error:
+  code: host_required
+  message: set --host <address> or AXEOS_HOST
+help: axeos-axi discover finds miners on the local network; then axeos-axi --host <address>

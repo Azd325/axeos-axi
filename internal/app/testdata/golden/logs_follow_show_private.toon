@@ -1,0 +1,8 @@
+exit: 0
+follow_limit_s: 2
+line_1: "I (10) example: user example-worker connected"
+line_2: "I (20) example: ssid example-wifi mac 02:00:00:00:00:10"
+lines: 2
+seconds_followed: S
+ended: time_limit
+help[1]: "axeos-axi logs --host 'HOST' --lines <n> for the lines that are already in the log buffer"

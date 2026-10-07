@@ -49,6 +49,7 @@ func restartHelp() output.Object {
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
 			{Name: "confirm", Value: "--confirm; sends the restart request; default sends no request"},
+			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

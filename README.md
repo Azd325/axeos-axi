@@ -54,6 +54,11 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
+`--json` on any command prints the same result as one JSON document: the same field names, values,
+counts, empty states and help lines, in the same order. A TOON table becomes an array of objects, a
+TOON list becomes an array. An error is one object with `error` (`code` and `message`) and `help`, with
+the same exit code; a usage error honors `--json` when the flag is in the arguments. `--json` never prints
+a value that the TOON output of the same call hides. Without `--json` the output is unchanged.
 `--help` works on every command without contacting a miner. `-v`, `-V` and `--version`
 print the bare version. Unknown flags and arguments are rejected.
 
@@ -340,7 +345,11 @@ without it the pool user, the MAC, the Wi-Fi name, the payout address and the bl
 The miner sends only the lines that are new after the connection opens, so a follow shows no old line;
 `logs --lines` reads the old lines.
 
-The output is a stream of TOON fields, one per output line, so it is valid for a reader that takes it
+With `--json`, the stream is one JSON object per line: `{"follow_limit_s":N}`, then one object for each
+log line, such as `{"line_1":"..."}`, then one closing object with `lines`, `seconds_followed`, `ended`
+and the other closing fields. A broken connection ends with one object that holds the closing fields and the error.
+
+Without `--json`, the output is a stream of TOON fields, one per output line, so it is valid for a reader that takes it
 line by line and for a reader that takes it whole. The first line is `follow_limit_s`. Each log line is
 a field `line_1`, `line_2` and so on, printed when it arrives. The last lines are the closing state:
 `lines`, `seconds_followed` and `ended`, which is `time_limit`, `closed_by_miner` or `interrupted`.

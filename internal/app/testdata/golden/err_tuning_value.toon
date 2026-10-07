@@ -1,0 +1,5 @@
+exit: 1
+error:
+  code: value_not_allowed
+  message: "frequency 551 MHz is not in the list the miner reports; allowed values in MHz: 400, 490, 525, 550, 600, 625, 690"
+help: "axeos-axi tuning --host 'HOST' --frequency <value> with one allowed value"

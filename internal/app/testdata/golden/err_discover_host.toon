@@ -1,0 +1,5 @@
+exit: 2
+error:
+  code: usage
+  message: unknown flag --host for `discover`; it browses the local network
+help: "valid flags: --timeout, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill"

@@ -1,0 +1,4 @@
+exit: 0
+total_lines: 26
+size_bytes: 520
+help[2]: "axeos-axi logs --host 'HOST' --lines all for all 26 lines","axeos-axi logs --host 'HOST' --lines <n> for the newest n lines"

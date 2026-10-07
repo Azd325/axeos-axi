@@ -1,0 +1,8 @@
+exit: 0
+sample_count: 3
+shown_samples: 1
+logging_interval_s: 120
+current_timestamp_ms: 612447946
+samples[1]{timestamp,fanRpm,power}:
+  612447553,4081,20.1245117
+help[1]: "axeos-axi stats --host 'HOST' --samples all --columns fanRpm,power for all 3 samples"

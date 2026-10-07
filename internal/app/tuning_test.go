@@ -249,12 +249,12 @@ func TestTuningRejectsInputBeforeNetwork(t *testing.T) {
 		}
 	}
 	for want, args := range map[string][]string{
-		"tuning requires --frequency <MHz>, --core-voltage <mV> or both":    {"tuning", "--confirm"},
-		"--frequency was given more than once":                              {"tuning", "--frequency", "550", "--frequency", "600"},
-		"--core-voltage requires a whole number from 1":                     {"tuning", "--core-voltage", "1.15"},
-		"unknown flag --fields for `tuning`; it prints a fixed result":      {"tuning", "--frequency", "550", "--fields", "host"},
-		"unknown flag --core-voltage; it is a flag of `tuning` only":        {"restart", "--core-voltage", "1150"},
-		"valid flags: --host, --frequency, --core-voltage, --confirm, --he": {"tuning"},
+		"tuning requires --frequency <MHz>, --core-voltage <mV> or both":            {"tuning", "--confirm"},
+		"--frequency was given more than once":                                      {"tuning", "--frequency", "550", "--frequency", "600"},
+		"--core-voltage requires a whole number from 1":                             {"tuning", "--core-voltage", "1.15"},
+		"unknown flag --fields for `tuning`; it prints a fixed result":              {"tuning", "--frequency", "550", "--fields", "host"},
+		"unknown flag --core-voltage; it is a flag of `tuning` only":                {"restart", "--core-voltage", "1150"},
+		"valid flags: --host, --frequency, --core-voltage, --confirm, --json, --he": {"tuning"},
 	} {
 		if code, out := execute(t, a, args...); code != 2 || !strings.Contains(out, want) {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)

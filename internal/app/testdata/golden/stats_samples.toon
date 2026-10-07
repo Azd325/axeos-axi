@@ -1,0 +1,9 @@
+exit: 0
+sample_count: 3
+shown_samples: 3
+logging_interval_s: 120
+current_timestamp_ms: 612447946
+samples[3]{timestamp,hashrate,hashrate_1h,asicTemp,vrTemp,power}:
+  612409553,1026.9614258,1070.0964355,64.625,73,20.1757813
+  612446553,979.0009766,1070.2729492,64.75,72,20.1245117
+  612447553,979.0009766,1070.2735596,64.875,73,20.1245117

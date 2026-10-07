@@ -132,6 +132,7 @@ func tuningHelp() output.Object {
 			{Name: "frequency", Value: "--frequency <MHz>; whole number from frequencyOptions of the miner"},
 			{Name: "core_voltage", Value: "--core-voltage <mV>; whole number from voltageOptions of the miner"},
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
+			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

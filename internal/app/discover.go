@@ -118,6 +118,7 @@ func discoverHelp() output.Object {
 		{Name: "flags", Value: output.Object{
 			{Name: "timeout", Value: fmt.Sprintf("--timeout <seconds>; default %d; whole seconds from 1 to %d; the command always waits the full time", defaultDiscoverTimeout, maxDiscoverTimeout)},
 			{Name: "fields", Value: "--fields <name,...>; default " + strings.Join(discoverDefaults, ",") + "; replaces the row columns"},
+			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

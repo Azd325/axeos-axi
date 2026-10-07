@@ -236,6 +236,7 @@ func poolHelp() output.Object {
 			{Name: "fallback_user", Value: "--fallback-user <user>; fallback pool; same rule as --user"},
 			{Name: "show_user", Value: "--show-user; prints each pool user; default prints the word set in place of a pool user; required with --confirm when --user or --fallback-user is named"},
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
+			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

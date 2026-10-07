@@ -1,0 +1,6 @@
+exit: 0
+count: 3
+shares[3]{rank,nonce}:
+  1,1A2B3C4D
+  2,00FFAA10
+  3,DEADBEEF

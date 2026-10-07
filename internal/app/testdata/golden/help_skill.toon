@@ -1,0 +1,10 @@
+exit: 0
+command: skill
+description: "Installs the agent skill (SKILL.md) that is built into the binary; it needs no host, sends no request and reads no miner; the default file is ~/.agents/skills/axeos-axi/SKILL.md; a repeated install with the same content writes nothing"
+actions: install
+flags:
+  path: "--path <directory>; parent directory of the axeos-axi directory; default ~/.agents/skills"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version; no network request"
+examples[3]: axeos-axi skill install,axeos-axi skill install --path ~/.claude/skills,axeos-axi skill --help

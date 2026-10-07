@@ -1,0 +1,14 @@
+exit: 0
+command: discover
+description: Find AxeOS miners on the local network; sends only mDNS queries and contacts no miner API
+flags:
+  timeout: "--timeout <seconds>; default 3; whole seconds from 1 to 60; the command always waits the full time"
+  fields: "--fields <name,...>; default address,hostname,family,firmware; replaces the row columns"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version; no network request"
+service: _axeos._sub._http._tcp.local
+timeout_s: 3
+view_fields: "address,hostname,family,firmware,board,asic,asic_count,port,instance"
+private_fields: instance carries a MAC suffix and is an explicit opt-in
+examples[3]: axeos-axi discover,axeos-axi discover --timeout 10,"axeos-axi discover --fields address,hostname,board,asic"

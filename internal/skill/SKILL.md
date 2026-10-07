@@ -6,7 +6,7 @@ description: Read an AxeOS or Bitaxe Bitcoin miner (health, ASIC, statistics, fi
 # axeos-axi
 
 `axeos-axi` is a non-interactive CLI for AxeOS miners, including Bitaxe.
-It prints compact TOON on stdout. This skill is static text; run the CLI for live miner state.
+It prints compact TOON on stdout; `--json` on any command prints the same result as JSON (`logs --follow --json` prints one JSON object per line). This skill is static text; run the CLI for live miner state.
 
 ## Usage
 
@@ -42,6 +42,7 @@ commands: "info, asic, stats, firmware, scoreboard, logs, discover, restart, tun
 flags:
   host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"
   version: "-v, -V, --version; bare version; no network request"
 timeout_s: 4

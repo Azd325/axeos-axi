@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	universalFlags = "--help, -v, -V, --version"
+	universalFlags = "--json, --help, -v, -V, --version"
+	jsonFlagHelp   = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
@@ -70,6 +71,7 @@ type options struct {
 	pool                   map[string]any
 	help, version, confirm bool
 	showUser, showPrivate  bool
+	json                   bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
@@ -210,17 +212,20 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version", "--confirm", "--show-user", "--show-private":
+		case "--help", "-v", "-V", "--version", "--json", "--confirm", "--show-user", "--show-private":
 			if assigned {
+				opts.json = opts.json || flag == "--json"
 				fail("%s does not accept a value", flag)
 				continue
 			}
-			if flag != "--help" && flag != "-v" && flag != "-V" && flag != "--version" {
+			if flag != "--help" && flag != "--json" && flag != "-v" && flag != "-V" && flag != "--version" {
 				seen = append(seen, flag)
 			}
 			switch flag {
 			case "--help":
 				opts.help = true
+			case "--json":
+				opts.json = true
 			case "--confirm":
 				opts.confirm = true
 			case "--show-user":
@@ -360,6 +365,9 @@ func optionalReadFailure(w io.Writer, err error, subject, host string) int {
 
 func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	opts, err := parse(args)
+	if opts.json {
+		stdout = output.JSON(stdout)
+	}
 	if err != nil {
 		return failure(stdout, 2, "usage", err.Error(), "valid flags: "+validFlags(opts.command)+"; commands: "+commands())
 	}
@@ -574,6 +582,7 @@ func help(command string) output.Object {
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "fields", Value: fieldsHelp(command)},
+			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

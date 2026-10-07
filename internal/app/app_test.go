@@ -202,7 +202,7 @@ func TestUnknownFieldListsViewFields(t *testing.T) {
 func TestRejectInputBeforeNetwork(t *testing.T) {
 	host, calls := miner(t, fixture(t, "info"))
 	a := New(func(string) string { return host })
-	for _, args := range [][]string{{"--hots", host}, {"info", "--json"}, {"reboot"}, {"asic", "extra"}, {"--host"}, {"--host="}, {"--fields", ""}, {"--fields", "a,a"}, {"--fields", "a,,b"}, {"info", "--help=yes"}, {"info", "--help", "--bad"}} {
+	for _, args := range [][]string{{"--hots", host}, {"info", "--yaml"}, {"reboot"}, {"asic", "extra"}, {"--host"}, {"--host="}, {"--fields", ""}, {"--fields", "a,a"}, {"--fields", "a,,b"}, {"info", "--help=yes"}, {"info", "--help", "--bad"}} {
 		code, out := execute(t, a, args...)
 		if code != 2 || !strings.Contains(out, "valid flags:") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)

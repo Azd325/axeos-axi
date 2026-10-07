@@ -113,7 +113,7 @@ func TestDiscoverRejectsInputBeforeBrowse(t *testing.T) {
 		{"discover", "--timeout", "2.5"}, {"discover", "--timeout=soon"}, {"discover", "extra"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "valid flags: --timeout, --fields, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, discover") {
+		if code != 2 || !strings.Contains(out, "valid flags: --timeout, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, discover") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}
