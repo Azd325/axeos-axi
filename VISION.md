@@ -6,7 +6,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 
 ## Reads are truthful and small
 
-- Each miner API path is one small command; for each miner it sends exactly one request and changes no existing default view.
+- Each miner API path is one small command; for each miner it sends exactly one request and changes no existing default view; a command may also read `info` to protect private values.
 - Default views are small; extra fields appear only through explicit `--fields` selection.
 - A missing value is `null` or `unknown`, never an inferred healthy state.
 - Empty results are definitive; firmware that lacks a path gets one definitive `not_supported` answer, and redirects are not followed.
