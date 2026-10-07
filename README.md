@@ -66,7 +66,7 @@ axeos-axi skill install --path ~/.claude/skills
 ```
 
 The default target is `~/.agents/skills/axeos-axi/SKILL.md`. `--path <directory>` selects another parent directory.
-The command prints the path and whether it wrote the file. A repeated install with the same content writes nothing.
+The command prints the absolute path, shown with `~` when it is under the home directory, and whether it wrote the file. The command does not expand a `~` inside `--path`. A repeated install with the same content writes nothing.
 A test fails when the help block inside the skill differs from `axeos-axi --help`.
 
 ## Discovery
