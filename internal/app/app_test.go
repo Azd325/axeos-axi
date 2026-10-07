@@ -261,7 +261,8 @@ func TestMissingHostAndUnreachable(t *testing.T) {
 	if code != 2 || !strings.Contains(out, "--host") || !strings.Contains(out, "AXEOS_HOST") {
 		t.Fatal(out)
 	}
-	if !strings.HasPrefix(out, "bin: ") || strings.Index(out, "description: ") > strings.Index(out, "error:") || !strings.Contains(out, "code: host_required") {
+	descriptionIndex, errorIndex := strings.Index(out, "\ndescription: "), strings.Index(out, "\nerror:")
+	if !strings.HasPrefix(out, "bin: ") || descriptionIndex < 0 || descriptionIndex > errorIndex || !strings.Contains(out, "code: host_required") {
 		t.Fatal(out)
 	}
 	code, out = execute(t, New(func(string) string { return "" }), "info")
