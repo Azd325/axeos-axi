@@ -44,7 +44,7 @@ func (s *logStream) accept(text string) {
 			break
 		}
 		s.pending = rest
-		s.emit(line, s.continued)
+		s.emit(line, s.continued || len(line) > ws.MaxMessage)
 		s.continued = false
 	}
 	if len(s.pending) > ws.MaxMessage {

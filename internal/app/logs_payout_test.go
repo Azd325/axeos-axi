@@ -280,3 +280,23 @@ func TestFollowShowPrivateKeepsLongLine(t *testing.T) {
 		t.Fatalf("%d %.300s", code, out)
 	}
 }
+
+func TestFollowReplacesLongLineCompletedInOneMessage(t *testing.T) {
+	shortFollow(t)
+	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) {
+		s := wstest.Upgrade(w, r, "")
+		defer func() { _ = s.Conn.Close() }()
+		for range 7 {
+			s.Text(strings.Repeat("x", 8<<10))
+		}
+		s.Text(strings.Repeat("x", 8<<10) + `ExamplePool` + "\nI (2) example: next line\n")
+		time.Sleep(time.Second)
+	})
+	code, out := execute(t, New(func(string) string { return m.url }), "logs", "--follow", "5")
+	if code != 0 || strings.Contains(out, "ExamplePool") || strings.Contains(out, "xxx") {
+		t.Fatalf("%d leak in %.300s", code, out)
+	}
+	if strings.Count(out, "<redacted: cut end of a longer line>") != 1 || !strings.Contains(out, "next line") {
+		t.Fatalf("%.600s", out)
+	}
+}
