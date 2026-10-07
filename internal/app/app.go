@@ -355,7 +355,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		for _, name := range opts.fields {
 			value, ok := available[name]
 			if !ok {
-				return failure(stdout, 2, "unknown_field", "unknown field "+name, strings.TrimSpace("axeos-axi "+opts.command)+" --help; use the documented view fields or exact API field names")
+				return failure(stdout, 2, "unknown_field", "unknown field "+name, strings.TrimSpace("axeos-axi "+opts.command)+" --help; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
 			}
 			selected = append(selected, output.Field{Name: name, Value: value})
 		}

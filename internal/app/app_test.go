@@ -146,12 +146,43 @@ func TestFieldsAndHostOverride(t *testing.T) {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "info", "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "help: axeos-axi info --help;") {
+	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "axeos-axi info --help; valid fields: ") {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "help: axeos-axi --help;") {
+	if code != 2 || !strings.Contains(out, "axeos-axi --help; valid fields: ") {
 		t.Fatal(out)
+	}
+}
+
+func TestUnknownFieldListsViewFields(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return "http://invalid.example" })
+	cases := []struct{ command, fields string }{
+		{"", "hostname,model,firmware,hashrate,temperature,power_w,efficiency,fan,pool,pool_connection,pool_fallback,shares,best_difficulty,uptime_s,overheat,paused"},
+		{"info", "hostname,asic_model,firmware,axeos_version,idf_version,board,heap_free_bytes,heap_internal_free_bytes,heap_min_free_bytes,heap_max_alloc_bytes,wifi_state,wifi_signal_dbm,uptime_s,reset_reason,partition"},
+		{"asic", "model,device_model,asic_count,hash_domains,frequency_mhz,frequency_actual_mhz,frequency_default_mhz,core_voltage_set_mv,core_voltage_actual_mv,core_voltage_default_mv,fan_mode,fan_manual_pct,temperature_target_c"},
+		{"stats", "sample_count,logging_interval_s,current_timestamp_ms,latest_timestamp_ms,hashrate_ghs,hashrate_1h_ghs,chip_temperature_c,regulator_temperature_c,power_w,state"},
+		{"firmware", "partition,version,size_bytes,sha256"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			base := []string{"--host", host}
+			if tc.command != "" {
+				base = append([]string{tc.command}, base...)
+			}
+			code, out := execute(t, a, append(append([]string{}, base...), "--fields", "nonexistent")...)
+			want := "valid fields: " + tc.fields + " (or exact API field names)"
+			if code != 2 || !strings.Contains(out, "unknown field nonexistent") || !strings.Contains(out, want) {
+				t.Fatalf("code=%d %s", code, out)
+			}
+			for _, name := range strings.Split(tc.fields, ",") {
+				code, out := execute(t, a, append(append([]string{}, base...), "--fields", name)...)
+				if code == 2 {
+					t.Errorf("listed field %s rejected: %s", name, out)
+				}
+			}
+		})
 	}
 }
 
