@@ -26,7 +26,7 @@ It prints compact TOON on stdout. This skill is static text; run the CLI for liv
 
 ## Private values
 
-- Private values print only on request: the pool user (`--show-user` on `pool`), log lines with the pool user, MAC and Wi-Fi name unchanged (`--show-private` with `logs --lines` or `logs --follow`), and the API fields `stratumUser`, `fallbackStratumUser`, `pools`, `ssid` and `macAddr` through `--fields`.
+- Private values print only on request: the pool user (`--show-user` on `pool`), log lines with the pool user, MAC, Wi-Fi name, payout address and block template unchanged (`--show-private` with `logs --lines` or `logs --follow`), and the API fields `stratumUser`, `fallbackStratumUser`, `pools`, `ssid` and `macAddr` through `--fields`.
 - Do not request them unless the task needs them. Do not copy them into shared text.
 
 ## Exit codes
