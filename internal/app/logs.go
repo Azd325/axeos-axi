@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -16,7 +17,12 @@ import (
 const (
 	noLogLines  = 0
 	allLogLines = -1
-	logPrivacy  = "log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name"
+	logPrivacy  = "--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced"
+	logRedacted = "the pool user, the MAC and the Wi-Fi name are replaced; --show-private prints the lines unchanged"
+
+	placePoolUser = "<pool-user>"
+	placeMAC      = "<mac>"
+	placeWifiName = "<wifi-name>"
 )
 
 // ECMA-48 sequences: CSI, then OSC and the DCS/SOS/PM/APC strings with their terminator, then any other escape sequence.
@@ -32,7 +38,66 @@ func printable(line string) string {
 	}, line)
 }
 
+var macForm = `[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}`
+
+type redactor struct {
+	pattern      *regexp.Regexp
+	placeholders map[string]string
+}
+
+func newRedactor(info map[string]any) *redactor {
+	r := &redactor{placeholders: map[string]string{}}
+	add := func(v any, placeholder string) {
+		if value, ok := v.(string); ok && value != "" {
+			r.placeholders[value] = placeholder
+		}
+	}
+	add(info["stratumUser"], placePoolUser)
+	add(info["fallbackStratumUser"], placePoolUser)
+	if listed, ok := info["pools"].([]any); ok {
+		for _, item := range listed {
+			if record, ok := item.(map[string]any); ok {
+				add(record["stratumUser"], placePoolUser)
+			}
+		}
+	}
+	add(info["ssid"], placeWifiName)
+	mac, _ := info["macAddr"].(string)
+	values := make([]string, 0, len(r.placeholders))
+	for value := range r.placeholders {
+		values = append(values, value)
+	}
+	slices.SortFunc(values, func(a, b string) int { return len(b) - len(a) })
+	alternatives := make([]string, 0, len(values)+2)
+	for _, value := range values {
+		alternatives = append(alternatives, regexp.QuoteMeta(value))
+	}
+	if mac != "" {
+		alternatives = append(alternatives, "(?i:"+regexp.QuoteMeta(mac)+")")
+	}
+	alternatives = append(alternatives, macForm)
+	r.pattern = regexp.MustCompile(strings.Join(alternatives, "|"))
+	return r
+}
+
+func (r *redactor) replace(line string) string {
+	return r.pattern.ReplaceAllStringFunc(line, func(match string) string {
+		if placeholder, ok := r.placeholders[match]; ok {
+			return placeholder
+		}
+		return placeMAC
+	})
+}
+
 func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Writer) int {
+	var redact *redactor
+	if opts.lines != noLogLines && !opts.showPrivate {
+		info, err := client.Get(ctx, "info")
+		if err != nil {
+			return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		}
+		redact = newRedactor(info)
+	}
 	text, err := client.GetText(ctx, "logs")
 	if err != nil {
 		return optionalReadFailure(stdout, err, "log download", opts.host)
@@ -60,27 +125,46 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	}
 	rows := make([]any, len(lines))
 	for i, line := range lines {
+		if redact != nil {
+			line = redact.replace(line)
+		}
 		rows[i] = output.Object{{Name: "text", Value: line}}
 	}
 	fields := output.Object{{Name: "total_lines", Value: total}, {Name: "shown_lines", Value: len(lines)}, {Name: "lines", Value: rows}}
-	if len(lines) < total {
-		fields = append(fields, help)
+	if redact == nil {
+		if len(lines) < total {
+			fields = append(fields, help)
+		}
+		return write(stdout, fields)
 	}
-	return write(stdout, fields)
+	fields = append(fields, output.Field{Name: "private", Value: logRedacted})
+	hints := []any{prefix + " --lines " + shown(opts.lines) + " --show-private prints the lines unchanged"}
+	if len(lines) < total {
+		hints = append(hints, help.Value.([]any)...)
+	}
+	return write(stdout, append(fields, output.Field{Name: "help", Value: hints}))
+}
+
+func shown(lines int) string {
+	if lines == allLogLines {
+		return "all"
+	}
+	return fmt.Sprint(lines)
 }
 
 func logsHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "logs"},
-		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed"},
+		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "lines", Value: "--lines <n|all>; default prints no log line; the newest n lines, or all lines"},
+			{Name: "show_private", Value: "--show-private; only with --lines; prints the lines unchanged and sends no info request"},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},
 		{Name: "timeout_s", Value: int(axeos.LogsTimeout / time.Second)},
 		{Name: "privacy", Value: logPrivacy},
-		{Name: "examples", Value: []any{"axeos-axi logs --host 192.0.2.10", "axeos-axi logs --host 192.0.2.10 --lines 100", "axeos-axi logs --host 192.0.2.10 --lines all"}},
+		{Name: "examples", Value: []any{"axeos-axi logs --host 192.0.2.10", "axeos-axi logs --host 192.0.2.10 --lines 100", "axeos-axi logs --host 192.0.2.10 --lines all", "axeos-axi logs --host 192.0.2.10 --lines 100 --show-private"}},
 	}
 }

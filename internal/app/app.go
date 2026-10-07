@@ -31,7 +31,7 @@ func validFlags(command string) string {
 	case "discover":
 		return "--timeout, --fields, " + universalFlags
 	case "logs":
-		return "--host, --lines, " + universalFlags
+		return "--host, --lines, --show-private, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
 	case "tuning":
@@ -63,7 +63,7 @@ type options struct {
 	tuning                 map[string]int
 	pool                   map[string]any
 	help, version, confirm bool
-	showUser               bool
+	showUser, showPrivate  bool
 }
 
 // The command may follow its flags, so parsing continues after the first error
@@ -161,7 +161,7 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version", "--confirm", "--show-user":
+		case "--help", "-v", "-V", "--version", "--confirm", "--show-user", "--show-private":
 			if assigned {
 				fail("%s does not accept a value", flag)
 				continue
@@ -173,6 +173,8 @@ func parse(args []string) (options, error) {
 				opts.confirm = true
 			case "--show-user":
 				opts.showUser = true
+			case "--show-private":
+				opts.showPrivate = true
 			default:
 				opts.version = true
 			}
@@ -196,6 +198,12 @@ func parse(args []string) (options, error) {
 	}
 	if opts.command != "logs" && linesSet {
 		return opts, errors.New("unknown flag --lines; it is a flag of `logs` only")
+	}
+	if opts.command != "logs" && opts.showPrivate {
+		return opts, errors.New("unknown flag --show-private; it is a flag of `logs` only")
+	}
+	if opts.command == "logs" && opts.showPrivate && !linesSet && !opts.help && !opts.version {
+		return opts, errors.New("--show-private is valid only together with --lines; without --lines the command prints no log line")
 	}
 	if opts.command == "logs" && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")

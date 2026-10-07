@@ -9,11 +9,24 @@ import (
 	"testing"
 )
 
+var infoFixture = func() []byte {
+	b, err := os.ReadFile("../axeos/testdata/info.json")
+	if err != nil {
+		panic(err)
+	}
+	return b
+}()
+
 func logsMiner(t *testing.T, status int, contentType, body string) (string, func() []string) {
 	t.Helper()
 	var requests []string
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests = append(requests, r.Method+" "+r.URL.Path)
+		if r.URL.Path == "/api/system/info" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(infoFixture)
+			return
+		}
 		if status == http.StatusFound {
 			http.Redirect(w, r, "/", status)
 			return
@@ -51,7 +64,7 @@ func TestLogsDefaultPrintsNoLogLine(t *testing.T) {
 func TestLogsBoundedTail(t *testing.T) {
 	host, calls := logsMiner(t, http.StatusOK, "text/plain", logsFixture(t))
 	a := New(func(string) string { return host })
-	code, out := execute(t, a, "logs", "--lines", "20")
+	code, out := execute(t, a, "logs", "--lines", "20", "--show-private")
 	want := "total_lines: 26\nshown_lines: 20\nlines[20]{text}:\n" +
 		"  \"I (2750) example_task: sample event 7\"\n" +
 		"  \"I (3000) example_task: sample event 8\"\n" +
@@ -80,7 +93,7 @@ func TestLogsBoundedTail(t *testing.T) {
 		{"400", "26", "sample event 1", false},
 		{"all", "26", "sample event 1", false},
 	} {
-		code, out := execute(t, a, "logs", "--lines="+tc.lines)
+		code, out := execute(t, a, "logs", "--lines="+tc.lines, "--show-private")
 		rows := strings.Split(out, "\n")
 		if code != 0 || !strings.HasPrefix(out, "total_lines: 26\nshown_lines: "+tc.shown+"\nlines["+tc.shown+"]{text}:\n") || !strings.HasSuffix(rows[3], tc.first+`"`) || strings.Contains(out, "help[") != tc.help {
 			t.Errorf("--lines=%s: %d %s", tc.lines, code, out)
@@ -116,7 +129,7 @@ func TestLogsEmptyUnsupportedAndFailed(t *testing.T) {
 					t.Fatalf("%v: %s", args, out)
 				}
 			}
-			if strings.Join(calls(), ",") != "GET /api/system/logs,GET /api/system/logs,GET /api/system/logs" {
+			if strings.Join(calls(), ",") != "GET /api/system/logs,GET /api/system/info,GET /api/system/logs,GET /api/system/info,GET /api/system/logs" {
 				t.Fatal(calls())
 			}
 		})
@@ -142,7 +155,7 @@ func TestLogsContentIsData(t *testing.T) {
 		"plain",
 	}, "\n") + "\n"
 	host, _ := logsMiner(t, http.StatusOK, "text/plain", body)
-	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all")
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all", "--show-private")
 	want := "total_lines: 15\nshown_lines: 15\nlines[15]{text}:\n" +
 		"  \"E (10) example_task: coloured\"\n" +
 		"  screen cleared\n" +
@@ -169,10 +182,10 @@ func TestLogsRejectInputBeforeNetwork(t *testing.T) {
 	a := New(func(string) string { return host })
 	for _, args := range [][]string{
 		{"logs", "--lines"}, {"logs", "--lines", "0"}, {"logs", "--lines", "-5"}, {"logs", "--lines=2.5"}, {"logs", "--lines=newest"},
-		{"logs", "--lines="}, {"logs", "--fields", "text"}, {"--fields=text", "logs"}, {"logs", "--follow"}, {"logs", "--timeout", "5"}, {"logs", "extra"},
+		{"logs", "--lines="}, {"logs", "--show-private"}, {"logs", "--fields", "text"}, {"--fields=text", "logs"}, {"logs", "--follow"}, {"logs", "--timeout", "5"}, {"logs", "extra"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "valid flags: --host, --lines, --help, -v, -V, --version; commands: ") {
+		if code != 2 || !strings.Contains(out, "valid flags: --host, --lines, --show-private, --help, -v, -V, --version; commands: ") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}
@@ -196,8 +209,8 @@ func TestLogsHelpOffline(t *testing.T) {
 	code, out := execute(t, a, "logs", "--help")
 	for _, want := range []string{
 		"command: logs\n", "prints no log line without --lines", "lines: \"--lines <n|all>; default prints no log line; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
-		"privacy: \"log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name\"\n",
-		"examples[3]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all\n",
+		"privacy: \"--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced\"\n",
+		"examples[4]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all,axeos-axi logs --host 192.0.2.10 --lines 100 --show-private\n", "show_private: ",
 	} {
 		if code != 0 || !strings.Contains(out, want) {
 			t.Errorf("missing %q in %d %s", want, code, out)
@@ -205,5 +218,122 @@ func TestLogsHelpOffline(t *testing.T) {
 	}
 	if strings.Contains(out, "--fields") {
 		t.Fatal(out)
+	}
+}
+
+const privateLogs = "I (10) example: user example-worker connected\n" +
+	"I (20) example: fallback example-fallback\n" +
+	"I (30) example: ssid example-wifi, mac 02:00:00:00:00:10 again 02:00:00:00:00:10\n" +
+	"I (40) example: lower 02:00:00:00:00:10 upper 02:00:00:00:00:AA dash 0A-1B-2C-3D-4E-5F\n" +
+	"I (50) example: nothing private\n"
+
+func TestLogsReplacePrivateValues(t *testing.T) {
+	host, calls := logsMiner(t, http.StatusOK, "text/plain", privateLogs)
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all")
+	want := "lines[5]{text}:\n" +
+		"  \"I (10) example: user <pool-user> connected\"\n" +
+		"  \"I (20) example: fallback <pool-user>\"\n" +
+		"  \"I (30) example: ssid <wifi-name>, mac <mac> again <mac>\"\n" +
+		"  \"I (40) example: lower <mac> upper <mac> dash <mac>\"\n" +
+		"  \"I (50) example: nothing private\"\n"
+	if code != 0 || !strings.Contains(out, want) {
+		t.Fatalf("%d %s", code, out)
+	}
+	for _, leaked := range []string{"example-worker", "example-fallback", "example-wifi", "02:00", "0A-1B"} {
+		if strings.Contains(out, leaked) {
+			t.Fatalf("%s leaked in %s", leaked, out)
+		}
+	}
+	if !strings.Contains(out, "--lines all --show-private prints the lines unchanged") {
+		t.Fatal(out)
+	}
+	if strings.Join(calls(), ",") != "GET /api/system/info,GET /api/system/logs" {
+		t.Fatal(calls())
+	}
+}
+
+func TestLogsShowPrivateIsUnchanged(t *testing.T) {
+	host, calls := logsMiner(t, http.StatusOK, "text/plain", privateLogs)
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all", "--show-private")
+	for _, kept := range []string{"example-worker", "example-fallback", "example-wifi", "02:00:00:00:00:10", "0A-1B-2C-3D-4E-5F"} {
+		if !strings.Contains(out, kept) {
+			t.Fatalf("%s missing in %s", kept, out)
+		}
+	}
+	if code != 0 || strings.Contains(out, "<") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if strings.Join(calls(), ",") != "GET /api/system/logs" {
+		t.Fatal(calls())
+	}
+}
+
+func TestLogsInfoFailurePrintsNoLine(t *testing.T) {
+	var requests []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		if r.URL.Path == "/api/system/info" {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(privateLogs))
+	}))
+	t.Cleanup(s.Close)
+	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
+	if code != 1 || !strings.Contains(out, "code: miner_read_failed") || strings.Contains(out, "example") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if strings.Join(requests, ",") != "/api/system/info" {
+		t.Fatal(requests)
+	}
+}
+
+func TestLogsShowPrivateNeedsLines(t *testing.T) {
+	host, calls := logsMiner(t, http.StatusOK, "text/plain", privateLogs)
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--show-private")
+	if code != 2 || !strings.Contains(out, "--show-private is valid only together with --lines") {
+		t.Fatalf("%d %s", code, out)
+	}
+	code, out = execute(t, New(func(string) string { return host }), "info", "--show-private")
+	if code != 2 || !strings.Contains(out, "unknown flag --show-private; it is a flag of `logs` only") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if len(calls()) != 0 {
+		t.Fatal(calls())
+	}
+}
+
+func TestLogsReportedMacMatchesWithoutRegardToCase(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/system/info" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"macAddr":"aabbccddeeff"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("id AABBCCDDEEFF and aabbccddeeff\n"))
+	}))
+	t.Cleanup(s.Close)
+	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
+	if code != 0 || !strings.Contains(out, "\n  id <mac> and <mac>\n") {
+		t.Fatalf("%d %s", code, out)
+	}
+}
+
+func TestLogsReplacesPoolUserOnlyListedInPools(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/system/info" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"stratumUser":"example-worker","fallbackStratumUser":"example-fallback","pools":[{"stratumUser":"example-listed"}]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("user example-listed connected\n"))
+	}))
+	t.Cleanup(s.Close)
+	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
+	if code != 0 || !strings.Contains(out, "\n  user <pool-user> connected\n") || strings.Contains(out, "example-listed") {
+		t.Fatalf("%d %s", code, out)
 	}
 }

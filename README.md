@@ -31,7 +31,8 @@ Each request times out after four seconds; the `logs` request after fifteen. Red
 Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`. Three commands change the miner, each only
+`/api/system/logs`, and mDNS queries from `discover`. `logs --lines` also reads `/api/system/info`
+first, to find the private values to replace. Three commands change the miner, each only
 with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
 `pool` each send one PATCH request to `/api/system`.
 
@@ -43,7 +44,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
-| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
+| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; private values replaced unless `--show-private` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
@@ -246,8 +247,11 @@ bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 Pool users, Wi-Fi name, MAC, the `pools` configuration list, coinbase outputs and scriptsig
 are absent from default output. Explicit raw-field selection can expose private data,
 including users inside `pools`; avoid publishing that output.
-`logs --lines` prints log lines as the miner wrote them, and they can contain the pool user,
-addresses, hostnames and the Wi-Fi name.
+`logs --lines` replaces the pool users, the MAC and the Wi-Fi name that the miner reports by
+`<pool-user>`, `<mac>` and `<wifi-name>`, and any string in the form of a MAC address by `<mac>`.
+A reported value that is a common word is replaced everywhere, so the value can be guessed from the output.
+`--lines` with `--show-private` prints log lines as the miner wrote them, and they can contain the
+pool user, addresses, hostnames and the Wi-Fi name. Other addresses and hostnames are not replaced.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
 makes efficiency unknown. Hashrate is GH/s, temperatures are Celsius, tuning voltage
 is mV, frequency is MHz and uptime is seconds.
@@ -269,14 +273,17 @@ the API does not send it. `ntime` is the block-header time of the share in Unix 
 identify neither the owner nor the network and appear only through `--fields`.
 Zero shares is a definitive result with exit code 0. Firmware without the path gives
 `not_supported`, by the same rule as `firmware`.
-`logs` sends one request, to the logs path only. The miner answers with plain text: its log
+`logs` without `--lines`, and `logs --lines` with `--show-private`, send one request, to the logs path only.
+`logs --lines` without `--show-private` first sends one request to the info path, then one to the logs path;
+if the info read fails, no log line is printed and the exit code is 1.
+`--show-private` is valid only together with `--lines`. The miner answers with plain text: its log
 buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. Without
 `--lines` the command prints no log line: it prints `total_lines`, the response size
 `size_bytes` and the commands that print lines. `--lines <n>` prints the newest n lines and
 `--lines all` prints every line, in the order of the buffer, so the newest line is last;
 `total_lines` and `shown_lines` state how many lines exist and how many are printed.
 There is no filter, search or follow. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
-firmware, are removed; the text is otherwise unchanged. Zero lines is a definitive result
+firmware, are removed; with `--show-private` the text is otherwise unchanged. Zero lines is a definitive result
 with exit code 0. Firmware without the path gives `not_supported`, by the same rule as `firmware`.
 
 ## Development
