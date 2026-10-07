@@ -209,7 +209,7 @@ func TestLogsHelpOffline(t *testing.T) {
 	code, out := execute(t, a, "logs", "--help")
 	for _, want := range []string{
 		"command: logs\n", "prints no log line without --lines", "lines: \"--lines <n|all>; default prints no log line; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
-		"privacy: \"log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name\"\n",
+		"privacy: \"--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced\"\n",
 		"examples[4]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all,axeos-axi logs --host 192.0.2.10 --lines 100 --show-private\n", "show_private: ",
 	} {
 		if code != 0 || !strings.Contains(out, want) {
@@ -235,8 +235,7 @@ func TestLogsReplacePrivateValues(t *testing.T) {
 		"  \"I (20) example: fallback <pool-user>\"\n" +
 		"  \"I (30) example: ssid <wifi-name>, mac <mac> again <mac>\"\n" +
 		"  \"I (40) example: lower <mac> upper <mac> dash <mac>\"\n" +
-		"  \"I (50) example: nothing private\"\n" +
-		"replaced: 8\n"
+		"  \"I (50) example: nothing private\"\n"
 	if code != 0 || !strings.Contains(out, want) {
 		t.Fatalf("%d %s", code, out)
 	}
@@ -261,7 +260,7 @@ func TestLogsShowPrivateIsUnchanged(t *testing.T) {
 			t.Fatalf("%s missing in %s", kept, out)
 		}
 	}
-	if code != 0 || strings.Contains(out, "<") || strings.Contains(out, "replaced") {
+	if code != 0 || strings.Contains(out, "<") {
 		t.Fatalf("%d %s", code, out)
 	}
 	if strings.Join(calls(), ",") != "GET /api/system/logs" {
@@ -317,7 +316,24 @@ func TestLogsReportedMacMatchesWithoutRegardToCase(t *testing.T) {
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
-	if code != 0 || !strings.Contains(out, "\n  id <mac> and <mac>\n") || !strings.Contains(out, "replaced: 2\n") {
+	if code != 0 || !strings.Contains(out, "\n  id <mac> and <mac>\n") {
+		t.Fatalf("%d %s", code, out)
+	}
+}
+
+func TestLogsReplacesPoolUserOnlyListedInPools(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/system/info" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"stratumUser":"example-worker","fallbackStratumUser":"example-fallback","pools":[{"stratumUser":"example-listed"}]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("user example-listed connected\n"))
+	}))
+	t.Cleanup(s.Close)
+	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
+	if code != 0 || !strings.Contains(out, "\n  user <pool-user> connected\n") || strings.Contains(out, "example-listed") {
 		t.Fatalf("%d %s", code, out)
 	}
 }

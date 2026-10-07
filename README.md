@@ -249,6 +249,7 @@ are absent from default output. Explicit raw-field selection can expose private 
 including users inside `pools`; avoid publishing that output.
 `logs --lines` replaces the pool users, the MAC and the Wi-Fi name that the miner reports by
 `<pool-user>`, `<mac>` and `<wifi-name>`, and any string in the form of a MAC address by `<mac>`.
+A reported value that is a common word is replaced everywhere, so the value can be guessed from the output.
 `--lines` with `--show-private` prints log lines as the miner wrote them, and they can contain the
 pool user, addresses, hostnames and the Wi-Fi name. Other addresses and hostnames are not replaced.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
@@ -274,7 +275,7 @@ Zero shares is a definitive result with exit code 0. Firmware without the path g
 `not_supported`, by the same rule as `firmware`.
 `logs` without `--lines`, and `logs --lines` with `--show-private`, send one request, to the logs path only.
 `logs --lines` without `--show-private` first sends one request to the info path, then one to the logs path;
-if the info read fails, no log line is printed and the exit code is 1. `replaced` states how many values were replaced.
+if the info read fails, no log line is printed and the exit code is 1.
 `--show-private` is valid only together with `--lines`. The miner answers with plain text: its log
 buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. Without
 `--lines` the command prints no log line: it prints `total_lines`, the response size

@@ -17,7 +17,7 @@ import (
 const (
 	noLogLines  = 0
 	allLogLines = -1
-	logPrivacy  = "log lines are printed as the miner wrote them and can contain the pool user, addresses, hostnames and the Wi-Fi name"
+	logPrivacy  = "--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced"
 	logRedacted = "the pool user, the MAC and the Wi-Fi name are replaced; --show-private prints the lines unchanged"
 
 	placePoolUser = "<pool-user>"
@@ -81,9 +81,8 @@ func newRedactor(info map[string]any) *redactor {
 	return r
 }
 
-func (r *redactor) replace(line string, count *int) string {
+func (r *redactor) replace(line string) string {
 	return r.pattern.ReplaceAllStringFunc(line, func(match string) string {
-		*count++
 		if placeholder, ok := r.placeholders[match]; ok {
 			return placeholder
 		}
@@ -125,11 +124,10 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	if opts.lines != allLogLines && opts.lines < total {
 		lines = lines[total-opts.lines:]
 	}
-	replaced := 0
 	rows := make([]any, len(lines))
 	for i, line := range lines {
 		if redact != nil {
-			line = redact.replace(line, &replaced)
+			line = redact.replace(line)
 		}
 		rows[i] = output.Object{{Name: "text", Value: line}}
 	}
@@ -140,7 +138,7 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		}
 		return write(stdout, fields)
 	}
-	fields = append(fields, output.Field{Name: "replaced", Value: replaced}, output.Field{Name: "private", Value: logRedacted})
+	fields = append(fields, output.Field{Name: "private", Value: logRedacted})
 	hints := []any{prefix + " --lines " + shown(opts.lines) + " --show-private prints the lines unchanged"}
 	if len(lines) < total {
 		hints = append(hints, help.Value.([]any)...)
@@ -158,7 +156,7 @@ func shown(lines int) string {
 func logsHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "logs"},
-		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; replaced states how many"},
+		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "lines", Value: "--lines <n|all>; default prints no log line; the newest n lines, or all lines"},
