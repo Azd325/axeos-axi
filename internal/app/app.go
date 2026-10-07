@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,12 +21,14 @@ const (
 	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning", "pool"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning", "pool", "skill"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
 func validFlags(command string) string {
 	switch command {
+	case "skill":
+		return "--path, " + universalFlags
 	case "discover":
 		return "--timeout, --fields, " + universalFlags
 	case "logs":
@@ -57,7 +58,8 @@ func New(getenv func(string) string) *App {
 }
 
 type options struct {
-	command, host          string
+	command, host, action  string
+	path                   string
 	timeout, lines         int
 	fields                 []string
 	tuning                 map[string]int
@@ -76,13 +78,14 @@ func parse(args []string) (options, error) {
 			first = fmt.Errorf(format, a...)
 		}
 	}
-	hostSet, timeoutSet, fieldsSet, linesSet := false, false, false, false
+	hostSet, timeoutSet, fieldsSet, linesSet, pathSet := false, false, false, false, false
+	var seen []string
 	var tuningFlags, poolFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user":
+		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
 			if flag == "--host" && hostSet {
 				fail("--host was given more than once; a command takes one miner")
 			}
@@ -96,7 +99,12 @@ func parse(args []string) (options, error) {
 			if isPoolFlag {
 				poolFlags = append(poolFlags, flag)
 			}
+			if flag == "--path" && pathSet {
+				fail("--path was given more than once")
+			}
 			hostSet = hostSet || flag == "--host"
+			pathSet = pathSet || flag == "--path"
+			seen = append(seen, flag)
 			timeoutSet = timeoutSet || flag == "--timeout"
 			fieldsSet = fieldsSet || flag == "--fields"
 			linesSet = linesSet || flag == "--lines"
@@ -122,6 +130,8 @@ func parse(args []string) (options, error) {
 				continue
 			}
 			switch flag {
+			case "--path":
+				opts.path = value
 			case "--host":
 				opts.host = value
 			case "--timeout":
@@ -166,6 +176,9 @@ func parse(args []string) (options, error) {
 				fail("%s does not accept a value", flag)
 				continue
 			}
+			if flag != "--help" && flag != "-v" && flag != "-V" && flag != "--version" {
+				seen = append(seen, flag)
+			}
 			switch flag {
 			case "--help":
 				opts.help = true
@@ -183,12 +196,34 @@ func parse(args []string) (options, error) {
 				fail("unknown flag %s", flag)
 				continue
 			}
+			if opts.command == "skill" && opts.action == "" && arg == "install" {
+				opts.action = arg
+				continue
+			}
+			if opts.command == "skill" && opts.action == "" && !slices.Contains(commandNames, arg) {
+				fail("unknown action %s for `skill`; valid action: install", arg)
+				continue
+			}
 			if opts.command != "" || !slices.Contains(commandNames, arg) {
 				fail("unknown command or argument %s; valid commands: %s", arg, commands())
 				continue
 			}
 			opts.command = arg
 		}
+	}
+	if opts.command == "skill" {
+		for _, flag := range seen {
+			if flag != "--path" {
+				return opts, errors.New("unknown flag " + flag + " for `skill`; it takes --path only")
+			}
+		}
+		if first == nil && opts.action == "" && !opts.help && !opts.version {
+			return opts, errors.New(skillUsage)
+		}
+		return opts, first
+	}
+	if pathSet {
+		return opts, errors.New("unknown flag --path; it is a flag of `skill install` only")
 	}
 	if opts.command == "discover" && hostSet {
 		return opts, errors.New("unknown flag --host for `discover`; it browses the local network")
@@ -278,6 +313,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.help {
 		return write(stdout, help(opts.command))
+	}
+	if opts.command == "skill" {
+		return installSkill(opts, stdout)
 	}
 	if opts.command == "discover" {
 		return a.discover(ctx, opts, stdout)
@@ -408,6 +446,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			"axeos-axi restart --host " + hostArg + " for a preview of a miner restart; it sends no request without --confirm",
 			"axeos-axi tuning --host " + hostArg + " --frequency <MHz> --core-voltage <mV> for a preview of a tuning change; it sends no write request without --confirm",
 			"axeos-axi pool --host " + hostArg + " --url <host> --port <port> --user <user> for a preview of a pool change; it sends no write request without --confirm",
+			"axeos-axi skill install to install the agent skill for this tool",
 		}})
 	}
 	return write(stdout, fields)
@@ -418,10 +457,7 @@ func identity() output.Object {
 	if err != nil {
 		bin = "axeos-axi"
 	}
-	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(bin, home+string(filepath.Separator)) {
-		bin = "~" + strings.TrimPrefix(bin, home)
-	}
-	return output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}
+	return output.Object{{Name: "bin", Value: tildePath(bin)}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}
 }
 
 func fieldsHelp(command string) string {
@@ -435,6 +471,9 @@ func fieldsHelp(command string) string {
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
 func help(command string) output.Object {
+	if command == "skill" {
+		return skillHelp()
+	}
 	if command == "discover" {
 		return discoverHelp()
 	}
@@ -458,7 +497,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"})
 	}
 	flags := output.Object{
 		{Name: "flags", Value: output.Object{

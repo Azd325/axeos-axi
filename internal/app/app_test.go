@@ -128,7 +128,7 @@ func TestHomeHelpLines(t *testing.T) {
 	host, _ := miner(t, fixture(t, "info"))
 	a := New(func(string) string { return host })
 	code, out := execute(t, a)
-	if code != 0 || !strings.Contains(out, "\nhelp[10]:") {
+	if code != 0 || !strings.Contains(out, "\nhelp[11]:") {
 		t.Fatalf("code=%d output=%s", code, out)
 	}
 	code, out = execute(t, a, "--fields", "hostname")

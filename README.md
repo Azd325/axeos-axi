@@ -49,11 +49,25 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
+| `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
 All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
 `--help` works on every command without contacting a miner. `-v`, `-V` and `--version`
 print the bare version. Unknown flags and arguments are rejected.
+
+## Agent integrations
+
+`skill install` writes the agent skill that is built into the binary. It needs no host, sends no request and reads no miner.
+
+```sh
+axeos-axi skill install
+axeos-axi skill install --path ~/.claude/skills
+```
+
+The default target is `~/.agents/skills/axeos-axi/SKILL.md`. `--path <directory>` selects another parent directory.
+The command prints the absolute path, shown with `~` when it is under the home directory, and whether it wrote the file. The command does not expand a `~` inside `--path`. A repeated install with the same content writes nothing.
+A test fails when the help block inside the skill differs from `axeos-axi --help`.
 
 ## Discovery
 
