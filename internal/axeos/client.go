@@ -86,7 +86,7 @@ var StatisticsColumns = []string{
 	"voltage", "power", "current", "fanSpeed", "fanRpm", "fan2Rpm", "wifiRssi", "freeHeap", "responseTime",
 }
 
-// Firmware older than v2.11.0 has no columns query and answers every column.
+// Firmware older than v2.11.0 has no columns query and answers its own older column names (v2.10.1 create_json_statistics_all).
 func (c *Client) GetStatistics(ctx context.Context, columns []string) (map[string]any, error) {
 	for _, name := range columns {
 		if !slices.Contains(StatisticsColumns, name) {

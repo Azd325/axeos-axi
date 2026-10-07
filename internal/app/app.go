@@ -567,7 +567,7 @@ func help(command string) output.Object {
 		flagList := flags[0].Value.(output.Object)
 		flagList = append(flagList[:2:2], append(output.Object{
 			{Name: "samples", Value: "--samples <n|all>; the newest n samples, or all samples; without --columns prints " + strings.Join(defaultHistoryColumns, ",") + "; cannot combine with --fields"},
-			{Name: "columns", Value: "--columns <name,...>; sends the columns query to the miner and prints these columns and the timestamp; without --samples prints the newest sample; names: " + strings.Join(axeos.StatisticsColumns, ",") + "; firmware older than v2.11.0 ignores the query and the tool prints only the named columns; a column the miner omits prints null; cannot combine with --fields"},
+			{Name: "columns", Value: "--columns <name,...>; sends the columns query to the miner and prints these columns and the timestamp; without --samples prints the newest sample; names: " + strings.Join(axeos.StatisticsColumns, ",") + "; firmware older than v2.11.0 ignores the query and answers its own older column names, so most named columns print null there; a column the miner omits prints null; cannot combine with --fields"},
 		}, flagList[2:]...)...)
 		flags[0].Value = flagList
 	}

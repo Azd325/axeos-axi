@@ -106,10 +106,18 @@ func TestStatsSamplesUseTheDefaultRequestAndColumns(t *testing.T) {
 	}
 }
 
-func TestStatsColumnsPrintOnlyTheNamedColumnsWhenTheFirmwareIgnoresTheQuery(t *testing.T) {
-	host, _ := statsMiner(t, fixture(t, "info"), fixture(t, "statistics"))
+func TestStatsColumnsPrintNullForNamesTheOlderFirmwareLabelsDifferently(t *testing.T) {
+	older := map[string]any{
+		"currentTimestamp": float64(612447946),
+		"labels":           []any{"hashRate", "temp", "vrTemp", "power", "voltage", "current", "coreVoltageActual", "fanspeed", "fanrpm", "wifiRSSI", "freeHeap", "timestamp"},
+		"statistics": []any{
+			[]any{float64(1026.9), float64(64.6), float64(73), float64(20.1757813), float64(4976.5), float64(13875), float64(1093), float64(60), float64(4069), float64(-55), float64(150000), float64(612409553)},
+			[]any{float64(1027.9), float64(64.7), float64(73), float64(20.2), float64(4976.5), float64(13880), float64(1093), float64(60), float64(4070), float64(-55), float64(150000), float64(612429553)},
+		},
+	}
+	host, _ := statsMiner(t, fixture(t, "info"), older)
 	code, out := execute(t, New(func(string) string { return host }), "stats", "--columns", "power,fanRpm", "--samples", "all")
-	if code != 0 || !strings.Contains(out, "samples[3]{timestamp,power,fanRpm}:\n  612409553,20.1757813,4069\n") || strings.Contains(out, "hashrate") || strings.Contains(out, "help") {
+	if code != 0 || !strings.Contains(out, "samples[2]{timestamp,power,fanRpm}:\n  612409553,20.1757813,null\n  612429553,20.2,null\n") || strings.Contains(out, "hashrate") || strings.Contains(out, "help") {
 		t.Fatalf("code=%d output=%q", code, out)
 	}
 }

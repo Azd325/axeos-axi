@@ -288,8 +288,9 @@ it prints the newest sample only. A name outside this list is a usage error, and
 `vrTemp`, `asicVoltage`, `voltage`, `power`, `current`, `fanSpeed`, `fanRpm`, `fan2Rpm`, `wifiRssi`,
 `freeHeap` and `responseTime`. The `timestamp` column is always printed. Only a call with `--columns`
 sends the `columns` query (`GET /api/system/statistics?columns=...`); firmware older than v2.11.0 has
-no such query and answers every column, and the tool then prints only the named columns. A column
-the miner does not send prints `null`. The `help` line for `--samples all` appears only when the
+no such query and answers its own older column names (v2.10.1: `hashRate`, `temp`, `vrTemp`, `power`,
+`voltage`, `current`, `coreVoltageActual`, `fanspeed`, `fanrpm`, `wifiRSSI`, `freeHeap`, `timestamp`),
+so most named columns print `null` there. A column the miner does not send prints `null`. The `help` line for `--samples all` appears only when the
 output is cut.
 
 ```sh
