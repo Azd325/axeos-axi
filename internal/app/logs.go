@@ -17,12 +17,18 @@ import (
 const (
 	noLogLines  = 0
 	allLogLines = -1
-	logPrivacy  = "--lines and --follow replace the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced"
-	logRedacted = "the pool user, the MAC and the Wi-Fi name are replaced; --show-private prints the lines unchanged"
+	logPrivacy  = "--lines and --follow replace the pool user, the MAC, the Wi-Fi name, the Bitcoin payout address and other coinbase outputs, the scriptsig and the block template of a received mining.notify message; only --show-private prints the lines unchanged, and then they can contain all of these, other addresses and hostnames; other addresses and hostnames are not replaced"
+	logRedacted = "the pool user, the MAC, the Wi-Fi name, the payout address, coinbase outputs, the scriptsig and the block template are replaced; --show-private prints the lines unchanged"
 
-	placePoolUser = "<pool-user>"
-	placeMAC      = "<mac>"
-	placeWifiName = "<wifi-name>"
+	placePoolUser      = "<pool-user>"
+	placeMAC           = "<mac>"
+	placeWifiName      = "<wifi-name>"
+	placePayoutAddress = "<payout-address>"
+	placeOutputScript  = "<output-script>"
+	placeScriptsig     = "<scriptsig>"
+	placeBlockTemplate = "<redacted: block template, contains pool tag and payout script>"
+	placeStratumLine   = "<redacted: unparsed stratum message>"
+	placeCutLineEnd    = "<redacted: cut end of a longer line>"
 )
 
 // ECMA-48 sequences: CSI, then OSC and the DCS/SOS/PM/APC strings with their terminator, then any other escape sequence.
@@ -36,6 +42,79 @@ func printable(line string) string {
 		}
 		return r
 	}, line)
+}
+
+var (
+	coinbaseOutputLine = regexp.MustCompile(`^(\w \(\d+\) [\w.-]+:\s+Output \d+: )(.*?)((?: \(\d+ sat\))?(?: \(Your payout address\))?)$`)
+	scriptsigLine      = regexp.MustCompile(`^(\w \(\d+\) [\w.-]+: Scriptsig: ).*$`)
+	channelUserLine    = regexp.MustCompile(`(Opening (?:extended|standard) mining channel \(user=).*(\))`)
+	submitUser         = regexp.MustCompile(`("method":"mining\.(?:authorize|submit)","params":\[")(?:[^"\\]|\\.)*"`)
+	unparsedLine       = regexp.MustCompile(`(: JSON parse failed: ).*$`)
+	stratumRxLine      = regexp.MustCompile(`^\w \(\d+\) [\w.-]+: rx: `)
+	plainAddress       = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+	logPrefix          = regexp.MustCompile(`^\w \(\d+\) [\w.-]+:`)
+)
+
+const restartMarker = "--- SYSTEM RESTART ---"
+
+const paramsKey = `"params":`
+
+func replaceForms(line string) string {
+	if m := coinbaseOutputLine.FindStringSubmatch(line); m != nil {
+		placeholder := placeOutputScript
+		if plainAddress.MatchString(m[2]) {
+			placeholder = placePayoutAddress
+		}
+		return m[1] + placeholder + m[3]
+	}
+	line = scriptsigLine.ReplaceAllString(line, "${1}"+placeScriptsig)
+	line = channelUserLine.ReplaceAllString(line, "${1}"+placePoolUser+"${2}")
+	line = submitUser.ReplaceAllString(line, "${1}"+placePoolUser+`"`)
+	line = unparsedLine.ReplaceAllString(line, "${1}"+placeStratumLine)
+	return replaceNotifyParams(line)
+}
+
+func cutLineEnd(line string) bool {
+	return line != restartMarker && !logPrefix.MatchString(line)
+}
+
+func replaceNotifyParams(line string) string {
+	if !stratumRxLine.MatchString(line) || !strings.Contains(line, `"mining.notify"`) {
+		return line
+	}
+	key := strings.Index(line, paramsKey)
+	if key < 0 {
+		return line
+	}
+	start := key + len(paramsKey)
+	return line[:start] + placeBlockTemplate + line[valueEnd(line, start):]
+}
+
+func valueEnd(line string, start int) int {
+	depth, quoted := 0, false
+	for i := start; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quoted && c == '\\':
+			i++
+		case c == '"':
+			quoted = !quoted
+		case quoted:
+		case c == '[' || c == '{':
+			depth++
+		case c == ']' || c == '}':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+			if depth < 0 {
+				return i
+			}
+		case c == ',' && depth == 0:
+			return i
+		}
+	}
+	return len(line)
 }
 
 var macForm = `[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}`
@@ -81,7 +160,7 @@ func newRedactor(info map[string]any) *redactor {
 }
 
 func (r *redactor) replace(line string) string {
-	return r.pattern.ReplaceAllStringFunc(line, func(match string) string {
+	return r.pattern.ReplaceAllStringFunc(replaceForms(line), func(match string) string {
 		if placeholder, ok := r.placeholders[match]; ok {
 			return placeholder
 		}
@@ -126,6 +205,9 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	rows := make([]any, len(lines))
 	for i, line := range lines {
 		if redact != nil {
+			if i == 0 && len(lines) == total && cutLineEnd(line) {
+				line = placeCutLineEnd
+			}
 			line = redact.replace(line)
 		}
 		rows[i] = output.Object{{Name: "text", Value: line}}
@@ -155,7 +237,7 @@ func shown(lines int) string {
 func logsHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "logs"},
-		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output; --follow <seconds> is a separate mode that reads the log stream /api/ws for at most 300 seconds and prints each new line when it arrives, with the same replacement, as line_1: <text>, line_2: <text> and so on, one TOON field on one output line each, so the output is valid line by line and as a whole; the first output line is follow_limit_s; the last lines are lines, seconds_followed and ended (time_limit, closed_by_miner or interrupted); 0 new lines is a definitive empty state, not an error; the stream sends no old line, so --lines reads the buffer; Ctrl-C ends with exit code 0; a broken connection prints the lines so far, then a connection_lost error with exit code 1; data that is not a valid log stream prints a protocol_error with exit code 1; a failed read of info prints miner_read_failed with exit code 1; a follow holds 1 of the 10 WebSocket places of the miner, which the web interface shares, and the miner answers connections_full when all are taken; firmware older than v2.10.0 has no limit of 10 places, and firmware without the path answers not_supported"},
+		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; from the form of the line, whatever info reports, it replaces each coinbase output of a Coinbase outputs listing by <payout-address> (or <output-script> for a script such as OP_RETURN), the Scriptsig text by <scriptsig>, the params of a received mining.notify message by one placeholder that names the block template, the user of a sent mining.authorize or mining.submit message and of an Opening mining channel line by <pool-user>, and a stratum message that failed to parse by one placeholder; <redacted: cut end of a longer line> replaces the first line of the log buffer when it has no log prefix and is not --- SYSTEM RESTART ---, and replaces every piece of a followed line longer than 64 KiB; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output; --follow <seconds> is a separate mode that reads the log stream /api/ws for at most 300 seconds and prints each new line when it arrives, with the same replacement, as line_1: <text>, line_2: <text> and so on, one TOON field on one output line each, so the output is valid line by line and as a whole; the first output line is follow_limit_s; the last lines are lines, seconds_followed and ended (time_limit, closed_by_miner or interrupted); 0 new lines is a definitive empty state, not an error; the stream sends no old line, so --lines reads the buffer; Ctrl-C ends with exit code 0; a broken connection prints the lines so far, then a connection_lost error with exit code 1; data that is not a valid log stream prints a protocol_error with exit code 1; a failed read of info prints miner_read_failed with exit code 1; a follow holds 1 of the 10 WebSocket places of the miner, which the web interface shares, and the miner answers connections_full when all are taken; firmware older than v2.10.0 has no limit of 10 places, and firmware without the path answers not_supported"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "lines", Value: "--lines <n|all>; default prints no log line; the newest n lines, or all lines"},

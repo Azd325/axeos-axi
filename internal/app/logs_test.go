@@ -209,7 +209,7 @@ func TestLogsHelpOffline(t *testing.T) {
 	code, out := execute(t, a, "logs", "--help")
 	for _, want := range []string{
 		"command: logs\n", "prints no log line without --lines", "lines: \"--lines <n|all>; default prints no log line; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
-		"privacy: \"--lines and --follow replace the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced\"\n",
+		"privacy: \"--lines and --follow replace the pool user, the MAC, the Wi-Fi name, the Bitcoin payout address and other coinbase outputs, the scriptsig and the block template of a received mining.notify message; ", "<redacted: cut end of a longer line>",
 		"examples[5]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all,axeos-axi logs --host 192.0.2.10 --lines 100 --show-private,axeos-axi logs --host 192.0.2.10 --follow 30\n", "show_private: ",
 	} {
 		if code != 0 || !strings.Contains(out, want) {
@@ -312,11 +312,11 @@ func TestLogsReportedMacMatchesWithoutRegardToCase(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("id AABBCCDDEEFF and aabbccddeeff\n"))
+		_, _ = w.Write([]byte("I (1) example: id AABBCCDDEEFF and aabbccddeeff\n"))
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
-	if code != 0 || !strings.Contains(out, "\n  id <mac> and <mac>\n") {
+	if code != 0 || !strings.Contains(out, "\n  \"I (1) example: id <mac> and <mac>\"\n") {
 		t.Fatalf("%d %s", code, out)
 	}
 }
@@ -329,11 +329,11 @@ func TestLogsReplacesPoolUserOnlyListedInPools(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("user example-listed connected\n"))
+		_, _ = w.Write([]byte("I (1) example: user example-listed connected\n"))
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
-	if code != 0 || !strings.Contains(out, "\n  user <pool-user> connected\n") || strings.Contains(out, "example-listed") {
+	if code != 0 || !strings.Contains(out, "\n  \"I (1) example: user <pool-user> connected\"\n") || strings.Contains(out, "example-listed") {
 		t.Fatalf("%d %s", code, out)
 	}
 }

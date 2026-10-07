@@ -34,7 +34,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 ## Private values and the network
 
 - Values that can identify the owner or the network print only on explicit request, also for free text such as logs.
-- Log lines replace the pool user, MAC and Wi-Fi name by default; the unchanged lines need an explicit flag.
+- Log lines replace the pool user, MAC, Wi-Fi name, Bitcoin addresses and the pool's block template by default; the unchanged lines need an explicit flag.
 - The tool talks to miners on the local network only and collects no telemetry.
 - The one request that leaves the local network is the read of the newest firmware release; it runs only on an explicit flag and sends no value from the miner.
 - Any other request to a host outside the local network needs a new decision in this file.

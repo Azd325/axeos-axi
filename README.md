@@ -269,8 +269,16 @@ including users inside `pools`; avoid publishing that output.
 `logs --lines` replaces the pool users, the MAC and the Wi-Fi name that the miner reports by
 `<pool-user>`, `<mac>` and `<wifi-name>`, and any string in the form of a MAC address by `<mac>`.
 A reported value that is a common word is replaced everywhere, so the value can be guessed from the output.
+The replacement also works from the form of the line, whatever the miner reports: every output of a
+`Coinbase outputs` listing, the Bitcoin payout address included, becomes `<payout-address>` (a script such as
+`OP_RETURN` becomes `<output-script>`), the `Scriptsig` text becomes `<scriptsig>`, and the `params` of a received
+`mining.notify` message, the block template with the pool tag and the payout script, become one placeholder that
+names it. The user in a sent `mining.authorize` or `mining.submit` message is replaced by `<pool-user>`.
+The first line of the log buffer, when it has no log prefix and is not `--- SYSTEM RESTART ---`, is the cut end of a longer line and becomes `<redacted: cut end of a longer line>`.
+`--follow` replaces every piece of a line longer than 64 KiB by the same placeholder.
 `--lines` or `--follow` with `--show-private` prints log lines as the miner wrote them, and they can contain the
-pool user, addresses, hostnames and the Wi-Fi name. Other addresses and hostnames are not replaced.
+pool user, the payout address, the block template, hostnames and the Wi-Fi name. IP addresses, hostnames and pool
+addresses are not replaced.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
 makes efficiency unknown. Hashrate is GH/s, temperatures are Celsius, tuning voltage
 is mV, frequency is MHz and uptime is seconds.
@@ -328,7 +336,7 @@ The number is a whole number of seconds from 1 to 300 and is the time limit: a v
 is a usage error, and no connection is made. The command ends by itself when the time is over or the
 miner closes the connection; Ctrl-C closes the connection cleanly and ends with exit code 0.
 `--follow` cannot be combined with `--lines` or `--fields`. `--show-private` works as in `logs --lines`:
-without it the pool user, the MAC and the Wi-Fi name are replaced in each line.
+without it the pool user, the MAC, the Wi-Fi name, the payout address and the block template are replaced in each line.
 The miner sends only the lines that are new after the connection opens, so a follow shows no old line;
 `logs --lines` reads the old lines.
 
