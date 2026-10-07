@@ -283,7 +283,7 @@ buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. 
 `--lines all` prints every line, in the order of the buffer, so the newest line is last;
 `total_lines` and `shown_lines` state how many lines exist and how many are printed.
 There is no filter, search or follow. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
-firmware, are removed; the text is otherwise unchanged. Zero lines is a definitive result
+firmware, are removed; with `--show-private` the text is otherwise unchanged. Zero lines is a definitive result
 with exit code 0. Firmware without the path gives `not_supported`, by the same rule as `firmware`.
 
 ## Development

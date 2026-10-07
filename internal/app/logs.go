@@ -43,7 +43,6 @@ var macForm = `[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}`
 type redactor struct {
 	pattern      *regexp.Regexp
 	placeholders map[string]string
-	mac          string
 }
 
 func newRedactor(info map[string]any) *redactor {
@@ -63,7 +62,7 @@ func newRedactor(info map[string]any) *redactor {
 		}
 	}
 	add(info["ssid"], placeWifiName)
-	r.mac, _ = info["macAddr"].(string)
+	mac, _ := info["macAddr"].(string)
 	values := make([]string, 0, len(r.placeholders))
 	for value := range r.placeholders {
 		values = append(values, value)
@@ -73,8 +72,8 @@ func newRedactor(info map[string]any) *redactor {
 	for _, value := range values {
 		alternatives = append(alternatives, regexp.QuoteMeta(value))
 	}
-	if r.mac != "" {
-		alternatives = append(alternatives, "(?i:"+regexp.QuoteMeta(r.mac)+")")
+	if mac != "" {
+		alternatives = append(alternatives, "(?i:"+regexp.QuoteMeta(mac)+")")
 	}
 	alternatives = append(alternatives, macForm)
 	r.pattern = regexp.MustCompile(strings.Join(alternatives, "|"))
