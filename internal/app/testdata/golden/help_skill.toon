@@ -6,5 +6,5 @@ flags:
   path: "--path <directory>; parent directory of the axeos-axi directory; default ~/.agents/skills"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"
-  version: "-v, -V, --version; bare version; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
 examples[3]: axeos-axi skill install,axeos-axi skill install --path ~/.claude/skills,axeos-axi skill --help

@@ -48,7 +48,7 @@ func skillHelp() output.Object {
 			{Name: "path", Value: "--path <directory>; parent directory of the axeos-axi directory; default ~/.agents/skills"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "examples", Value: []any{"axeos-axi skill install", "axeos-axi skill install --path ~/.claude/skills", "axeos-axi skill --help"}},
 	}

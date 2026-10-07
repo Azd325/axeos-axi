@@ -51,7 +51,7 @@ func restartHelp() output.Object {
 			{Name: "confirm", Value: "--confirm; sends the restart request; default sends no request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "timeout_s", Value: int(axeos.Timeout / time.Second)},
 		{Name: "examples", Value: []any{"axeos-axi restart --host 192.0.2.10", "axeos-axi restart --host 192.0.2.10 --confirm", "axeos-axi restart --help"}},

@@ -238,7 +238,7 @@ func poolHelp() output.Object {
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "timeout_s", Value: int(axeos.Timeout / time.Second)},
 		{Name: "private_fields", Value: "the pool user prints only with --show-user; the pool certificate and the password are never printed"},

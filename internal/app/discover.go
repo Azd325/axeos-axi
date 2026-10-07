@@ -120,7 +120,7 @@ func discoverHelp() output.Object {
 			{Name: "fields", Value: "--fields <name,...>; default " + strings.Join(discoverDefaults, ",") + "; replaces the row columns"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "service", Value: discoverService},
 		{Name: "timeout_s", Value: defaultDiscoverTimeout},

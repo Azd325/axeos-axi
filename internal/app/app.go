@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	universalFlags = "--json, --help, -v, -V, --version"
-	jsonFlagHelp   = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
-	hostFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+	universalFlags  = "--json, --help, -v, -V, --version"
+	jsonFlagHelp    = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+	versionFlagHelp = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning", "pool", "skill"}
@@ -587,7 +588,7 @@ func help(command string) output.Object {
 			{Name: "fields", Value: fieldsHelp(command)},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},

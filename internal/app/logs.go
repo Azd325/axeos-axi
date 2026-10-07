@@ -245,7 +245,7 @@ func logsHelp() output.Object {
 			{Name: "show_private", Value: "--show-private; only with --lines or --follow; prints the lines unchanged and sends no info request"},
 			{Name: "json", Value: jsonFlagHelp + "; with --follow, one JSON object per line: one for the follow limit, one for each log line, and one closing object with the line count, the seconds followed and the reason for the end"},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "timeout_s", Value: int(axeos.LogsTimeout / time.Second)},
 		{Name: "follow_max_s", Value: maxFollowSeconds},

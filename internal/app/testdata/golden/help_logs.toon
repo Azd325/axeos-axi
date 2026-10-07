@@ -8,7 +8,7 @@ flags:
   show_private: "--show-private; only with --lines or --follow; prints the lines unchanged and sends no info request"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged; with --follow, one JSON object per line: one for the follow limit, one for each log line, and one closing object with the line count, the seconds followed and the reason for the end"
   help: "--help; no network request"
-  version: "-v, -V, --version; bare version; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
 timeout_s: 15
 follow_max_s: 300
 privacy: "--lines and --follow replace the pool user, the MAC, the Wi-Fi name, the Bitcoin payout address and other coinbase outputs, the scriptsig and the block template of a received mining.notify message; only --show-private prints the lines unchanged, and then they can contain all of these, other addresses and hostnames; other addresses and hostnames are not replaced"

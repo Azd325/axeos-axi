@@ -134,7 +134,7 @@ func tuningHelp() output.Object {
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: versionFlagHelp},
 		}},
 		{Name: "timeout_s", Value: int(axeos.Timeout / time.Second)},
 		{Name: "examples", Value: []any{"axeos-axi tuning --host 192.0.2.10 --frequency 525", "axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage 1150 --confirm", "axeos-axi tuning --help"}},
