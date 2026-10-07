@@ -393,6 +393,8 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "" {
 		fields = append(identity(), fields...)
+	}
+	if opts.command == "" && len(opts.fields) == 0 {
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{

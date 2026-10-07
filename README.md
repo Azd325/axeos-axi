@@ -235,6 +235,7 @@ listed in command help or exact top-level JSON field names from the
 For `info`, `asic` and the home view, firmware v2.15.3 sends some fields only on a condition,
 for example `power_fault` during a fault. `--help` lists them as `conditional_fields`.
 With `--fields`, such a name that the miner omits prints `null`.
+The home view prints one `help` line for each command; with `--fields` it prints no `help` field.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 
