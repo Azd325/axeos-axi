@@ -124,6 +124,19 @@ func TestRecordedViews(t *testing.T) {
 	}
 }
 
+func TestHomeHelpLines(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return host })
+	code, out := execute(t, a)
+	if code != 0 || !strings.Contains(out, "\nhelp[10]:") {
+		t.Fatalf("code=%d output=%s", code, out)
+	}
+	code, out = execute(t, a, "--fields", "hostname")
+	if code != 0 || strings.Contains(out, "\nhelp") {
+		t.Fatalf("code=%d output=%s", code, out)
+	}
+}
+
 func TestFieldsAndHostOverride(t *testing.T) {
 	host, _ := miner(t, fixture(t, "info"))
 	a := New(func(string) string { return "http://invalid.example" })

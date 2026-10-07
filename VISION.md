@@ -47,7 +47,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 - Exit codes are 0 for success, 1 for errors and 2 for usage errors.
 - The health verdict alone uses exit code 3 for an unhealthy miner, so a failed read and an unhealthy miner stay distinct.
 - Unknown flags and commands are rejected with valid flags listed.
-- The home view starts with `bin:` and `description:` before live state and contextual help; with no host it prints them before the `host_required` error, and the exit code stays 2.
+- The home view starts with `bin:` and `description:` before live state and contextual help, which `--fields` omits; with no host it prints them before the `host_required` error, and the exit code stays 2.
 - Every command provides concise `--help`; `-v`, `-V` and `--version` return the version.
 
 ## Scope
