@@ -290,8 +290,8 @@ it prints the newest sample only. A name outside this list is a usage error, and
 sends the `columns` query (`GET /api/system/statistics?columns=...`); firmware older than v2.11.0 has
 no such query and answers its own older column names (v2.10.1: `hashRate`, `temp`, `vrTemp`, `power`,
 `voltage`, `current`, `coreVoltageActual`, `fanspeed`, `fanrpm`, `wifiRSSI`, `freeHeap`, `timestamp`),
-so most named columns print `null` there. A column the miner does not send prints `null`. The `help` line for `--samples all` appears only when the
-output is cut.
+so most named columns print `null` there. A column the miner does not send prints `null`. The `help` line for
+`--samples all` appears only when the output is cut.
 
 ```sh
 bin/axeos-axi stats --samples 10
