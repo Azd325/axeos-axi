@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -67,6 +68,32 @@ func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, erro
 	default:
 		return nil, errors.New("unsupported read endpoint")
 	}
+	var data map[string]any
+	if err := c.read(ctx, endpoint, &data); err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, errInvalidJSON
+	}
+	return data, nil
+}
+
+// StatisticsColumns are the names that GET /api/system/statistics accepts in its columns query, in the order of the answer
+// (strToDataSource and GET_system_statistics in ESP-Miner main/http_server/http_server.c, tags v2.15.3 and master).
+// The firmware ignores any other name, and it answers every column when no name matches.
+var StatisticsColumns = []string{
+	"hashrate", "hashrate_1m", "hashrate_10m", "hashrate_1h", "errorPercentage", "asicTemp", "asicTemp2", "vrTemp", "asicVoltage",
+	"voltage", "power", "current", "fanSpeed", "fanRpm", "fan2Rpm", "wifiRssi", "freeHeap", "responseTime",
+}
+
+// Firmware older than v2.11.0 has no columns query and answers its own older column names (v2.10.1 create_json_statistics_all).
+func (c *Client) GetStatistics(ctx context.Context, columns []string) (map[string]any, error) {
+	for _, name := range columns {
+		if !slices.Contains(StatisticsColumns, name) {
+			return nil, errors.New("unsupported statistics column")
+		}
+	}
+	endpoint := "statistics?columns=" + strings.Join(columns, ",")
 	var data map[string]any
 	if err := c.read(ctx, endpoint, &data); err != nil {
 		return nil, err

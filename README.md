@@ -41,7 +41,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | no arguments | Hostname, ASIC model, firmware, current/1h/expected hashrate, temperatures, power, efficiency, fan, active pool URL, pool connection/fallback, shares, best difficulty, uptime, overheat and paused flags |
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
-| `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
+| `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power; with `--samples` or `--columns`, the newest samples as a table of named columns |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; private values replaced unless `--show-private` |
@@ -245,7 +245,7 @@ listed in command help or exact top-level JSON field names from the
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
-`logs`, `restart`, `tuning` and `pool` do not take `--fields`.
+`logs`, `restart`, `tuning` and `pool` do not take `--fields`; `stats` does not combine `--fields` with `--samples` or `--columns`.
 For `info`, `asic` and the home view, firmware v2.15.3 sends some fields only on a condition,
 for example `power_fault` during a fault. `--help` lists them as `conditional_fields`.
 With `--fields`, such a name that the miner omits prints `null`.
@@ -277,9 +277,27 @@ is mV, frequency is MHz and uptime is seconds.
 `IPv4`); it is not an independently verified pool-health check.
 Statistics timestamps are milliseconds since miner boot, not wall-clock dates.
 `stats` reports logging disabled definitively when `statsFrequency` is zero, and
-reports zero recorded samples when enabled logging has no data. Extra sample history
-is available only through explicit field selection; it is not dumped by default.
-An empty-state explanation remains present with `--fields`.
+reports zero recorded samples when enabled logging has no data. An empty-state explanation
+remains present with `--fields`, `--samples` and `--columns`.
+Sample history is not dumped by default. `stats --samples <n|all>` prints the newest n samples,
+or all of them, as a table with the timestamp and the columns `hashrate`, `hashrate_1h`, `asicTemp`,
+`vrTemp` and `power`, oldest first and newest last, with `sample_count` (all samples the miner holds)
+and `shown_samples`. `stats --columns <name,...>` prints the named columns instead; without `--samples`
+it prints the newest sample only. A name outside this list is a usage error, and no request is sent:
+`hashrate`, `hashrate_1m`, `hashrate_10m`, `hashrate_1h`, `errorPercentage`, `asicTemp`, `asicTemp2`,
+`vrTemp`, `asicVoltage`, `voltage`, `power`, `current`, `fanSpeed`, `fanRpm`, `fan2Rpm`, `wifiRssi`,
+`freeHeap` and `responseTime`. The `timestamp` column is always printed. Only a call with `--columns`
+sends the `columns` query (`GET /api/system/statistics?columns=...`); firmware older than v2.11.0 has
+no such query and answers its own older column names (v2.10.1: `hashRate`, `temp`, `vrTemp`, `power`,
+`voltage`, `current`, `coreVoltageActual`, `fanspeed`, `fanrpm`, `wifiRSSI`, `freeHeap`, `timestamp`),
+so most named columns print `null` there. A column the miner does not send prints `null`. The `help` line for
+`--samples all` appears only when the output is cut.
+
+```sh
+bin/axeos-axi stats --samples 10
+bin/axeos-axi stats --columns fanRpm,wifiRssi
+bin/axeos-axi stats --columns fanRpm,wifiRssi --samples all
+```
 `firmware` sends one request, to the checksum path only. Its `sha256` is lowercase hex and
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then

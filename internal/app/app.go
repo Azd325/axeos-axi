@@ -31,6 +31,8 @@ func validFlags(command string) string {
 		return "--path, " + universalFlags
 	case "discover":
 		return "--timeout, --fields, " + universalFlags
+	case "stats":
+		return "--host, --fields, --samples, --columns, " + universalFlags
 	case "logs":
 		return "--host, --lines, --show-private, " + universalFlags
 	case "restart":
@@ -61,6 +63,8 @@ type options struct {
 	command, host, action  string
 	path                   string
 	timeout, lines         int
+	samples                int
+	columns                []string
 	fields                 []string
 	tuning                 map[string]int
 	pool                   map[string]any
@@ -78,14 +82,14 @@ func parse(args []string) (options, error) {
 			first = fmt.Errorf(format, a...)
 		}
 	}
-	hostSet, timeoutSet, fieldsSet, linesSet, pathSet := false, false, false, false, false
+	hostSet, timeoutSet, fieldsSet, linesSet, pathSet, samplesSet, columnsSet := false, false, false, false, false, false, false
 	var seen []string
 	var tuningFlags, poolFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
+		case "--host", "--fields", "--timeout", "--lines", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
 			if flag == "--host" && hostSet {
 				fail("--host was given more than once; a command takes one miner")
 			}
@@ -108,6 +112,11 @@ func parse(args []string) (options, error) {
 			timeoutSet = timeoutSet || flag == "--timeout"
 			fieldsSet = fieldsSet || flag == "--fields"
 			linesSet = linesSet || flag == "--lines"
+			if (flag == "--samples" && samplesSet) || (flag == "--columns" && columnsSet) {
+				fail("%s was given more than once", flag)
+			}
+			samplesSet = samplesSet || flag == "--samples"
+			columnsSet = columnsSet || flag == "--columns"
 			if !assigned {
 				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
 					fail("%s requires a value", flag)
@@ -157,6 +166,28 @@ func parse(args []string) (options, error) {
 						continue
 					}
 					opts.lines = count
+				}
+			case "--samples":
+				opts.samples = allSamples
+				if value != "all" {
+					count, err := strconv.Atoi(value)
+					if err != nil || count < 1 {
+						fail("--samples requires a whole number from 1, or all")
+						continue
+					}
+					opts.samples = count
+				}
+			case "--columns":
+				opts.columns = strings.Split(value, ",")
+				seen := map[string]bool{}
+				for j, name := range opts.columns {
+					name = strings.TrimSpace(name)
+					if !slices.Contains(axeos.StatisticsColumns, name) || seen[name] {
+						fail("--columns requires unique comma-separated names from: %s", strings.Join(axeos.StatisticsColumns, ","))
+						break
+					}
+					seen[name] = true
+					opts.columns[j] = name
 				}
 			default:
 				opts.fields = strings.Split(value, ",")
@@ -233,6 +264,19 @@ func parse(args []string) (options, error) {
 	}
 	if opts.command != "logs" && linesSet {
 		return opts, errors.New("unknown flag --lines; it is a flag of `logs` only")
+	}
+	if opts.command != "stats" && (samplesSet || columnsSet) {
+		flag := "--samples"
+		if !samplesSet {
+			flag = "--columns"
+		}
+		return opts, errors.New("unknown flag " + flag + "; it is a flag of `stats` only")
+	}
+	if fieldsSet && (samplesSet || columnsSet) {
+		return opts, errors.New("--fields cannot be combined with --samples or --columns; they print a table of samples")
+	}
+	if columnsSet && !samplesSet {
+		opts.samples = 1
 	}
 	if opts.command != "logs" && opts.showPrivate {
 		return opts, errors.New("unknown flag --show-private; it is a flag of `logs` only")
@@ -382,12 +426,22 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		}
 		fields = asicView(raw)
 	case "stats":
-		stats, readErr := client.Get(ctx, "statistics")
+		var stats map[string]any
+		var readErr error
+		if len(opts.columns) != 0 {
+			stats, readErr = client.GetStatistics(ctx, opts.columns)
+		} else {
+			stats, readErr = client.Get(ctx, "statistics")
+		}
 		if readErr != nil {
 			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check the miner API with axeos-axi info")
 		}
 		raw = stats
-		fields, err = statsView(info, stats)
+		if opts.samples != 0 {
+			fields, err = statsHistoryView(info, stats, opts.columns, opts.samples, shellQuote(opts.host))
+		} else {
+			fields, err = statsView(info, stats)
+		}
 		if err != nil {
 			return failure(stdout, 1, "invalid_statistics", err.Error(), "check AxeOS statistics API compatibility")
 		}
@@ -493,7 +547,7 @@ func help(command string) output.Object {
 	if label == "" {
 		label = "home"
 	}
-	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
+	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
@@ -509,11 +563,23 @@ func help(command string) output.Object {
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},
 	}
+	if command == "stats" {
+		flagList := flags[0].Value.(output.Object)
+		flagList = append(flagList[:2:2], append(output.Object{
+			{Name: "samples", Value: "--samples <n|all>; the newest n samples, or all samples; without --columns prints " + strings.Join(defaultHistoryColumns, ",") + "; cannot combine with --fields"},
+			{Name: "columns", Value: "--columns <name,...>; sends the columns query to the miner and prints these columns and the timestamp; without --samples prints the newest sample; names: " + strings.Join(axeos.StatisticsColumns, ",") + "; firmware older than v2.11.0 ignores the query and answers its own older column names, so most named columns print null there; a column the miner omits prints null; cannot combine with --fields"},
+		}, flagList[2:]...)...)
+		flags[0].Value = flagList
+	}
 	if readsInfoFields(command) {
 		flags = append(flags, output.Field{Name: "conditional_fields", Value: strings.Join(conditionalInfoFields, ",")})
 	}
+	examples := []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}
+	if command == "stats" {
+		examples[2] = prefix + " --host 192.0.2.10 --samples 10 --columns fanRpm,wifiRssi"
+	}
 	return append(fields, append(flags, output.Object{
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},
-		{Name: "examples", Value: []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}},
+		{Name: "examples", Value: examples},
 	}...)...)
 }
