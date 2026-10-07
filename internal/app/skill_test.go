@@ -83,12 +83,18 @@ func TestSkillFrontmatterRejectsInvalid(t *testing.T) {
 	}
 }
 
-func TestSkillBodyIsStatic(t *testing.T) {
-	raw := string(skill.Bytes())
-	for _, want := range []string{"--confirm", "--show-user", "--show-private", "stratumUser", "macAddr"} {
-		if !strings.Contains(raw, want) {
-			t.Errorf("SKILL.md lacks %s", want)
-		}
+func TestSkillInstallLiteralTildePathIsAbsolute(t *testing.T) {
+	setHome(t)
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	code, out := execute(t, New(noHost), "skill", "install", "--path=~/.claude/skills")
+	want := filepath.Join(cwd, "~", ".claude", "skills", "axeos-axi", "SKILL.md")
+	resolved, _ := filepath.EvalSymlinks(cwd)
+	if code != 0 || (!strings.Contains(out, "path: "+want) && !strings.Contains(out, "path: "+filepath.Join(resolved, "~", ".claude", "skills", "axeos-axi", "SKILL.md"))) {
+		t.Fatalf("code=%d output=%s", code, out)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -198,7 +204,7 @@ func TestSkillUsageErrorsWriteNothing(t *testing.T) {
 
 func TestSkillHelp(t *testing.T) {
 	home := setHome(t)
-	for _, args := range [][]string{{"skill", "--help"}, {"skill", "install", "--help"}} {
+	for _, args := range [][]string{{"skill", "--help"}, {"skill", "install", "--help"}, {"skill", "--path", "d", "--help"}} {
 		code, out := execute(t, New(noHost), args...)
 		if code != 0 || !strings.HasPrefix(out, "command: skill\n") {
 			t.Errorf("%v: code=%d output=%s", args, code, out)

@@ -200,7 +200,7 @@ func parse(args []string) (options, error) {
 				opts.action = arg
 				continue
 			}
-			if opts.command == "skill" && opts.action == "" && !strings.HasPrefix(arg, "-") && !slices.Contains(commandNames, arg) {
+			if opts.command == "skill" && opts.action == "" && !slices.Contains(commandNames, arg) {
 				fail("unknown action %s for `skill`; valid action: install", arg)
 				continue
 			}
@@ -219,9 +219,6 @@ func parse(args []string) (options, error) {
 		}
 		if first == nil && opts.action == "" && !opts.help && !opts.version {
 			return opts, errors.New(skillUsage)
-		}
-		if first == nil && opts.action == "" && pathSet {
-			return opts, errors.New("--path is valid only with `skill install`")
 		}
 		return opts, first
 	}

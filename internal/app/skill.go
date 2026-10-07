@@ -28,7 +28,10 @@ func installSkill(opts options, stdout io.Writer) int {
 		}
 		dir = filepath.Join(home, ".agents", "skills")
 	}
-	path := filepath.Join(dir, skill.Name, "SKILL.md")
+	path, err := filepath.Abs(filepath.Join(dir, skill.Name, "SKILL.md"))
+	if err != nil {
+		return failure(stdout, 1, "skill_install_failed", "could not determine the absolute path of "+opts.path, "axeos-axi skill install --path <absolute directory>")
+	}
 	written, err := skill.Install(path)
 	if err != nil {
 		return failure(stdout, 1, "skill_install_failed", "the skill file could not be written to "+tildePath(path), "check the directory and its permissions")
