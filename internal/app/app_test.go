@@ -146,12 +146,30 @@ func TestFieldsAndHostOverride(t *testing.T) {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "info", "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "help: axeos-axi info --help;") {
+	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "axeos-axi info --help; valid fields: ") {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "help: axeos-axi --help;") {
+	if code != 2 || !strings.Contains(out, "axeos-axi --help; valid fields: ") {
 		t.Fatal(out)
+	}
+}
+
+func TestUnknownFieldListsViewFields(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return "http://invalid.example" })
+	for _, command := range []string{"", "info", "asic", "stats", "firmware"} {
+		t.Run(command, func(t *testing.T) {
+			args := []string{"--host", host, "--fields", "nonexistent"}
+			if command != "" {
+				args = append([]string{command}, args...)
+			}
+			code, out := execute(t, a, args...)
+			want := "valid fields: " + viewNames(command) + " (or exact API field names)"
+			if code != 2 || !strings.Contains(out, "unknown field nonexistent") || !strings.Contains(out, want) {
+				t.Fatalf("code=%d %s", code, out)
+			}
+		})
 	}
 }
 
