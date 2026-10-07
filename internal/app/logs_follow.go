@@ -82,10 +82,13 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	conn, err := client.OpenLogStream(ctx)
-	if err != nil {
+	interrupted := err != nil && ctx.Err() != nil
+	if err != nil && !interrupted {
 		return followOpenFailure(stdout, err, opts.host)
 	}
-	defer func() { _ = conn.Close() }()
+	if conn != nil {
+		defer func() { _ = conn.Close() }()
+	}
 
 	limit := time.Duration(opts.follow) * followUnit
 	start := time.Now()
@@ -95,6 +98,9 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	}
 	stream := &logStream{stdout: stdout, redact: redact}
 	var ended string
+	if interrupted {
+		ended = endInterrupt
+	}
 	var readErr error
 	for ended == "" && !stream.failed {
 		text, err := conn.ReadMessage(ctx, deadline)

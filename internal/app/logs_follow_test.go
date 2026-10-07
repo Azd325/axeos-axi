@@ -147,6 +147,19 @@ func TestFollowInterruptEndsCleanly(t *testing.T) {
 	}
 }
 
+func TestFollowInterruptDuringHandshakeEndsCleanly(t *testing.T) {
+	release := make(chan struct{})
+	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) { <-release })
+	t.Cleanup(func() { close(release) })
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(300*time.Millisecond, cancel)
+	var b bytes.Buffer
+	code := New(func(string) string { return m.url }).Run(ctx, []string{"logs", "--follow", "60", "--show-private"}, &b)
+	if code != 0 || !strings.Contains(b.String(), "lines: 0\n") || !strings.Contains(b.String(), "ended: interrupted\n") || strings.Contains(b.String(), "miner_read_failed") {
+		t.Fatalf("%d\n%s", code, b.String())
+	}
+}
+
 func TestFollowBrokenConnectionPrintsLinesThenError(t *testing.T) {
 	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) {
 		s := wstest.Upgrade(w, r, "")
@@ -203,8 +216,16 @@ func TestFollowOpenErrors(t *testing.T) {
 }
 
 func TestFollowUnreachableAndInfoFailure(t *testing.T) {
-	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) { t.Error("stream opened") })
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "x", http.StatusInternalServerError) }))
+	var mu sync.Mutex
+	var streamHits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/ws" {
+			mu.Lock()
+			streamHits++
+			mu.Unlock()
+		}
+		http.Error(w, "x", http.StatusInternalServerError)
+	}))
 	defer srv.Close()
 	code, out := execute(t, New(func(string) string { return srv.URL }), "logs", "--follow", "5")
 	if code != 1 || !strings.Contains(out, "code: miner_read_failed") {
@@ -214,7 +235,11 @@ func TestFollowUnreachableAndInfoFailure(t *testing.T) {
 	if code != 1 || !strings.Contains(out, "code: miner_read_failed") {
 		t.Fatalf("%d\n%s", code, out)
 	}
-	_ = m
+	mu.Lock()
+	defer mu.Unlock()
+	if streamHits != 0 {
+		t.Fatalf("%d stream requests after the info read failed", streamHits)
+	}
 }
 
 func TestFollowUsageErrorsMakeNoConnection(t *testing.T) {

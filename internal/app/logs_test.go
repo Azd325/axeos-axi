@@ -209,7 +209,7 @@ func TestLogsHelpOffline(t *testing.T) {
 	code, out := execute(t, a, "logs", "--help")
 	for _, want := range []string{
 		"command: logs\n", "prints no log line without --lines", "lines: \"--lines <n|all>; default prints no log line; the newest n lines, or all lines\"\n", "timeout_s: 15\n",
-		"privacy: \"--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced\"\n",
+		"privacy: \"--lines and --follow replace the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced\"\n",
 		"examples[5]: axeos-axi logs --host 192.0.2.10,axeos-axi logs --host 192.0.2.10 --lines 100,axeos-axi logs --host 192.0.2.10 --lines all,axeos-axi logs --host 192.0.2.10 --lines 100 --show-private,axeos-axi logs --host 192.0.2.10 --follow 30\n", "show_private: ",
 	} {
 		if code != 0 || !strings.Contains(out, want) {

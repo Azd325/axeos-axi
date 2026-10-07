@@ -269,7 +269,7 @@ including users inside `pools`; avoid publishing that output.
 `logs --lines` replaces the pool users, the MAC and the Wi-Fi name that the miner reports by
 `<pool-user>`, `<mac>` and `<wifi-name>`, and any string in the form of a MAC address by `<mac>`.
 A reported value that is a common word is replaced everywhere, so the value can be guessed from the output.
-`--lines` with `--show-private` prints log lines as the miner wrote them, and they can contain the
+`--lines` or `--follow` with `--show-private` prints log lines as the miner wrote them, and they can contain the
 pool user, addresses, hostnames and the Wi-Fi name. Other addresses and hostnames are not replaced.
 Efficiency is `power_w * 1000 / current_hashrate_ghs` in J/TH; zero/missing hashrate
 makes efficiency unknown. Hashrate is GH/s, temperatures are Celsius, tuning voltage
@@ -339,7 +339,9 @@ a field `line_1`, `line_2` and so on, printed when it arrives. The last lines ar
 Zero lines in the time is a definitive result with a `state` line and exit code 0.
 A connection that breaks in the middle prints the lines received so far and then a `connection_lost`
 error with exit code 1; there is no reconnect. Other errors are `not_supported` (firmware without the
-path), `connections_full` (HTTP 429), `access_refused` (HTTP 401) and `handshake_failed`.
+path), `connections_full` (HTTP 429), `access_refused` (HTTP 401), `handshake_failed`,
+`protocol_error` (the miner sent data that is not a valid log stream) and `miner_read_failed` (the info
+request or the connection failed). All of them end with exit code 1.
 
 A follow holds 1 of the 10 WebSocket places of the miner. The web interface of the miner shares these
 places, so a follow can fail with `connections_full` while others are connected. The tool has its own small
