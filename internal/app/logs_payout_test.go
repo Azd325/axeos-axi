@@ -242,24 +242,41 @@ func TestLogsShowPrivateKeepsCutFirstLine(t *testing.T) {
 	}
 }
 
-func TestFollowReplacesLaterPiecesOfALongLine(t *testing.T) {
+func TestFollowReplacesEveryPieceOfALongLine(t *testing.T) {
 	shortFollow(t)
 	filler := strings.Repeat("x", 8<<10)
 	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) {
 		s := wstest.Upgrade(w, r, "")
 		defer func() { _ = s.Conn.Close() }()
-		s.Text(`I (1) stratum_api: rx: {"id":null,"method":"mining.notify","params":["a1b2c3","` + filler)
+		s.Text(`I (1) stratum_api: rx: {"params":["a1b2c3","` + filler)
 		for range 8 {
 			s.Text(filler)
 		}
-		s.Text(`","ExamplePool","` + bech32Address + `"]}` + "\nI (2) example: next line\n")
+		s.Text(`","ExamplePool","` + bech32Address + `"],"method":"mining.notify"}` + "\nI (2) example: next line\n")
 		time.Sleep(time.Second)
 	})
 	code, out := execute(t, New(func(string) string { return m.url }), "logs", "--follow", "5")
-	if code != 0 || strings.Contains(out, "ExamplePool") || strings.Contains(out, bech32Address) || strings.Contains(out, "a1b2c3") {
+	if code != 0 || strings.Contains(out, "ExamplePool") || strings.Contains(out, bech32Address) || strings.Contains(out, "a1b2c3") || strings.Contains(out, "xxx") || strings.Contains(out, "stratum_api") {
 		t.Fatalf("%d leak in %.300s", code, out)
 	}
-	if !strings.Contains(out, "<redacted: cut end of a longer line>") || !strings.Contains(out, "next line") {
+	if strings.Count(out, "<redacted: cut end of a longer line>") != 2 || !strings.Contains(out, "next line") {
 		t.Fatalf("%.600s", out)
+	}
+}
+
+func TestFollowShowPrivateKeepsLongLine(t *testing.T) {
+	shortFollow(t)
+	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) {
+		s := wstest.Upgrade(w, r, "")
+		defer func() { _ = s.Conn.Close() }()
+		for range 9 {
+			s.Text(strings.Repeat("x", 8<<10))
+		}
+		s.Text("ExamplePool\n")
+		time.Sleep(time.Second)
+	})
+	code, out := execute(t, New(func(string) string { return m.url }), "logs", "--follow", "5", "--show-private")
+	if code != 0 || strings.Contains(out, "<redacted") || !strings.Contains(out, "ExamplePool") {
+		t.Fatalf("%d %.300s", code, out)
 	}
 }

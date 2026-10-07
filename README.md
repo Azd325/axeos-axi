@@ -274,6 +274,8 @@ The replacement also works from the form of the line, whatever the miner reports
 `OP_RETURN` becomes `<output-script>`), the `Scriptsig` text becomes `<scriptsig>`, and the `params` of a received
 `mining.notify` message, the block template with the pool tag and the payout script, become one placeholder that
 names it. The user in a sent `mining.authorize` or `mining.submit` message is replaced by `<pool-user>`.
+The first line of the log buffer, when it has no log prefix and is not `--- SYSTEM RESTART ---`, is the cut end of a longer line and becomes `<redacted: cut end of a longer line>`.
+`--follow` replaces every piece of a line longer than 64 KiB by the same placeholder.
 `--lines` or `--follow` with `--show-private` prints log lines as the miner wrote them, and they can contain the
 pool user, the payout address, the block template, hostnames and the Wi-Fi name. IP addresses, hostnames and pool
 addresses are not replaced.

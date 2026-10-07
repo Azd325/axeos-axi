@@ -44,31 +44,30 @@ func (s *logStream) accept(text string) {
 			break
 		}
 		s.pending = rest
-		s.emit(line)
+		s.emit(line, s.continued)
+		s.continued = false
 	}
 	if len(s.pending) > ws.MaxMessage {
 		piece := s.pending
 		s.pending = ""
-		s.emit(piece)
+		s.emit(piece, true)
 		s.continued = true
 	}
 }
 
 func (s *logStream) flush() {
 	if s.pending != "" {
-		s.emit(s.pending)
+		s.emit(s.pending, s.continued)
 		s.pending = ""
 	}
 }
 
-func (s *logStream) emit(line string) {
-	continued := s.continued
-	s.continued = false
+func (s *logStream) emit(line string, cut bool) {
 	if line = printable(line); strings.TrimSpace(line) == "" {
 		return
 	}
 	if s.redact != nil {
-		if continued {
+		if cut {
 			line = placeCutLineEnd
 		}
 		line = s.redact.replace(line)
