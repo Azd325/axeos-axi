@@ -362,6 +362,11 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		for _, name := range strings.Split(viewNames(opts.command), ",") {
 			available[name] = nil
 		}
+		if readsInfoFields(opts.command) {
+			for _, name := range conditionalInfoFields {
+				available[name] = nil
+			}
+		}
 		for k, v := range raw {
 			available[k] = v
 		}
@@ -417,6 +422,14 @@ func identity() output.Object {
 	return output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}
 }
 
+func fieldsHelp(command string) string {
+	text := "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
+	if readsInfoFields(command) {
+		text += "; " + conditionalFieldsHelp
+	}
+	return text
+}
+
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
 func help(command string) output.Object {
@@ -445,16 +458,21 @@ func help(command string) output.Object {
 	if command == "" {
 		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm"})
 	}
-	return append(fields, output.Object{
+	flags := output.Object{
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
-			{Name: "fields", Value: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"},
+			{Name: "fields", Value: fieldsHelp(command)},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},
+	}
+	if readsInfoFields(command) {
+		flags = append(flags, output.Field{Name: "conditional_fields", Value: strings.Join(conditionalInfoFields, ",")})
+	}
+	return append(fields, append(flags, output.Object{
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},
 		{Name: "examples", Value: []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}},
-	}...)
+	}...)...)
 }
