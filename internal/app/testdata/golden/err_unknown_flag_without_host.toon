@@ -1,0 +1,5 @@
+exit: 2
+error:
+  code: usage
+  message: unknown flag --bogus
+help: "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill"

@@ -185,13 +185,13 @@ func TestLogsRejectInputBeforeNetwork(t *testing.T) {
 		{"logs", "--lines="}, {"logs", "--show-private"}, {"logs", "--fields", "text"}, {"--fields=text", "logs"}, {"logs", "--follow"}, {"logs", "--timeout", "5"}, {"logs", "extra"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "valid flags: --host, --lines, --follow, --show-private, --help, -v, -V, --version; commands: ") {
+		if code != 2 || !strings.Contains(out, "valid flags: --host, --lines, --follow, --show-private, --json, --help, -v, -V, --version; commands: ") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}
 	for _, args := range [][]string{{"--lines", "5"}, {"info", "--lines", "5"}, {"scoreboard", "--lines=all"}} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "unknown flag --lines; it is a flag of `logs` only") || !strings.Contains(out, "valid flags: --host, --fields, --help, -v, -V, --version; commands: ") {
+		if code != 2 || !strings.Contains(out, "unknown flag --lines; it is a flag of `logs` only") || !strings.Contains(out, "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: ") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}

@@ -1,0 +1,15 @@
+exit: 0
+command: stats
+description: "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns"
+flags:
+  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+  fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
+  samples: "--samples <n|all>; the newest n samples, or all samples; without --columns prints hashrate,hashrate_1h,asicTemp,vrTemp,power; cannot combine with --fields"
+  columns: "--columns <name,...>; sends the columns query to the miner and prints these columns and the timestamp; without --samples prints the newest sample; names: hashrate,hashrate_1m,hashrate_10m,hashrate_1h,errorPercentage,asicTemp,asicTemp2,vrTemp,asicVoltage,voltage,power,current,fanSpeed,fanRpm,fan2Rpm,wifiRssi,freeHeap,responseTime; firmware older than v2.11.0 ignores the query and answers its own older column names, so most named columns print null there; a column the miner omits prints null; cannot combine with --fields"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 4
+view_fields: "sample_count,logging_interval_s,current_timestamp_ms,latest_timestamp_ms,hashrate_ghs,hashrate_1h_ghs,chip_temperature_c,regulator_temperature_c,power_w,state"
+private_fields: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"
+examples[3]: axeos-axi stats --host 192.0.2.10,"axeos-axi stats --host 192.0.2.10 --fields sample_count,power_w","axeos-axi stats --host 192.0.2.10 --samples 10 --columns fanRpm,wifiRssi"

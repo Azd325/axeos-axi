@@ -1,0 +1,5 @@
+exit: 0
+bin: BIN
+description: Read and operate an AxeOS Bitcoin miner from a predictable command line
+hashrate: current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s
+temperature: chip=65.12 C; regulator=73.00 C

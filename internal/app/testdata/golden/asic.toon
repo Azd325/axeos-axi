@@ -1,0 +1,14 @@
+exit: 0
+model: BM1370
+device_model: Gamma
+asic_count: 1
+hash_domains: 4
+frequency_mhz: 525
+frequency_actual_mhz: 525
+frequency_default_mhz: 525
+core_voltage_set_mv: 1100
+core_voltage_actual_mv: 1093
+core_voltage_default_mv: 1150
+fan_mode: auto
+fan_manual_pct: 57
+temperature_target_c: 65

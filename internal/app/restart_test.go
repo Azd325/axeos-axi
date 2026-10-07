@@ -143,7 +143,7 @@ func TestRestartRejectsInputBeforeNetwork(t *testing.T) {
 	a := New(func(string) string { return host })
 	for _, args := range [][]string{
 		{"restart", "--fields", "host"}, {"restart", "--confirm", "--fields", "host"}, {"restart", "--lines", "1"}, {"restart", "--timeout", "1"},
-		{"restart", "--force"}, {"restart", "--confrim"}, {"restart", "--confirm", "--yes"}, {"restart", "--confirm", "--json"},
+		{"restart", "--force"}, {"restart", "--confrim"}, {"restart", "--confirm", "--yes"}, {"restart", "--confirm", "--yaml"},
 		{"restart", "--confirm=true"}, {"restart", "--confirm", "true"}, {"restart", "--confirm", "now"}, {"restart", "--confirm", "restart"},
 		{"restart", "--confirm", "--host"}, {"restart", "--host", "--confirm"}, {"restart", "--confirm", "--help", "--bad"},
 		{"--confirm"}, {"info", "--confirm"}, {"logs", "--confirm"},
@@ -154,7 +154,7 @@ func TestRestartRejectsInputBeforeNetwork(t *testing.T) {
 		}
 	}
 	code, out := execute(t, a, "restart", "--fields", "host")
-	if code != 2 || !strings.Contains(out, "unknown flag --fields for `restart`") || !strings.Contains(out, "valid flags: --host, --confirm, --help, -v, -V, --version;") {
+	if code != 2 || !strings.Contains(out, "unknown flag --fields for `restart`") || !strings.Contains(out, "valid flags: --host, --confirm, --json, --help, -v, -V, --version;") {
 		t.Fatalf("%d %s", code, out)
 	}
 	code, out = execute(t, New(func(string) string { return "" }), "restart", "--confirm")

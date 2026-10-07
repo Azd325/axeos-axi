@@ -1,0 +1,5 @@
+exit: 2
+error:
+  code: host_required
+  message: set --host <address> or AXEOS_HOST
+help: axeos-axi discover finds miners on the local network; then axeos-axi --host <address>

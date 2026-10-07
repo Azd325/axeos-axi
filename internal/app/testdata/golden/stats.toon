@@ -1,0 +1,10 @@
+exit: 0
+sample_count: 3
+logging_interval_s: 120
+current_timestamp_ms: 612447946
+latest_timestamp_ms: 612447553
+hashrate_ghs: 979.0009766
+hashrate_1h_ghs: 1070.2735596
+chip_temperature_c: 64.875
+regulator_temperature_c: 73
+power_w: 20.1245117

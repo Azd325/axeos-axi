@@ -195,6 +195,9 @@ func field(b *strings.Builder, name string, v any, depth int) {
 }
 
 func Write(w io.Writer, fields Object) error {
+	if sink, ok := w.(jsonSink); ok {
+		return writeJSON(sink.w, fields)
+	}
 	var b strings.Builder
 	for _, f := range fields {
 		field(&b, key(f.Name), f.Value, 0)

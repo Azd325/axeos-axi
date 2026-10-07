@@ -1,0 +1,7 @@
+exit: 0
+total_lines: 3
+shown_lines: 3
+lines[3]{text}:
+  "I (0) example: line"
+  "I (1) example: line"
+  "I (30) example: user example-worker ssid example-wifi mac 02:00:00:00:00:10"

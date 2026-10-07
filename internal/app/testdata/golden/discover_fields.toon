@@ -1,0 +1,9 @@
+exit: 0
+service: _axeos._sub._http._tcp.local
+timeout_s: 3
+count: 3
+miners[3]{instance,port,asic_count,board,asic}:
+  Bitaxe Gamma 601 (ABCD),80,1,"601",BM1370
+  Bitaxe Max 2.2 (EF01),8080,null,null,null
+  Bitaxe Supra 401 (2345),80,many,null,null
+help[1]: axeos-axi --host <address> for live mining health of one miner

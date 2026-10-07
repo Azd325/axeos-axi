@@ -1,0 +1,11 @@
+exit: 0
+host: "HOST"
+request: PATCH /api/system
+body:
+  pools[1]{id,stratumCert,stratumDecodeCoinbase,stratumExtranonceSubscribe,stratumPassword,stratumPort,stratumProtocol,stratumSuggestedDifficulty,stratumTLS,stratumURL,stratumUser,stratumV2AuthorityPubkey,stratumV2ChannelType,stratumV2RequireAuth}:
+    0,<not printed>,true,false,*****,3333,SV1,1000,0,pool.example.org,example-new,"",extended,false
+sent: false
+settings[1]{setting,present,new,changes}:
+  user,example-worker,example-new,true
+effect: the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again
+execute: "axeos-axi pool --host 'HOST' --user='example-new' --show-user --confirm"

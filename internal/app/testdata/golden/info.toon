@@ -1,0 +1,16 @@
+exit: 0
+hostname: example-miner
+asic_model: BM1370
+firmware: v2.15.3
+axeos_version: Unified
+idf_version: v6.0.2
+board: "601"
+heap_free_bytes: 7515284
+heap_internal_free_bytes: 85415
+heap_min_free_bytes: 7091532
+heap_max_alloc_bytes: 31744
+wifi_state: Connected!
+wifi_signal_dbm: -49
+uptime_s: 612447
+reset_reason: Software reset via esp_restart
+partition: ota_1

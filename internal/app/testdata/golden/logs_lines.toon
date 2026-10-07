@@ -1,0 +1,9 @@
+exit: 0
+total_lines: 3
+shown_lines: 3
+lines[3]{text}:
+  "I (0) example: line"
+  "I (1) example: line"
+  "I (30) example: user <pool-user> ssid <wifi-name> mac <mac>"
+private: "the pool user, the MAC, the Wi-Fi name, the payout address, coinbase outputs, the scriptsig and the block template are replaced; --show-private prints the lines unchanged"
+help[1]: "axeos-axi logs --host 'HOST' --lines 3 --show-private prints the lines unchanged"

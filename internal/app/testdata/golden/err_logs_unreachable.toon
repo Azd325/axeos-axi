@@ -1,0 +1,5 @@
+exit: 1
+error:
+  code: miner_read_failed
+  message: miner unreachable or request timed out; check the host and network
+help: check --host or AXEOS_HOST and local network connectivity

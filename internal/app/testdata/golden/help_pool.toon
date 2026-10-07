@@ -1,0 +1,19 @@
+exit: 0
+command: pool
+description: "Changes the miner: sets the URL, the port or the user of the primary pool and of the fallback pool; the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again; each call reads the present pool configuration with GET /api/system/info; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one PATCH /api/system; the firmware replaces the whole record of a pool, so the body carries the complete record that was read, with the named settings replaced and with the password value that keeps the stored password; the body carries each pool with a named setting, also when a new value equals the present value; with --confirm, --user and --fallback-user require --show-user, because the miner does not report the previous user after the change; the command cannot set a password and does not restart the miner"
+flags:
+  host: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"
+  url: "--url <host>; primary pool; a host name or an address of 1 to 255 bytes, without a scheme, a port or a space"
+  port: "--port <port>; primary pool; a whole number from 1 to 65535"
+  user: "--user <user>; primary pool; a value of 1 to 255 bytes"
+  fallback_url: "--fallback-url <host>; fallback pool; same rule as --url"
+  fallback_port: "--fallback-port <port>; fallback pool; same rule as --port"
+  fallback_user: "--fallback-user <user>; fallback pool; same rule as --user"
+  show_user: "--show-user; prints each pool user; default prints the word set in place of a pool user; required with --confirm when --user or --fallback-user is named"
+  confirm: "--confirm; sends the write request; default sends no write request"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 4
+private_fields: the pool user prints only with --show-user; the pool certificate and the password are never printed
+examples[3]: axeos-axi pool --host 192.0.2.10 --url pool.example.org --port 3333,axeos-axi pool --host 192.0.2.10 --fallback-user example-worker --show-user --confirm,axeos-axi pool --help

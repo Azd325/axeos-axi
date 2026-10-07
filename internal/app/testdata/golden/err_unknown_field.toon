@@ -1,0 +1,5 @@
+exit: 2
+error:
+  code: unknown_field
+  message: unknown field nonsense
+help: "axeos-axi info --help; valid fields: hostname,asic_model,firmware,axeos_version,idf_version,board,heap_free_bytes,heap_internal_free_bytes,heap_min_free_bytes,heap_max_alloc_bytes,wifi_state,wifi_signal_dbm,uptime_s,reset_reason,partition (or exact API field names)"

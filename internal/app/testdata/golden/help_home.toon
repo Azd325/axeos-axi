@@ -1,0 +1,15 @@
+exit: 0
+command: home
+description: Live mining health
+commands: "info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
+flags:
+  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+  fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 4
+view_fields: "hostname,model,firmware,hashrate,temperature,power_w,efficiency,fan,pool,pool_connection,pool_fallback,shares,best_difficulty,uptime_s,overheat,paused"
+conditional_fields: "power_fault,hardware_fault,blockHeight,scriptsig,networkDifficulty,coinbaseValueTotalSatoshis,coinbaseValueUserSatoshis,blockSignals,coinbaseOutputs,hashrateMonitor,mdnsHostname"
+private_fields: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"
+examples[3]: axeos-axi --host 192.0.2.10,"axeos-axi --host 192.0.2.10 --fields hashrate,temperature,power_w",axeos-axi --help

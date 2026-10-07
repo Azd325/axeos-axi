@@ -1,0 +1,14 @@
+exit: 0
+command: asic
+description: ASIC hardware and current tuning
+flags:
+  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+  fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 4
+view_fields: "model,device_model,asic_count,hash_domains,frequency_mhz,frequency_actual_mhz,frequency_default_mhz,core_voltage_set_mv,core_voltage_actual_mv,core_voltage_default_mv,fan_mode,fan_manual_pct,temperature_target_c"
+conditional_fields: "power_fault,hardware_fault,blockHeight,scriptsig,networkDifficulty,coinbaseValueTotalSatoshis,coinbaseValueUserSatoshis,blockSignals,coinbaseOutputs,hashrateMonitor,mdnsHostname"
+private_fields: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"
+examples[3]: axeos-axi asic --host 192.0.2.10,"axeos-axi asic --host 192.0.2.10 --fields frequency_mhz,core_voltage_actual_mv",axeos-axi asic --help

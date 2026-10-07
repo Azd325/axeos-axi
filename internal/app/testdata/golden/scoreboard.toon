@@ -1,0 +1,7 @@
+exit: 0
+count: 3
+shares[3]{rank,difficulty,ntime}:
+  1,42896578860.4,1759000000
+  2,634703787.2,1759100000
+  3,9120344.5,1759200000
+help[1]: "axeos-axi scoreboard --host 'HOST' --fields rank,difficulty,ntime,job_id,extranonce2,nonce,version_bits for the share proof fields"
