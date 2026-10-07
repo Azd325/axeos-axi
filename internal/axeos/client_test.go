@@ -371,3 +371,27 @@ func TestPatchPoolsSendsOnlyPoolRecordsThatKeepThePassword(t *testing.T) {
 		t.Fatalf("requests=%d", requests.Load())
 	}
 }
+
+func TestGetStatisticsSendsOnlyKnownColumns(t *testing.T) {
+	var requested []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = append(requested, r.URL.RequestURI())
+		_, _ = w.Write([]byte(`{"labels":["timestamp"],"statistics":[]}`))
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.GetStatistics(context.Background(), []string{"fanRpm", "power"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"timestamp", "power&x=1", ""} {
+		if _, err := c.GetStatistics(context.Background(), []string{name}); err == nil {
+			t.Errorf("sent column %q", name)
+		}
+	}
+	if len(requested) != 1 || requested[0] != "/api/system/statistics?columns=fanRpm,power" {
+		t.Fatalf("requests=%v", requested)
+	}
+}

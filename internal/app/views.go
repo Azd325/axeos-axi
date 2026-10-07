@@ -1,9 +1,11 @@
 package app
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/Azd325/axeos-axi/internal/output"
@@ -122,11 +124,20 @@ func firmwareView(m map[string]any) output.Object {
 	}
 }
 
-func statsView(info, stats map[string]any) (output.Object, error) {
-	frequency, frequencyOK := number(info, "statsFrequency")
-	if frequencyOK && frequency == 0 {
-		return output.Object{{Name: "state", Value: "statistics logging disabled on miner (statsFrequency=0); 0 recorded samples available"}, {Name: "sample_count", Value: 0}, {Name: "logging_interval_s", Value: 0}}, nil
+func statsDisabled(info map[string]any) (output.Object, bool) {
+	frequency, ok := number(info, "statsFrequency")
+	if !ok || frequency != 0 {
+		return nil, false
 	}
+	return output.Object{{Name: "state", Value: "statistics logging disabled on miner (statsFrequency=0); 0 recorded samples available"}, {Name: "sample_count", Value: 0}, {Name: "logging_interval_s", Value: 0}}, true
+}
+
+func statsEmpty(info map[string]any) output.Object {
+	return output.Object{{Name: "state", Value: "0 recorded statistics samples found on miner"}, {Name: "sample_count", Value: 0}, {Name: "logging_interval_s", Value: info["statsFrequency"]}}
+}
+
+// statsSamples returns the samples of a statistics response, oldest first.
+func statsSamples(stats map[string]any) ([]map[string]any, error) {
 	labels, labelsOK := stats["labels"].([]any)
 	rows, rowsOK := stats["statistics"].([]any)
 	if !labelsOK || !rowsOK {
@@ -140,7 +151,7 @@ func statsView(info, stats map[string]any) (output.Object, error) {
 		}
 		seen[name] = true
 	}
-	latest := map[string]any{}
+	samples := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		values, ok := row.([]any)
 		if !ok || len(values) != len(labels) {
@@ -150,25 +161,83 @@ func statsView(info, stats map[string]any) (output.Object, error) {
 		for i, label := range labels {
 			sample[label.(string)] = values[i]
 		}
-		stamp, ok := number(sample, "timestamp")
-		if !ok {
+		if _, ok := number(sample, "timestamp"); !ok {
 			return nil, errors.New("statistics sample lacks a numeric timestamp")
 		}
-		prev, exists := number(latest, "timestamp")
-		if !exists || stamp >= prev {
-			latest = sample
-		}
+		samples = append(samples, sample)
 	}
-	if len(rows) == 0 {
-		return output.Object{{Name: "state", Value: "0 recorded statistics samples found on miner"}, {Name: "sample_count", Value: 0}, {Name: "logging_interval_s", Value: info["statsFrequency"]}}, nil
+	slices.SortStableFunc(samples, func(a, b map[string]any) int {
+		return cmp.Compare(a["timestamp"].(float64), b["timestamp"].(float64))
+	})
+	return samples, nil
+}
+
+func statsView(info, stats map[string]any) (output.Object, error) {
+	if disabled, ok := statsDisabled(info); ok {
+		return disabled, nil
 	}
+	samples, err := statsSamples(stats)
+	if err != nil {
+		return nil, err
+	}
+	if len(samples) == 0 {
+		return statsEmpty(info), nil
+	}
+	latest := samples[len(samples)-1]
 	return output.Object{
-		{Name: "sample_count", Value: len(rows)}, {Name: "logging_interval_s", Value: info["statsFrequency"]},
+		{Name: "sample_count", Value: len(samples)}, {Name: "logging_interval_s", Value: info["statsFrequency"]},
 		{Name: "current_timestamp_ms", Value: stats["currentTimestamp"]}, {Name: "latest_timestamp_ms", Value: latest["timestamp"]},
 		{Name: "hashrate_ghs", Value: latest["hashrate"]}, {Name: "hashrate_1h_ghs", Value: latest["hashrate_1h"]},
 		{Name: "chip_temperature_c", Value: latest["asicTemp"]}, {Name: "regulator_temperature_c", Value: latest["vrTemp"]},
 		{Name: "power_w", Value: latest["power"]},
 	}, nil
+}
+
+const allSamples = -1
+
+var defaultHistoryColumns = []string{"hashrate", "hashrate_1h", "asicTemp", "vrTemp", "power"}
+
+// statsHistoryView prints the newest n samples (allSamples for every sample), oldest first, with the timestamp and the named columns.
+func statsHistoryView(info, stats map[string]any, columns []string, n int, hostArg string) (output.Object, error) {
+	if disabled, ok := statsDisabled(info); ok {
+		return disabled, nil
+	}
+	samples, err := statsSamples(stats)
+	if err != nil {
+		return nil, err
+	}
+	if len(samples) == 0 {
+		return statsEmpty(info), nil
+	}
+	total := len(samples)
+	if n != allSamples && n < total {
+		samples = samples[total-n:]
+	}
+	shown := columns
+	if len(shown) == 0 {
+		shown = defaultHistoryColumns
+	}
+	names := append([]string{"timestamp"}, shown...)
+	rows := make([]any, len(samples))
+	for i, sample := range samples {
+		row := make(output.Object, len(names))
+		for j, name := range names {
+			row[j] = output.Field{Name: name, Value: sample[name]}
+		}
+		rows[i] = row
+	}
+	fields := output.Object{
+		{Name: "sample_count", Value: total}, {Name: "shown_samples", Value: len(samples)}, {Name: "logging_interval_s", Value: info["statsFrequency"]},
+		{Name: "current_timestamp_ms", Value: stats["currentTimestamp"]}, {Name: "samples", Value: rows},
+	}
+	if len(samples) < total {
+		command := "axeos-axi stats --host " + hostArg + " --samples all"
+		if len(columns) != 0 {
+			command += " --columns " + strings.Join(columns, ",")
+		}
+		fields = append(fields, output.Field{Name: "help", Value: []any{fmt.Sprintf("%s for all %d samples", command, total)}})
+	}
+	return fields, nil
 }
 
 func viewNames(command string) string {
