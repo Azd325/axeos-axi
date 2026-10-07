@@ -52,7 +52,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
-All normal results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
+By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
 `--json` on any command prints the same result as one JSON document: the same field names, values,
 counts, empty states and help lines, in the same order. A TOON table becomes an array of objects, a
