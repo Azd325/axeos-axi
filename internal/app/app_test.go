@@ -261,6 +261,13 @@ func TestMissingHostAndUnreachable(t *testing.T) {
 	if code != 2 || !strings.Contains(out, "--host") || !strings.Contains(out, "AXEOS_HOST") {
 		t.Fatal(out)
 	}
+	if !strings.HasPrefix(out, "bin: ") || strings.Index(out, "description: ") > strings.Index(out, "error:") || !strings.Contains(out, "code: host_required") {
+		t.Fatal(out)
+	}
+	code, out = execute(t, New(func(string) string { return "" }), "info")
+	if code != 2 || strings.Contains(out, "bin:") || !strings.HasPrefix(out, "error:") || !strings.Contains(out, "code: host_required") {
+		t.Fatal(out)
+	}
 	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	host := s.URL
 	s.Close()

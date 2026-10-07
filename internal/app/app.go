@@ -240,7 +240,11 @@ func write(w io.Writer, fields output.Object) int {
 }
 
 func failure(w io.Writer, exit int, code, message, help string) int {
-	if write(w, output.Object{{Name: "error", Value: output.Object{{Name: "code", Value: code}, {Name: "message", Value: message}}}, {Name: "help", Value: help}}) != 0 {
+	return failureAfter(w, nil, exit, code, message, help)
+}
+
+func failureAfter(w io.Writer, lead output.Object, exit int, code, message, help string) int {
+	if write(w, append(lead, output.Object{{Name: "error", Value: output.Object{{Name: "code", Value: code}, {Name: "message", Value: message}}}, {Name: "help", Value: help}}...)) != 0 {
 		return 1
 	}
 	return exit
@@ -274,7 +278,11 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		opts.host = a.getenv("AXEOS_HOST")
 	}
 	if opts.host == "" {
-		return failure(stdout, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>")
+		var lead output.Object
+		if opts.command == "" {
+			lead = identity()
+		}
+		return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>")
 	}
 	client, err := axeos.New(opts.host)
 	if err != nil {
@@ -371,14 +379,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		fields = selected
 	}
 	if opts.command == "" {
-		bin, err := os.Executable()
-		if err != nil {
-			bin = "axeos-axi"
-		}
-		if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(bin, home+string(filepath.Separator)) {
-			bin = "~" + strings.TrimPrefix(bin, home)
-		}
-		fields = append(output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}, fields...)
+		fields = append(identity(), fields...)
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{
@@ -395,6 +396,17 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		}})
 	}
 	return write(stdout, fields)
+}
+
+func identity() output.Object {
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "axeos-axi"
+	}
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(bin, home+string(filepath.Separator)) {
+		bin = "~" + strings.TrimPrefix(bin, home)
+	}
+	return output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
