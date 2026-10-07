@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/Azd325/axeos-axi/internal/ws"
 )
 
 const (
@@ -31,6 +33,9 @@ var (
 	ErrRootRedirect = errors.New("miner returned HTTP 302")
 	ErrNotSent      = errors.New("the request was not sent")
 	ErrNoAnswer     = errors.New("the request was sent, but the miner closed the connection or did not answer in time")
+	ErrStreamFull   = errors.New("the miner has no free WebSocket place; it holds at most 10")
+	ErrAccess       = errors.New("the miner refused access to the log stream")
+	ErrHandshake    = errors.New("the miner did not accept the WebSocket handshake")
 	errInvalidJSON  = errors.New("miner returned invalid JSON; check AxeOS API compatibility")
 	errNotText      = errors.New("miner returned a response that is not plain text; check AxeOS API compatibility")
 )
@@ -246,4 +251,31 @@ func (c *Client) fetch(ctx context.Context, client *http.Client, endpoint string
 		return nil, "", errors.New("cannot read miner response within the 4 MiB limit")
 	}
 	return body, resp.Header.Get("Content-Type"), nil
+}
+
+// OpenLogStream opens the read-only log stream /api/ws. The firmware sends each new log line there and no old line,
+// answers HTTP 401 outside the private network, and HTTP 429 when all 10 WebSocket places are taken
+// (websocket_pre_handshake and websocket_log_task in ESP-Miner main/http_server/websocket.c and websocket_log.c, tags v2.15.3 and master).
+func (c *Client) OpenLogStream(ctx context.Context) (*ws.Conn, error) {
+	conn, err := ws.Dial(ctx, c.base, "/api/ws")
+	var status *ws.StatusError
+	switch {
+	case err == nil:
+		return conn, nil
+	case errors.As(err, &status):
+		switch {
+		case status.Code == http.StatusNotFound:
+			return nil, fmt.Errorf("%w for log stream", ErrNotFound)
+		case status.Code == http.StatusFound && status.Location == "/":
+			return nil, fmt.Errorf("%w for log stream", ErrRootRedirect)
+		case status.Code == http.StatusTooManyRequests:
+			return nil, ErrStreamFull
+		case status.Code == http.StatusUnauthorized || status.Code == http.StatusForbidden:
+			return nil, fmt.Errorf("%w; HTTP %d", ErrAccess, status.Code)
+		}
+		return nil, fmt.Errorf("%w; HTTP %d", ErrHandshake, status.Code)
+	case errors.Is(err, ws.ErrHandshake):
+		return nil, fmt.Errorf("%w; %s", ErrHandshake, strings.TrimPrefix(err.Error(), ws.ErrHandshake.Error()+": "))
+	}
+	return nil, errors.New("miner unreachable or request timed out; check the host and network")
 }

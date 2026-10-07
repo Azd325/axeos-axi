@@ -34,7 +34,7 @@ func validFlags(command string) string {
 	case "stats":
 		return "--host, --fields, --samples, --columns, " + universalFlags
 	case "logs":
-		return "--host, --lines, --show-private, " + universalFlags
+		return "--host, --lines, --follow, --show-private, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
 	case "tuning":
@@ -62,7 +62,7 @@ func New(getenv func(string) string) *App {
 type options struct {
 	command, host, action  string
 	path                   string
-	timeout, lines         int
+	timeout, lines, follow int
 	samples                int
 	columns                []string
 	fields                 []string
@@ -82,14 +82,14 @@ func parse(args []string) (options, error) {
 			first = fmt.Errorf(format, a...)
 		}
 	}
-	hostSet, timeoutSet, fieldsSet, linesSet, pathSet, samplesSet, columnsSet := false, false, false, false, false, false, false
+	hostSet, timeoutSet, fieldsSet, linesSet, followSet, pathSet, samplesSet, columnsSet := false, false, false, false, false, false, false, false
 	var seen []string
 	var tuningFlags, poolFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
+		case "--host", "--fields", "--timeout", "--lines", "--follow", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
 			if flag == "--host" && hostSet {
 				fail("--host was given more than once; a command takes one miner")
 			}
@@ -112,10 +112,11 @@ func parse(args []string) (options, error) {
 			timeoutSet = timeoutSet || flag == "--timeout"
 			fieldsSet = fieldsSet || flag == "--fields"
 			linesSet = linesSet || flag == "--lines"
-			if (flag == "--samples" && samplesSet) || (flag == "--columns" && columnsSet) {
+			if (flag == "--samples" && samplesSet) || (flag == "--columns" && columnsSet) || (flag == "--follow" && followSet) {
 				fail("%s was given more than once", flag)
 			}
 			samplesSet = samplesSet || flag == "--samples"
+			followSet = followSet || flag == "--follow"
 			columnsSet = columnsSet || flag == "--columns"
 			if !assigned {
 				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
@@ -167,6 +168,13 @@ func parse(args []string) (options, error) {
 					}
 					opts.lines = count
 				}
+			case "--follow":
+				seconds, err := strconv.Atoi(value)
+				if err != nil || seconds < 1 || seconds > maxFollowSeconds {
+					fail("--follow requires whole seconds from 1 to %d; %d seconds is the largest time limit", maxFollowSeconds, maxFollowSeconds)
+					continue
+				}
+				opts.follow = seconds
 			case "--samples":
 				opts.samples = allSamples
 				if value != "all" {
@@ -265,6 +273,12 @@ func parse(args []string) (options, error) {
 	if opts.command != "logs" && linesSet {
 		return opts, errors.New("unknown flag --lines; it is a flag of `logs` only")
 	}
+	if opts.command != "logs" && followSet {
+		return opts, errors.New("unknown flag --follow; it is a flag of `logs` only")
+	}
+	if opts.command == "logs" && followSet && linesSet {
+		return opts, errors.New("--follow cannot be combined with --lines; --follow prints only the lines that arrive while it runs, --lines prints the lines in the log buffer")
+	}
 	if opts.command != "stats" && (samplesSet || columnsSet) {
 		flag := "--samples"
 		if !samplesSet {
@@ -281,8 +295,8 @@ func parse(args []string) (options, error) {
 	if opts.command != "logs" && opts.showPrivate {
 		return opts, errors.New("unknown flag --show-private; it is a flag of `logs` only")
 	}
-	if opts.command == "logs" && opts.showPrivate && !linesSet && !opts.help && !opts.version {
-		return opts, errors.New("--show-private is valid only together with --lines; without --lines the command prints no log line")
+	if opts.command == "logs" && opts.showPrivate && !linesSet && !followSet && !opts.help && !opts.version {
+		return opts, errors.New("--show-private is valid only together with --lines or --follow; without them the command prints no log line")
 	}
 	if opts.command == "logs" && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `logs`; it prints whole log lines")
@@ -380,6 +394,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "scoreboard" {
 		return scoreboard(ctx, client, opts, stdout)
+	}
+	if opts.command == "logs" && opts.follow != 0 {
+		return follow(ctx, client, opts, stdout)
 	}
 	if opts.command == "logs" {
 		return logs(ctx, client, opts, stdout)

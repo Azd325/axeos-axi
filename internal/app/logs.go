@@ -17,7 +17,7 @@ import (
 const (
 	noLogLines  = 0
 	allLogLines = -1
-	logPrivacy  = "--lines replaces the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced"
+	logPrivacy  = "--lines and --follow replace the pool user, the MAC and the Wi-Fi name; only --show-private prints the lines unchanged, and then they can contain the pool user, addresses, hostnames and the Wi-Fi name; other addresses and hostnames are not replaced"
 	logRedacted = "the pool user, the MAC and the Wi-Fi name are replaced; --show-private prints the lines unchanged"
 
 	placePoolUser = "<pool-user>"
@@ -155,16 +155,18 @@ func shown(lines int) string {
 func logsHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "logs"},
-		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output"},
+		{Name: "description", Value: "Line count and size of the miner log buffer; prints no log line without --lines; --lines prints the newest lines, oldest first and newest last, with total_lines and shown_lines; blank lines and terminal control sequences are removed; --lines first reads info from the miner and replaces the pool user, the MAC and the Wi-Fi name by <pool-user>, <mac> and <wifi-name>, and any string in the form of a MAC address by <mac>; a reported value that is a common word is replaced everywhere, so the value can be guessed from the output; --follow <seconds> is a separate mode that reads the log stream /api/ws for at most 300 seconds and prints each new line when it arrives, with the same replacement, as line_1: <text>, line_2: <text> and so on, one TOON field on one output line each, so the output is valid line by line and as a whole; the first output line is follow_limit_s; the last lines are lines, seconds_followed and ended (time_limit, closed_by_miner or interrupted); 0 new lines is a definitive empty state, not an error; the stream sends no old line, so --lines reads the buffer; Ctrl-C ends with exit code 0; a broken connection prints the lines so far, then a connection_lost error with exit code 1; data that is not a valid log stream prints a protocol_error with exit code 1; a failed read of info prints miner_read_failed with exit code 1; a follow holds 1 of the 10 WebSocket places of the miner, which the web interface shares, and the miner answers connections_full when all are taken; firmware older than v2.10.0 has no limit of 10 places, and firmware without the path answers not_supported"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "lines", Value: "--lines <n|all>; default prints no log line; the newest n lines, or all lines"},
-			{Name: "show_private", Value: "--show-private; only with --lines; prints the lines unchanged and sends no info request"},
+			{Name: "follow", Value: "--follow <seconds>; whole seconds from 1 to 300; prints each new log line while it runs, then ends by itself; cannot combine with --lines"},
+			{Name: "show_private", Value: "--show-private; only with --lines or --follow; prints the lines unchanged and sends no info request"},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},
 		{Name: "timeout_s", Value: int(axeos.LogsTimeout / time.Second)},
+		{Name: "follow_max_s", Value: maxFollowSeconds},
 		{Name: "privacy", Value: logPrivacy},
-		{Name: "examples", Value: []any{"axeos-axi logs --host 192.0.2.10", "axeos-axi logs --host 192.0.2.10 --lines 100", "axeos-axi logs --host 192.0.2.10 --lines all", "axeos-axi logs --host 192.0.2.10 --lines 100 --show-private"}},
+		{Name: "examples", Value: []any{"axeos-axi logs --host 192.0.2.10", "axeos-axi logs --host 192.0.2.10 --lines 100", "axeos-axi logs --host 192.0.2.10 --lines all", "axeos-axi logs --host 192.0.2.10 --lines 100 --show-private", "axeos-axi logs --host 192.0.2.10 --follow 30"}},
 	}
 }
