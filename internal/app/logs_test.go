@@ -312,11 +312,11 @@ func TestLogsReportedMacMatchesWithoutRegardToCase(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("id AABBCCDDEEFF and aabbccddeeff\n"))
+		_, _ = w.Write([]byte("I (1) example: id AABBCCDDEEFF and aabbccddeeff\n"))
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
-	if code != 0 || !strings.Contains(out, "\n  id <mac> and <mac>\n") {
+	if code != 0 || !strings.Contains(out, "\n  \"I (1) example: id <mac> and <mac>\"\n") {
 		t.Fatalf("%d %s", code, out)
 	}
 }
@@ -329,11 +329,11 @@ func TestLogsReplacesPoolUserOnlyListedInPools(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("user example-listed connected\n"))
+		_, _ = w.Write([]byte("I (1) example: user example-listed connected\n"))
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, New(func(string) string { return s.URL }), "logs", "--lines", "all")
-	if code != 0 || !strings.Contains(out, "\n  user <pool-user> connected\n") || strings.Contains(out, "example-listed") {
+	if code != 0 || !strings.Contains(out, "\n  \"I (1) example: user <pool-user> connected\"\n") || strings.Contains(out, "example-listed") {
 		t.Fatalf("%d %s", code, out)
 	}
 }

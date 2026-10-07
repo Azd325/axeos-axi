@@ -28,6 +28,7 @@ const (
 	placeScriptsig     = "<scriptsig>"
 	placeBlockTemplate = "<redacted: block template, contains pool tag and payout script>"
 	placeStratumLine   = "<redacted: unparsed stratum message>"
+	placeCutLineEnd    = "<redacted: cut end of a longer line>"
 )
 
 // ECMA-48 sequences: CSI, then OSC and the DCS/SOS/PM/APC strings with their terminator, then any other escape sequence.
@@ -51,7 +52,10 @@ var (
 	unparsedLine       = regexp.MustCompile(`(: JSON parse failed: ).*$`)
 	stratumRxLine      = regexp.MustCompile(`^\w \(\d+\) [\w.-]+: rx: `)
 	plainAddress       = regexp.MustCompile(`^[A-Za-z0-9]+$`)
+	logPrefix          = regexp.MustCompile(`^\w \(\d+\) [\w.-]+:`)
 )
+
+const restartMarker = "--- SYSTEM RESTART ---"
 
 const paramsKey = `"params":`
 
@@ -68,6 +72,10 @@ func replaceForms(line string) string {
 	line = submitUser.ReplaceAllString(line, "${1}"+placePoolUser+`"`)
 	line = unparsedLine.ReplaceAllString(line, "${1}"+placeStratumLine)
 	return replaceNotifyParams(line)
+}
+
+func cutLineEnd(line string) bool {
+	return line != restartMarker && !logPrefix.MatchString(line)
 }
 
 func replaceNotifyParams(line string) string {
@@ -197,6 +205,9 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	rows := make([]any, len(lines))
 	for i, line := range lines {
 		if redact != nil {
+			if i == 0 && len(lines) == total && cutLineEnd(line) {
+				line = placeCutLineEnd
+			}
 			line = redact.replace(line)
 		}
 		rows[i] = output.Object{{Name: "text", Value: line}}

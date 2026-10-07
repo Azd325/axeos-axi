@@ -219,3 +219,47 @@ func TestFollowShowPrivateKeepsPayoutAddressAndBlockTemplate(t *testing.T) {
 		}
 	}
 }
+
+func TestLogsReplacesCutFirstLineButKeepsRestartMarker(t *testing.T) {
+	cut := `"` + bech32Address + `","ExamplePool"],"id":null,"method":"mining.notify"}`
+	for _, tc := range []struct{ first, want string }{
+		{cut, "<redacted: cut end of a longer line>"},
+		{"--- SYSTEM RESTART ---", "--- SYSTEM RESTART ---"},
+	} {
+		host, _ := logsMiner(t, http.StatusOK, "text/plain", tc.first+"\nI (2) example: next line\n")
+		code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all")
+		if code != 0 || !strings.Contains(out, `"`+tc.want+`"`) || strings.Contains(out, "ExamplePool") || strings.Contains(out, bech32Address) {
+			t.Errorf("%q: %d %s", tc.first, code, out)
+		}
+	}
+}
+
+func TestLogsShowPrivateKeepsCutFirstLine(t *testing.T) {
+	host, _ := logsMiner(t, http.StatusOK, "text/plain", `"ExamplePool"],"id":null`+"\nI (2) example: next line\n")
+	code, out := execute(t, New(func(string) string { return host }), "logs", "--lines", "all", "--show-private")
+	if code != 0 || !strings.Contains(out, "ExamplePool") || strings.Contains(out, "<redacted") {
+		t.Fatalf("%d %s", code, out)
+	}
+}
+
+func TestFollowReplacesLaterPiecesOfALongLine(t *testing.T) {
+	shortFollow(t)
+	filler := strings.Repeat("x", 8<<10)
+	m := newStreamMiner(t, func(w http.ResponseWriter, r *http.Request) {
+		s := wstest.Upgrade(w, r, "")
+		defer func() { _ = s.Conn.Close() }()
+		s.Text(`I (1) stratum_api: rx: {"id":null,"method":"mining.notify","params":["a1b2c3","` + filler)
+		for range 8 {
+			s.Text(filler)
+		}
+		s.Text(`","ExamplePool","` + bech32Address + `"]}` + "\nI (2) example: next line\n")
+		time.Sleep(time.Second)
+	})
+	code, out := execute(t, New(func(string) string { return m.url }), "logs", "--follow", "5")
+	if code != 0 || strings.Contains(out, "ExamplePool") || strings.Contains(out, bech32Address) || strings.Contains(out, "a1b2c3") {
+		t.Fatalf("%d leak in %.300s", code, out)
+	}
+	if !strings.Contains(out, "<redacted: cut end of a longer line>") || !strings.Contains(out, "next line") {
+		t.Fatalf("%.600s", out)
+	}
+}

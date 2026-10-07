@@ -32,6 +32,8 @@ type logStream struct {
 	pending string
 	count   int
 	failed  bool
+
+	continued bool
 }
 
 func (s *logStream) accept(text string) {
@@ -45,8 +47,10 @@ func (s *logStream) accept(text string) {
 		s.emit(line)
 	}
 	if len(s.pending) > ws.MaxMessage {
-		s.emit(s.pending)
+		piece := s.pending
 		s.pending = ""
+		s.emit(piece)
+		s.continued = true
 	}
 }
 
@@ -58,10 +62,15 @@ func (s *logStream) flush() {
 }
 
 func (s *logStream) emit(line string) {
+	continued := s.continued
+	s.continued = false
 	if line = printable(line); strings.TrimSpace(line) == "" {
 		return
 	}
 	if s.redact != nil {
+		if continued {
+			line = placeCutLineEnd
+		}
 		line = s.redact.replace(line)
 	}
 	s.count++
