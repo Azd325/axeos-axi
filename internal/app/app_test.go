@@ -482,20 +482,51 @@ func TestFirmwareHelpStatesMinimumFirmware(t *testing.T) {
 
 func TestConditionalFields(t *testing.T) {
 	a := New(func(string) string { return "" })
-	host, _ := miner(t, fixture(t, "info"))
-	code, out := execute(t, a, "info", "--host", host, "--fields", "power_fault,blockHeight")
-	if code != 0 || !strings.Contains(out, "power_fault: null") || !strings.Contains(out, "blockHeight: 970070") {
-		t.Fatalf("code=%d %s", code, out)
+	names := []string{"power_fault", "hardware_fault", "blockHeight", "scriptsig", "networkDifficulty", "coinbaseValueTotalSatoshis", "coinbaseValueUserSatoshis", "blockSignals", "coinbaseOutputs", "hashrateMonitor", "mdnsHostname"}
+	absent := fixture(t, "info")
+	for _, name := range names {
+		delete(absent, name)
+	}
+	host, _ := miner(t, absent)
+	for _, command := range []string{"", "info", "asic"} {
+		for _, name := range names {
+			args := []string{"--host", host, "--fields", name}
+			if command != "" {
+				args = append([]string{command}, args...)
+			}
+			code, out := execute(t, a, args...)
+			if code != 0 || !strings.Contains(out, name+": null") {
+				t.Errorf("%q %s: code=%d %s", command, name, code, out)
+			}
+		}
 	}
 	info := fixture(t, "info")
 	info["power_fault"] = "example fault"
 	host, _ = miner(t, info)
-	code, out = execute(t, a, "asic", "--host", host, "--fields", "power_fault")
+	code, out := execute(t, a, "asic", "--host", host, "--fields", "power_fault")
 	if code != 0 || !strings.Contains(out, "power_fault: example fault") {
 		t.Fatalf("code=%d %s", code, out)
 	}
 	code, out = execute(t, a, "info", "--host", host, "--fields", "power_faults")
 	if code != 2 || !strings.Contains(out, "unknown_field") {
 		t.Fatalf("code=%d %s", code, out)
+	}
+}
+
+func TestHelpNamesConditionalFields(t *testing.T) {
+	a := New(func(string) string { t.Fatal("offline command read environment"); return "" })
+	for _, command := range []string{"", "info", "asic"} {
+		args := []string{"--help"}
+		if command != "" {
+			args = []string{command, "--help"}
+		}
+		code, out := execute(t, a, args...)
+		if want := `conditional_fields: "power_fault,hardware_fault,blockHeight,scriptsig,networkDifficulty,coinbaseValueTotalSatoshis,coinbaseValueUserSatoshis,blockSignals,coinbaseOutputs,hashrateMonitor,mdnsHostname"`; code != 0 || !strings.Contains(out, want) {
+			t.Errorf("%q: missing %q in %d %s", command, want, code, out)
+		}
+	}
+	code, out := execute(t, a, "stats", "--help")
+	if code != 0 || strings.Contains(out, "conditional_fields") {
+		t.Errorf("stats help: %d %s", code, out)
 	}
 }

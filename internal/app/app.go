@@ -458,7 +458,7 @@ func help(command string) output.Object {
 	if command == "" {
 		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm"})
 	}
-	return append(fields, output.Object{
+	flags := output.Object{
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
 			{Name: "fields", Value: fieldsHelp(command)},
@@ -467,7 +467,12 @@ func help(command string) output.Object {
 		}},
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},
+	}
+	if readsInfoFields(command) {
+		flags = append(flags, output.Field{Name: "conditional_fields", Value: strings.Join(conditionalInfoFields, ",")})
+	}
+	return append(fields, append(flags, output.Object{
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},
 		{Name: "examples", Value: []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}},
-	}...)
+	}...)...)
 }
