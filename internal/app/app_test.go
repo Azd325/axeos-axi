@@ -384,6 +384,17 @@ func TestScoreboard(t *testing.T) {
 	}
 }
 
+func TestScoreboardUnknownFieldSendsNoRequest(t *testing.T) {
+	host, calls := scoreboardMiner(t, http.StatusOK, "[]")
+	code, out := execute(t, New(func(string) string { return host }), "scoreboard", "--fields", "rank,bogus")
+	if code != 2 || !strings.Contains(out, "unknown field bogus") {
+		t.Fatalf("%d %s", code, out)
+	}
+	if len(calls()) != 0 {
+		t.Fatalf("requests before field validation: %v", calls())
+	}
+}
+
 func TestStatisticsEmptyAndInvalid(t *testing.T) {
 	for _, frequency := range []float64{0, 120} {
 		info := fixture(t, "info")
