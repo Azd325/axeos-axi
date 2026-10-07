@@ -77,10 +77,11 @@ func newParityMiner(t *testing.T, m *parityMiner) string {
 }
 
 type parityCase struct {
-	name  string
-	args  []string
-	miner func(*parityMiner)
-	host  bool
+	name     string
+	args     []string
+	miner    func(*parityMiner)
+	host     bool
+	noMiners bool
 }
 
 func lines(n int) string {
@@ -148,6 +149,9 @@ var parityCases = []parityCase{
 	{name: "err_tuning_value", args: []string{"tuning", "--frequency", "551"}, host: true},
 	{name: "err_skill_usage", args: []string{"skill"}},
 	{name: "err_skill_flag", args: []string{"skill", "install", "--host", "x"}},
+	{name: "discover", args: []string{"discover"}},
+	{name: "discover_fields", args: []string{"discover", "--fields", "instance,port,asic_count,board,asic"}},
+	{name: "discover_empty", args: []string{"discover"}, noMiners: true},
 	{name: "err_discover_host", args: []string{"discover", "--host", "x"}},
 }
 
@@ -177,6 +181,9 @@ func runParity(t *testing.T, tc parityCase, extra ...string) (int, string) {
 	}
 	a := New(func(string) string { return env })
 	a.Browser = &fakeBrowser{services: advertisedMiners()}
+	if tc.noMiners {
+		a.Browser = &fakeBrowser{}
+	}
 	var out bytes.Buffer
 	code := a.Run(context.Background(), args, &out)
 	if len(m.writes) != 0 {

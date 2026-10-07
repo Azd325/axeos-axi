@@ -6,7 +6,7 @@ flags:
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"
-  version: "-v, -V, --version; bare version; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
 timeout_s: 4
 view_fields: "hostname,asic_model,firmware,axeos_version,idf_version,board,heap_free_bytes,heap_internal_free_bytes,heap_min_free_bytes,heap_max_alloc_bytes,wifi_state,wifi_signal_dbm,uptime_s,reset_reason,partition"
 conditional_fields: "power_fault,hardware_fault,blockHeight,scriptsig,networkDifficulty,coinbaseValueTotalSatoshis,coinbaseValueUserSatoshis,blockSignals,coinbaseOutputs,hashrateMonitor,mdnsHostname"

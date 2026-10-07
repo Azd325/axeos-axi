@@ -543,3 +543,16 @@ func TestHelpNamesConditionalFields(t *testing.T) {
 		t.Errorf("stats help: %d %s", code, out)
 	}
 }
+
+func TestVersionFlags(t *testing.T) {
+	for _, flag := range []string{"-v", "-V", "--version"} {
+		a := New(func(string) string { return "" })
+		a.Version = "1.2.3"
+		if code, out := execute(t, a, flag); code != 0 || out != "1.2.3\n" {
+			t.Fatalf("%s: code=%d %q", flag, code, out)
+		}
+		if code, out := execute(t, a, flag, "--json"); code != 0 || out != "{\"version\":\"1.2.3\"}\n" {
+			t.Fatalf("%s --json: code=%d %q", flag, code, out)
+		}
+	}
+}

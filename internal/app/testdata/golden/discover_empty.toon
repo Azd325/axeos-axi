@@ -1,0 +1,6 @@
+exit: 0
+service: _axeos._sub._http._tcp.local
+timeout_s: 3
+count: 0
+state: 0 AxeOS miners answered mDNS service type _axeos._sub._http._tcp.local within 3 s
+help[2]: axeos-axi discover --timeout 9 to wait longer,axeos-axi --host <address> reads a miner at a known address; mDNS stays inside one network segment and a miner must advertise this service type

@@ -1,0 +1,9 @@
+exit: 0
+service: _axeos._sub._http._tcp.local
+timeout_s: 3
+count: 3
+miners[3]{address,hostname,family,firmware}:
+  192.0.2.10,bitaxe-example.local,Gamma,v2.15.3
+  "192.0.2.11:8080",bitaxe-other.local,null,null
+  bitaxe-unresolved.local,bitaxe-unresolved.local,Supra,null
+help[2]: axeos-axi --host <address> for live mining health of one miner,"axeos-axi discover --fields address,hostname,board,asic,asic_count for hardware detail"

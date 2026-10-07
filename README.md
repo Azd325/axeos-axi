@@ -60,7 +60,7 @@ TOON list becomes an array. An error is one object with `error` (`code` and `mes
 the same exit code; a usage error honors `--json` when the flag is in the arguments. `--json` never prints
 a value that the TOON output of the same call hides. Without `--json` the output is unchanged.
 `--help` works on every command without contacting a miner. `-v`, `-V` and `--version`
-print the bare version. Unknown flags and arguments are rejected.
+print the bare version; with `--json` they print `{"version":"..."}`. Unknown flags and arguments are rejected.
 
 ## Agent integrations
 

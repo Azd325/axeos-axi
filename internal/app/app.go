@@ -372,6 +372,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		return failure(stdout, 2, "usage", err.Error(), "valid flags: "+validFlags(opts.command)+"; commands: "+commands())
 	}
 	if opts.version {
+		if opts.json {
+			return write(stdout, output.Object{{Name: "version", Value: a.Version}})
+		}
 		if _, err := fmt.Fprintln(stdout, a.Version); err != nil {
 			return 1
 		}
@@ -584,7 +587,7 @@ func help(command string) output.Object {
 			{Name: "fields", Value: fieldsHelp(command)},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
-			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
+			{Name: "version", Value: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"},
 		}},
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},
