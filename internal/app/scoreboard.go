@@ -16,6 +16,15 @@ var (
 )
 
 func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout io.Writer) int {
+	columns := scoreboardDefaults
+	if len(opts.fields) != 0 {
+		columns = opts.fields
+	}
+	for _, name := range columns {
+		if !slices.Contains(scoreboardFields, name) {
+			return failure(stdout, 2, "unknown_field", "unknown field "+name, "axeos-axi scoreboard --help; valid fields: "+strings.Join(scoreboardFields, ","))
+		}
+	}
 	entries, err := client.GetList(ctx, "scoreboard")
 	if err != nil {
 		return optionalReadFailure(stdout, err, "scoreboard", opts.host)
@@ -27,15 +36,6 @@ func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout 
 			return failure(stdout, 1, "invalid_scoreboard", "scoreboard response contains an entry that is not an object", "check AxeOS scoreboard API compatibility")
 		}
 		rows[i] = share
-	}
-	columns := scoreboardDefaults
-	if len(opts.fields) != 0 {
-		columns = opts.fields
-	}
-	for _, name := range columns {
-		if !slices.Contains(scoreboardFields, name) {
-			return failure(stdout, 2, "unknown_field", "unknown field "+name, "axeos-axi scoreboard --help; valid fields: "+strings.Join(scoreboardFields, ","))
-		}
 	}
 	fields := output.Object{{Name: "count", Value: len(rows)}}
 	if len(rows) == 0 {
