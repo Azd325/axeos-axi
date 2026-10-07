@@ -31,7 +31,8 @@ Each request times out after four seconds; the `logs` request after fifteen. Red
 Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`. `logs --lines` also reads `/api/system/info`
+`/api/system/logs`, and mDNS queries from `discover`. `logs --follow` reads the WebSocket path
+`/api/ws`. `logs --lines` and `logs --follow` also read `/api/system/info`
 first, to find the private values to replace. Three commands change the miner, each only
 with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
 `pool` each send one PATCH request to `/api/system`.
@@ -44,7 +45,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power; with `--samples` or `--columns`, the newest samples as a table of named columns |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
-| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; private values replaced unless `--show-private` |
+| `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; with `--follow <seconds>`, each new line while it runs; private values replaced unless `--show-private` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
@@ -312,15 +313,45 @@ Zero shares is a definitive result with exit code 0. Firmware without the path g
 `logs` without `--lines`, and `logs --lines` with `--show-private`, send one request, to the logs path only.
 `logs --lines` without `--show-private` first sends one request to the info path, then one to the logs path;
 if the info read fails, no log line is printed and the exit code is 1.
-`--show-private` is valid only together with `--lines`. The miner answers with plain text: its log
+`--show-private` is valid only together with `--lines` or `--follow`. The miner answers with plain text: its log
 buffer, at most 512 KiB, oldest line first; the buffer survives a soft restart. Without
 `--lines` the command prints no log line: it prints `total_lines`, the response size
 `size_bytes` and the commands that print lines. `--lines <n>` prints the newest n lines and
 `--lines all` prints every line, in the order of the buffer, so the newest line is last;
 `total_lines` and `shown_lines` state how many lines exist and how many are printed.
-There is no filter, search or follow. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
+There is no filter or search. Blank lines are not counted. Terminal control sequences, such as the colour codes of the
 firmware, are removed; with `--show-private` the text is otherwise unchanged. Zero lines is a definitive result
 with exit code 0. Firmware without the path gives `not_supported`, by the same rule as `firmware`.
+
+`logs --follow <seconds>` is a separate mode that prints each new log line of the miner while it runs.
+The number is a whole number of seconds from 1 to 300 and is the time limit: a value outside this range
+is a usage error, and no connection is made. The command ends by itself when the time is over or the
+miner closes the connection; Ctrl-C closes the connection cleanly and ends with exit code 0.
+`--follow` cannot be combined with `--lines` or `--fields`. `--show-private` works as in `logs --lines`:
+without it the pool user, the MAC and the Wi-Fi name are replaced in each line.
+The miner sends only the lines that are new after the connection opens, so a follow shows no old line;
+`logs --lines` reads the old lines.
+
+The output is a stream of TOON fields, one per output line, so it is valid for a reader that takes it
+line by line and for a reader that takes it whole. The first line is `follow_limit_s`. Each log line is
+a field `line_1`, `line_2` and so on, printed when it arrives. The last lines are the closing state:
+`lines`, `seconds_followed` and `ended`, which is `time_limit`, `closed_by_miner` or `interrupted`.
+Zero lines in the time is a definitive result with a `state` line and exit code 0.
+A connection that breaks in the middle prints the lines received so far and then a `connection_lost`
+error with exit code 1; there is no reconnect. Other errors are `not_supported` (firmware without the
+path), `connections_full` (HTTP 429), `access_refused` (HTTP 401) and `handshake_failed`.
+
+A follow holds 1 of the 10 WebSocket places of the miner. The web interface of the miner shares these
+places, so a follow can fail with `connections_full` while others are connected. The tool has its own small
+WebSocket client in `internal/ws`: it reads text frames, answers a ping and closes cleanly, refuses a frame
+larger than 16 KiB and a message larger than 64 KiB, treats a masked frame from the server as a protocol
+fault, and has no function that sends a data frame. The firmware has the path since v2.2.0; the limit of
+10 places and the HTTP 429 answer exist since v2.10.0.
+
+```sh
+bin/axeos-axi logs --follow 30
+bin/axeos-axi logs --follow 300 --show-private
+```
 
 ## Development
 
