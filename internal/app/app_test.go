@@ -471,3 +471,11 @@ func TestEfficiencyAndUnknowns(t *testing.T) {
 		t.Fatal("missing state inferred as healthy")
 	}
 }
+
+func TestFirmwareHelpStatesMinimumFirmware(t *testing.T) {
+	a := New(func(string) string { t.Fatal("offline command read environment"); return "" })
+	code, out := execute(t, a, "firmware", "--help")
+	if want := "needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported"; code != 0 || !strings.Contains(out, want) {
+		t.Errorf("missing %q in %d %s", want, code, out)
+	}
+}

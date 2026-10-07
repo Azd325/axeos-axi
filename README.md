@@ -41,7 +41,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power |
-| `firmware` | Running partition, firmware version, image size and SHA-256 of the running image |
+| `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines` |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
@@ -258,7 +258,8 @@ Statistics timestamps are milliseconds since miner boot, not wall-clock dates.
 reports zero recorded samples when enabled logging has no data. Extra sample history
 is available only through explicit field selection; it is not dumped by default.
 An empty-state explanation remains present with `--fields`.
-`firmware` sends one request, to the checksum path only. Its `sha256` is lowercase hex and
+`firmware` sends one request, to the checksum path only. The path needs firmware newer than
+v2.15.3: v2.15.3 and every older release answer `not_supported`. Its `sha256` is lowercase hex and
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
 reports `not_supported` with exit code 1 and does not follow the redirect.

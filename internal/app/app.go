@@ -431,7 +431,7 @@ func help(command string) output.Object {
 	if label == "" {
 		label = "home"
 	}
-	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
+	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
