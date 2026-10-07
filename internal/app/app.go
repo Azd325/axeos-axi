@@ -362,6 +362,11 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		for _, name := range strings.Split(viewNames(opts.command), ",") {
 			available[name] = nil
 		}
+		if readsInfoFields(opts.command) {
+			for _, name := range conditionalInfoFields {
+				available[name] = nil
+			}
+		}
 		for k, v := range raw {
 			available[k] = v
 		}
@@ -417,6 +422,14 @@ func identity() output.Object {
 	return output.Object{{Name: "bin", Value: bin}, {Name: "description", Value: "Read and operate an AxeOS Bitcoin miner from a predictable command line"}}
 }
 
+func fieldsHelp(command string) string {
+	text := "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
+	if readsInfoFields(command) {
+		text += "; " + conditionalFieldsHelp
+	}
+	return text
+}
+
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
 func help(command string) output.Object {
@@ -448,7 +461,7 @@ func help(command string) output.Object {
 	return append(fields, output.Object{
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
-			{Name: "fields", Value: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"},
+			{Name: "fields", Value: fieldsHelp(command)},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: "-v, -V, --version; bare version; no network request"},
 		}},

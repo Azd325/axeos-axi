@@ -479,3 +479,23 @@ func TestFirmwareHelpStatesMinimumFirmware(t *testing.T) {
 		t.Errorf("missing %q in %d %s", want, code, out)
 	}
 }
+
+func TestConditionalFields(t *testing.T) {
+	a := New(func(string) string { return "" })
+	host, _ := miner(t, fixture(t, "info"))
+	code, out := execute(t, a, "info", "--host", host, "--fields", "power_fault,blockHeight")
+	if code != 0 || !strings.Contains(out, "power_fault: null") || !strings.Contains(out, "blockHeight: 970070") {
+		t.Fatalf("code=%d %s", code, out)
+	}
+	info := fixture(t, "info")
+	info["power_fault"] = "example fault"
+	host, _ = miner(t, info)
+	code, out = execute(t, a, "asic", "--host", host, "--fields", "power_fault")
+	if code != 0 || !strings.Contains(out, "power_fault: example fault") {
+		t.Fatalf("code=%d %s", code, out)
+	}
+	code, out = execute(t, a, "info", "--host", host, "--fields", "power_faults")
+	if code != 2 || !strings.Contains(out, "unknown_field") {
+		t.Fatalf("code=%d %s", code, out)
+	}
+}

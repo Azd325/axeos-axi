@@ -232,6 +232,11 @@ listed in command help or exact top-level JSON field names from the
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
 `logs`, `restart`, `tuning` and `pool` do not take `--fields`.
+For `info`, `asic` and the home view, firmware v2.15.3 sends 11 fields only on a condition:
+`power_fault` and `hardware_fault` during a fault; `blockHeight`, `scriptsig`, `networkDifficulty`,
+`coinbaseValueTotalSatoshis`, `coinbaseValueUserSatoshis`, `blockSignals` and `coinbaseOutputs`
+after the first job; `hashrateMonitor` when it is started; `mdnsHostname` when it is set.
+With `--fields`, such a name that the miner omits prints `null`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 
