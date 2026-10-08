@@ -17,6 +17,7 @@ const (
 	minHashrateShare      = 0.8
 	maxRejectedShare      = 0.05
 	healthTooEarly        = "too early to judge"
+	hashrateEpsilon       = 1e-9
 )
 
 const (
@@ -70,11 +71,6 @@ func stateRule(name, field, bad, good, reason string, info map[string]any) ruleR
 	return ruleResult{name, ruleOK, good, good, ""}
 }
 
-func performanceUptime(info map[string]any) (float64, bool) {
-	uptime, ok := number(info, "uptimeSeconds")
-	return uptime, ok
-}
-
 func earlyReason(uptime float64) string {
 	return fmt.Sprintf("uptime %.0f s is below %d s; %s", uptime, minPerformanceUptimeS, healthTooEarly)
 }
@@ -82,7 +78,7 @@ func earlyReason(uptime float64) string {
 func hashrateRule(info map[string]any) ruleResult {
 	const name = "hashrate"
 	limit := fmt.Sprintf("1h hashrate at least %.0f%% of expected hashrate", minHashrateShare*100)
-	uptime, uptimeOK := performanceUptime(info)
+	uptime, uptimeOK := number(info, "uptimeSeconds")
 	hour, hourOK := number(info, "hashRate_1h")
 	expected, expectedOK := number(info, "expectedHashrate")
 	switch {
@@ -93,13 +89,15 @@ func hashrateRule(info map[string]any) ruleResult {
 	case !expectedOK || expected <= 0:
 		return unknownRule(name, limit, "a positive expectedHashrate")
 	}
-	failed := hour < expected*minHashrateShare
-	shown := hour
+	floor := expected * minHashrateShare
+	failed := hour < floor-hashrateEpsilon
+	value := fmt.Sprintf("%.2f GH/s", hour)
+	limitShown := floor
 	if failed {
-		shown = math.Floor(hour*100) / 100
+		value = fmt.Sprintf("%.2f GH/s", math.Floor(hour*100+hashrateEpsilon)/100)
+		limitShown = math.Ceil(floor*100-hashrateEpsilon) / 100
 	}
-	value := fmt.Sprintf("%.2f GH/s", shown)
-	limit = fmt.Sprintf("at least %.2f GH/s (%.0f%% of expected %.2f GH/s)", expected*minHashrateShare, minHashrateShare*100, expected)
+	limit = fmt.Sprintf("at least %.2f GH/s (%.0f%% of expected %.2f GH/s)", limitShown, minHashrateShare*100, expected)
 	switch {
 	case uptime < minPerformanceUptimeS:
 		return ruleResult{name, ruleTooEarly, value, limit, earlyReason(uptime)}
@@ -112,7 +110,7 @@ func hashrateRule(info map[string]any) ruleResult {
 func rejectedSharesRule(info map[string]any) ruleResult {
 	const name = "rejected_shares"
 	limit := fmt.Sprintf("at most %.0f%% of all shares", maxRejectedShare*100)
-	uptime, uptimeOK := performanceUptime(info)
+	uptime, uptimeOK := number(info, "uptimeSeconds")
 	accepted, acceptedOK := number(info, "sharesAccepted")
 	rejected, rejectedOK := number(info, "sharesRejected")
 	switch {

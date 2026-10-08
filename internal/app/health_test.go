@@ -59,7 +59,6 @@ func TestHealthRules(t *testing.T) {
 		{"10 minutes of uptime", map[string]any{"uptimeSeconds": 600, "hashRate_1h": 10.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 0.93% of the expected hashrate"},
 		{"zero shares", map[string]any{"sharesAccepted": 0, "sharesRejected": 0}, "healthy", 0, "rejected_shares", "too_early", "no share was submitted yet; too early to judge"},
 		{"few shares", map[string]any{"sharesAccepted": 5, "sharesRejected": 5}, "unhealthy", 3, "rejected_shares", "failed", "50.00% of all shares are rejected"},
-		{"exact share prints exactly", map[string]any{"sharesAccepted": 989, "sharesRejected": 11}, "healthy", 0, "rejected_shares", "ok", ""},
 		{"hashrate value stays below the limit", map[string]any{"hashRate_1h": 856.796}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 79.99% of the expected hashrate"},
 		{"rejected just above the limit", map[string]any{"sharesAccepted": 18999, "sharesRejected": 1001}, "unhealthy", 3, "rejected_shares", "failed", "5.01% of all shares are rejected"},
 		{"fault wins over too early", map[string]any{"uptimeSeconds": 30, "miningPaused": true}, "unhealthy", 3, "mining_paused", "failed", "mining is paused"},
@@ -192,6 +191,8 @@ func TestHealthPrintedValuesDoNotReachTheLimit(t *testing.T) {
 		{"exact share", map[string]any{"sharesAccepted": 989, "sharesRejected": 11}, "rejected_shares", "11 of 1000 shares (1.10%)"},
 		{"failed share", map[string]any{"sharesAccepted": 18999, "sharesRejected": 1001}, "rejected_shares", "1001 of 20000 shares (5.01%)"},
 		{"failed hashrate", map[string]any{"hashRate_1h": 856.796}, "hashrate", "856.79 GH/s"},
+		{"failed hashrate below a rounded-down limit", map[string]any{"expectedHashrate": 433.59, "hashRate_1h": 346.871}, "hashrate", "346.87 GH/s"},
+		{"exact hashrate", map[string]any{"hashRate_1h": 1.15, "expectedHashrate": 1.15}, "hashrate", "1.15 GH/s"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host, _ := miner(t, healthInfo(t, tc.changes))
