@@ -29,7 +29,7 @@ bin/axeos-axi host save 192.0.2.10
 
 A command takes its miner from `--host <address>`, then from `AXEOS_HOST`, then from the saved host (see [Saved host](#saved-host)).
 The saved host is the only file the tool keeps, and only `host save` writes it.
-A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see below).
+A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see [Several miners](#several-miners)), and `restart` and `pool`, which accept it to change several miners in one call (see [Writes to several miners](#writes-to-several-miners)).
 `--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` and the saved host each name one miner.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
@@ -42,7 +42,8 @@ The read commands send only GET requests to `/api/system/info`, `/api/system/asi
 `/api/ws`. `logs --lines` and `logs --follow` also read `/api/system/info`
 first, to find the private values to replace. Three commands change the miner, each only
 with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
-`pool` each send one PATCH request to `/api/system`.
+`pool` each send one PATCH request to `/api/system`. With several miners, `restart` and `pool`
+send that request one time for each miner.
 
 | Command | Default view |
 | --- | --- |
@@ -55,9 +56,9 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; with `--follow <seconds>`, each new line while it runs; private values replaced unless `--show-private` |
 | `health` | The verdict (`healthy`, `unhealthy` or `unknown`) and one row for each of eight rules: result, value read, limit and reason. Exit code 3 for an unhealthy miner |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
-| `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
+| `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request. With `--host` more than once: one row per miner |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
-| `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
+| `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user`. With `--host` more than once: one row per miner |
 | `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
@@ -183,6 +184,7 @@ state. A `too_early` rule does not change the verdict. A failed read prints no v
 
 `restart` changes the miner: the miner restarts and stops hashing until it is up again.
 It takes one miner, through `--host`, `AXEOS_HOST` or the saved host, and no `--fields`.
+With `--host` more than once it restarts several miners (see [Writes to several miners](#writes-to-several-miners)).
 
 ```sh
 bin/axeos-axi restart --host 192.0.2.10
@@ -207,7 +209,7 @@ come up again; `info` shows `uptime_s` and `reset_reason` after the restart.
 `tuning` changes the miner: it sets the ASIC frequency in MHz, the core voltage in mV, or both.
 The values are active at once, without a restart, and the miner keeps them across a restart.
 The command does not restart the miner. It takes one miner, through `--host`, `AXEOS_HOST` or the saved host,
-and no `--fields`.
+and no `--fields`. `--host` more than once is a usage error with exit code 2: tuning for several miners is not supported yet.
 
 ```sh
 bin/axeos-axi tuning --host 192.0.2.10 --frequency 525
@@ -249,7 +251,7 @@ client outside the allowed network range. The command does not repeat the reques
 fallback pool. The miner stores the values at once and keeps them across a restart. An open pool
 connection uses the old values until the miner restarts or connects again. The command does not
 restart the miner; `restart` does. It takes one miner, through `--host`, `AXEOS_HOST` or the saved host, and no
-`--fields`.
+`--fields`. With `--host` more than once it changes several miners (see [Writes to several miners](#writes-to-several-miners)).
 
 ```sh
 bin/axeos-axi pool --host 192.0.2.10 --url pool.example.org --port 3333
@@ -344,8 +346,50 @@ A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
 The home view adds one line for `info` on the same miners.
 
-`AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health`, `restart`, `tuning` or `pool` is a usage error with exit code 2, and no request is sent.
-Writes to several miners are not part of this command set.
+`AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health` or `tuning` is a usage error with exit code 2, and no request is sent.
+
+## Writes to several miners
+
+`restart` and `pool` change several miners in one call when `--host` is repeated:
+
+```sh
+bin/axeos-axi pool --host 192.0.2.10 --host 192.0.2.11 --fallback-port 3334
+bin/axeos-axi pool --host 192.0.2.10 --host 192.0.2.11 --fallback-port 3334 --confirm
+bin/axeos-axi restart --host 192.0.2.10 --host 192.0.2.11
+```
+
+The list of miners is explicit. No flag takes the hosts from `discover`, and `AXEOS_HOST` and the saved host each name one miner.
+`tuning` takes one miner: with `--host` more than once it is a usage error that says tuning for several miners is not supported yet.
+The same host twice is a usage error with exit code 2, and no request is sent. The comparison uses the scheme, the host and the port; two names of one miner are two hosts.
+A call with one `--host` prints exactly what it printed before and sends the same requests.
+
+Each call starts with the check: one GET request to `/api/system/info` for each miner, all at the same time.
+A miner fails the check when the read fails (`miner_read_failed`) or when `pool` refuses the write for that miner as a call with one miner does (`not_supported`, `same_slot`, `no_pool_in_slot`, `present_value_unknown`, `not_reversible`).
+
+Without `--confirm` the command sends no write request. It prints `sent: false`, `count`, `failed`, the table `miners`, the effect and, as `execute`, the complete command line.
+`miners` has one row per miner in the order of the flags. `failed` counts the rows with an error.
+
+| Command | Columns without `--confirm` | Columns with `--confirm` |
+| --- | --- | --- |
+| `restart` | `host`, `uptime_s`, `changes`, `error` | `host`, `uptime_s`, `result`, `error` |
+| `pool` | `host`, the present and the new value of each named setting (such as `fallback_port_present` and `fallback_port_new`), `changes`, `error` | `host`, the same values, `result`, `restore`, `error` |
+
+A miner that fails the check keeps its row: `error` has the error code and the value columns are `null`.
+The exit code of such a preview is 1. A help line names the command that prints the error message of that miner, up to three lines.
+The `body` of a `pool` request is not printed for several miners; a call with one `--host` prints it.
+
+With `--confirm` the command writes only when each miner passes the check:
+
+1. When a miner fails the check, no write request goes to any miner. Each row has the result `not_attempted`, and the row of the failed miner has the error code.
+2. When each miner passes, the miners get the write request one after the other, in the order of the flags: one request for each miner.
+3. The first failed write stops the call. That row has the result `failed` and the error code (`restart_not_sent`, `restart_unconfirmed`, `restart_failed`, `pool_not_sent`, `pool_unconfirmed` or `pool_failed`). Each later row is `not_attempted`. The `result` line has the error message.
+
+The command does not set a changed miner back by itself. For `pool`, the column `restore` has the complete command line that sets the previous values of that one miner again.
+It is printed for each `changed` miner and for a `failed` miner that got the request. A pool user is in it only with `--show-user`, and a confirmed change of a user needs `--show-user`, as with one miner.
+A restart has no command that reverses it, and the result says so.
+
+`sent` is `true` when one or more write requests were sent, and `changed` counts the miners with the result `changed`.
+The exit code is 0 only when each result is `changed`. It is 1 for each other result and 2 for a usage error.
 
 ## Fields, units and privacy
 

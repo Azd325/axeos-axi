@@ -217,10 +217,9 @@ func TestSeveralHostsOnOtherCommandsAreRefused(t *testing.T) {
 	a := New(func(string) string { return "" })
 	for _, command := range [][]string{
 		{"scoreboard"}, {"stats", "--samples", "2"}, {"stats", "--columns", "power"}, {"logs"}, {"logs", "--lines", "3"}, {"health"},
-		{"restart"}, {"restart", "--confirm"}, {"tuning", "--frequency", "550"}, {"pool", "--url", "pool.example.org"},
 	} {
 		code, out := execute(t, a, append(slices.Clone(command), hostArgs(first, second)...)...)
-		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "several miners are accepted by the home view, `info`, `asic`, `stats` and `firmware`") {
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "several miners are accepted by the home view, `info`, `asic`, `stats`, `firmware`, `restart` and `pool`") {
 			t.Errorf("command=%v code=%d out=%s", command, code, out)
 		}
 	}

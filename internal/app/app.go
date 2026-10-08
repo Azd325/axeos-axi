@@ -25,8 +25,9 @@ const (
 	jsonFlagHelp          = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	versionFlagHelp       = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
 	hostFlagHelp          = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
+	writeHostsFlagHelp    = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to change several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
 	hostsFlagHelp         = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
-	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
+	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health and tuning take one miner; restart and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi pool --help)"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill"}
@@ -483,6 +484,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		clients[i] = client
 	}
 	if len(clients) > 1 {
+		if opts.command == "restart" || opts.command == "pool" {
+			return writeMiners(ctx, clients, opts, stdout)
+		}
 		return readMiners(ctx, clients, opts, stdout)
 	}
 	opts.host = opts.hosts[0]

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	severalHostsCommands = "the home view, `info`, `asic`, `stats` and `firmware`"
+	severalHostsCommands = "the home view, `info`, `asic`, `stats`, `firmware`, `restart` and `pool`"
 	maxFailureHelp       = 3
 )
 
@@ -141,8 +141,10 @@ func (v *minerView) selected(opts options) (output.Object, string) {
 
 func severalHostsError(opts options, tableStats bool) error {
 	switch opts.command {
-	case "", "info", "asic", "firmware", "discover", "skill", "host":
+	case "", "info", "asic", "firmware", "restart", "pool", "discover", "skill", "host":
 		return nil
+	case "tuning":
+		return errors.New("--host was given more than once; `tuning` for several miners is not supported yet and takes one miner; `restart` and `pool` accept several miners")
 	case "stats":
 		if !tableStats {
 			return nil

@@ -170,32 +170,12 @@ func TestRestartRejectsInputBeforeNetwork(t *testing.T) {
 	}
 }
 
-func TestRestartWithRepeatedHostSendsNothing(t *testing.T) {
-	first, firstCalls := restartMiner(t, accepted())
-	second, secondCalls := restartMiner(t, accepted())
-	a := New(func(string) string { return "" })
-	for _, args := range [][]string{
-		{"restart", "--host", first, "--host", second, "--confirm"},
-		{"restart", "--host=" + first, "--host=" + second, "--confirm"},
-		{"restart", "--confirm", "--host", first, "--host=" + second},
-		{"restart", "--host", first, "--host", second},
-	} {
-		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; `restart` takes one miner; several miners are accepted by the home view") || !strings.Contains(out, "valid flags: --host, --confirm,") {
-			t.Errorf("args=%v code=%d out=%s", args, code, out)
-		}
-	}
-	if len(firstCalls()) != 0 || len(secondCalls()) != 0 {
-		t.Fatalf("requests after a repeated --host: %v %v", firstCalls(), secondCalls())
-	}
-}
-
 func TestRestartHelpAndVersionSendNothing(t *testing.T) {
 	a := New(func(string) string { t.Fatal("offline command read environment"); return "" })
 	a.Version = "1.2.3"
 	for _, args := range [][]string{{"restart", "--help"}, {"restart", "--confirm", "--help"}, {"--help", "--confirm", "restart"}} {
 		code, out := execute(t, a, args...)
-		if code != 0 || !strings.HasPrefix(out, "command: restart\ndescription: \"Changes the miner: ") || !strings.Contains(out, "confirm: \"--confirm; ") || !strings.Contains(out, "examples[3]:") || strings.Contains(out, "--fields") {
+		if code != 0 || !strings.HasPrefix(out, "command: restart\ndescription: \"Changes the miner: ") || !strings.Contains(out, "confirm: \"--confirm; ") || !strings.Contains(out, "examples[4]:") || strings.Contains(out, "--fields") {
 			t.Fatalf("args=%v code=%d\n%s", args, code, out)
 		}
 	}

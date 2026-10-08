@@ -49,6 +49,8 @@ func poolMiner(t *testing.T, change func(info map[string]any, pools []map[string
 				t.Errorf("content type=%q length=%d body=%q", r.Header.Get("Content-Type"), r.ContentLength, body)
 			}
 			answer(w, r)
+		case restartCall:
+			answer(w, r)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.RequestURI())
 			http.NotFound(w, r)
@@ -490,24 +492,6 @@ func TestPoolAcceptsTheLimitsOfEachValue(t *testing.T) {
 	}
 }
 
-func TestPoolWithRepeatedHostSendsNothing(t *testing.T) {
-	first, firstCalls := poolMiner(t, nil, settingsSaved)
-	second, secondCalls := poolMiner(t, nil, settingsSaved)
-	a := New(func(string) string { return "" })
-	for _, args := range [][]string{
-		{"pool", "--url", "new.example.org", "--host", first, "--host", second, "--confirm"},
-		{"pool", "--host=" + first, "--host=" + second, "--fallback-port", "4444"},
-	} {
-		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "--host was given more than once; `pool` takes one miner; several miners are accepted by the home view") || !strings.Contains(out, "valid flags: --host, --url, --port, --user,") {
-			t.Errorf("args=%v code=%d out=%s", args, code, out)
-		}
-	}
-	if firstCalls() != "" || secondCalls() != "" {
-		t.Fatalf("requests after a repeated --host: %s %s", firstCalls(), secondCalls())
-	}
-}
-
 func TestPoolUnreachableMiner(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	host := s.URL
@@ -524,7 +508,7 @@ func TestPoolHelpAndVersionSendNothing(t *testing.T) {
 	for _, args := range [][]string{{"pool", "--help"}, {"pool", "--user", "private-identifier", "--confirm", "--help"}, {"--help", "pool"}} {
 		code, out := execute(t, a, args...)
 		if code != 0 || !strings.HasPrefix(out, "command: pool\ndescription: \"Changes the miner: ") || !strings.Contains(out, "url: \"--url <host>; ") || !strings.Contains(out, "fallback_user: \"--fallback-user <user>; ") ||
-			!strings.Contains(out, "show_user: \"--show-user; ") || !strings.Contains(out, "examples[3]:") || strings.Contains(out, "--fields") || strings.Contains(out, "private-identifier") {
+			!strings.Contains(out, "show_user: \"--show-user; ") || !strings.Contains(out, "examples[4]:") || strings.Contains(out, "--fields") || strings.Contains(out, "private-identifier") {
 			t.Fatalf("args=%v code=%d\n%s", args, code, out)
 		}
 	}
