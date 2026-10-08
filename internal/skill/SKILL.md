@@ -10,8 +10,8 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 
 ## Usage
 
-- Name the miner with `--host <address>` or `AXEOS_HOST`. With neither, a command uses the saved host, and its result then prints `saved_host` with the address. A command takes one miner, except that the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware` accept `--host` more than once.
-- Several miners print `count`, `failed` and a table with one row per miner in the order of the flags: `host`, the fields of the view and `error`. A miner that fails keeps its row with `error` set to `miner_read_failed`, `not_supported` or `invalid_statistics` and `null` values, and the other rows still print. Exit code `1` when any miner failed. The same host twice, or several hosts on another command, is a usage error that sends no request.
+- Name the miner with `--host <address>` or `AXEOS_HOST`. With neither, a command uses the saved host, and its result then prints `saved_host` with the address. A command takes one miner, except that the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware` accept `--host` more than once to read several miners, and `restart` and `pool` accept it to change several miners.
+- Several miners print `count`, `failed` and a table with one row per miner in the order of the flags: `host`, the fields of the view and `error`. A miner that fails keeps its row with `error` set to `miner_read_failed`, `not_supported` or `invalid_statistics` and `null` values, and the other rows still print. Exit code `1` when any miner failed. The same host twice, or several hosts on `scoreboard`, `logs`, `health` or `tuning`, is a usage error that sends no request.
 - `axeos-axi discover` finds miners on the local network and needs no host.
 - `host save <address>` saves one default host in a file in the user configuration directory. It sends one `info` request and writes only when an AxeOS miner answers. `host show` prints the saved host and the path, and `host forget` removes the file. No other command writes the file. Run `host save` and `host forget` only when the owner asks for it; `--host` needs no file.
 - A result with `saved_host` came from the saved host. Check that it is the miner the task names before a write with `--confirm`.
@@ -25,9 +25,14 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 
 - `restart`, `tuning` and `pool` change the miner.
 - Without `--confirm` each one sends no write request. It prints the present value, the new value and the command that performs the change.
-- With `--confirm` each one sends exactly one request.
+- With `--confirm` each one sends exactly one request for each miner.
 - Show the preview to the owner before you run the command with `--confirm`.
-- `tuning` accepts only the frequency and core voltage values that the miner lists.
+- `tuning` accepts only the frequency and core voltage values that the miner lists. It takes one miner.
+- `restart` and `pool` with `--host` more than once change several miners. Name each miner; no flag takes the hosts from `discover`.
+- Such a call first reads `info` of each miner. Without `--confirm` it prints one row per miner with the present value, the new value and `changes`, and it sends no write request.
+- With `--confirm`, when a miner fails that read, no write request goes to any miner. Else the miners get the request one after the other, and the first failed write stops the call.
+- Each row has a `result`: `changed`, `unchanged` (`pool` only: the miner has the new values and got no request), `failed` or `not_attempted`. Exit code `0` only when each result is `changed` or `unchanged`.
+- The tool does not set a changed miner back by itself. For `pool`, the column `restore` has the command that sets the previous values of that one miner again. A restart has no reverse.
 
 ## Private values
 
@@ -51,7 +56,7 @@ flags:
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"
   version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
-several_miners: "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
+several_miners: "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health and tuning take one miner; restart and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi pool --help)"
 timeout_s: 4
 view_fields: "hostname,model,firmware,hashrate,temperature,power_w,efficiency,fan,pool,pool_connection,pool_fallback,shares,best_difficulty,uptime_s,overheat,paused"
 conditional_fields: "power_fault,hardware_fault,blockHeight,scriptsig,networkDifficulty,coinbaseValueTotalSatoshis,coinbaseValueUserSatoshis,blockSignals,coinbaseOutputs,hashrateMonitor,mdnsHostname"

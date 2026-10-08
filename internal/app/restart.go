@@ -45,15 +45,16 @@ func restart(ctx context.Context, client *axeos.Client, opts options, stdout io.
 func restartHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "restart"},
-		{Name: "description", Value: "Changes the miner: " + restartEffect + "; without --confirm sends no request and prints the host, the request, the effect and the command that performs it; with --confirm sends exactly one " + restartRequest + ", with no read before or after it; HTTP 200 is success; any other outcome is an error that states whether the request was sent"},
+		{Name: "description", Value: "Changes the miner: " + restartEffect + "; without --confirm sends no request and prints the host, the request, the effect and the command that performs it; with --confirm sends exactly one " + restartRequest + ", with no read before or after it; HTTP 200 is success; any other outcome is an error that states whether the request was sent; several miners in one call have their own result (see several_miners)"},
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: hostFlagHelp},
+			{Name: "host", Value: writeHostsFlagHelp},
 			{Name: "confirm", Value: "--confirm; sends the restart request; default sends no request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: versionFlagHelp},
 		}},
+		{Name: "several_miners", Value: severalWritesHelp("restart")},
 		{Name: "timeout_s", Value: int(axeos.Timeout / time.Second)},
-		{Name: "examples", Value: []any{"axeos-axi restart --host 192.0.2.10", "axeos-axi restart --host 192.0.2.10 --confirm", "axeos-axi restart --help"}},
+		{Name: "examples", Value: []any{"axeos-axi restart --host 192.0.2.10", "axeos-axi restart --host 192.0.2.10 --confirm", "axeos-axi restart --host 192.0.2.10 --host 192.0.2.11", "axeos-axi restart --help"}},
 	}
 }
