@@ -64,8 +64,17 @@ func New(host string) (*Client, error) {
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery {
 		return nil, ErrHost
 	}
-	return &Client{base: u.Scheme + "://" + u.Host, http: httpClient(Timeout), logs: httpClient(LogsTimeout)}, nil
+	host = strings.ToLower(u.Hostname())
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port := u.Port(); port != "" && port != map[string]string{"http": "80", "https": "443"}[u.Scheme] {
+		host += ":" + port
+	}
+	return &Client{base: u.Scheme + "://" + host, http: httpClient(Timeout), logs: httpClient(LogsTimeout)}, nil
 }
+
+func (c *Client) Base() string { return c.base }
 
 func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, error) {
 	switch endpoint {

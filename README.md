@@ -25,7 +25,8 @@ bin/axeos-axi pool --url pool.example.org --port 3333
 ```
 
 `--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
-A command takes one miner: `--host` given more than once is a usage error with exit code 2, and no request is sent.
+A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see below).
+`--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` names one miner.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
@@ -278,6 +279,28 @@ line that sets the previous values again; a user is in it only with `--show-user
 does not repeat the request;
 `info --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` shows the stored
 values after the change.
+
+## Several miners
+
+The home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware` read several miners in one call when `--host` is repeated:
+
+```sh
+bin/axeos-axi info --host 192.0.2.10 --host 192.0.2.11
+bin/axeos-axi firmware --host 192.0.2.10 --host 192.0.2.11 --fields version
+```
+
+The result starts with `count` and `failed`, then `miners`: a table with one row per miner in the order of the flags.
+The columns are `host`, the fields of the default view of the command (or the fields of `--fields`), and `error`.
+`host` prints the address as typed. A value the miner does not send is `null`.
+A miner that fails keeps its row: `error` carries the error code (`miner_read_failed`, `not_supported`, `invalid_statistics`) and the value columns are `null`. The other miners still print.
+The exit code is 0 when each miner answered, 1 when any miner failed and 2 for a usage error.
+The miners are read at the same time, each with the four-second timeout, and each miner gets the same requests as a call with one `--host`.
+A call with one `--host` prints exactly what it printed before.
+A help line names the command that prints the error message of a failed miner, up to three lines.
+The home view adds one line for `info` on the same miners.
+
+`AXEOS_HOST` names one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health`, `restart`, `tuning` or `pool` is a usage error with exit code 2, and no request is sent.
+Writes to several miners are not part of this command set.
 
 ## Fields, units and privacy
 

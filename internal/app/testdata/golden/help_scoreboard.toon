@@ -2,7 +2,7 @@ exit: 0
 command: scoreboard
 description: "Best-difficulty shares, highest first, at most 20; default columns rank,difficulty,ntime; --fields replaces the row columns; ntime is the block-header time in Unix seconds"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+  host: "--host <address>; default AXEOS_HOST; required for reads; one miner; HTTP unless a scheme is supplied"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"

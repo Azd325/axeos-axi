@@ -499,7 +499,7 @@ func TestPoolWithRepeatedHostSendsNothing(t *testing.T) {
 		{"pool", "--host=" + first, "--host=" + second, "--fallback-port", "4444"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "--host was given more than once; a command takes one miner") || !strings.Contains(out, "valid flags: --host, --url, --port, --user,") {
+		if code != 2 || !strings.Contains(out, "--host was given more than once; `pool` takes one miner; several miners are accepted by the home view") || !strings.Contains(out, "valid flags: --host, --url, --port, --user,") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}
