@@ -26,7 +26,7 @@ pull request, then run this checklist from a clean checkout:
       `192.0.2.10`, placeholders, and security-policy wording are expected.
 
   ```sh
-  git grep -nEi '(https?://([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-f]{2}:){5}[0-9a-f]{2}|ssid|stratum.?user|\.local\b|\b(bc1|[13])[a-zA-Z0-9]{25,39}\b)'
+  git grep -nPi '(https?://([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-f]{2}:){5}[0-9a-f]{2}|ssid|stratum.?user|\.local\b|\b(bc1|[13])[a-zA-Z0-9]{25,39}\b)'
   ```
 
 - [ ] Keep live miner runs local-only. Run them by hand, confirm `CI` is empty,

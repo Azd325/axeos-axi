@@ -2,7 +2,6 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cd "$root"
 binary="$root/bin/.axeos-axi"
-nix develop --no-pure-eval --command go build -o "$binary" ./cmd/axeos-axi
+(cd "$root" && nix develop --no-pure-eval --command go build -o "$binary" ./cmd/axeos-axi) >&2
 exec "$binary" "$@"
