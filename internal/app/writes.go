@@ -14,7 +14,7 @@ import (
 
 const (
 	severalRestartEffect = "each miner restarts and stops hashing until it is up again; a restart has no command that reverses it"
-	severalWritesRules   = "; a miner that fails the check has the error code in error and null in the value columns; when a miner fails the check, no write request is sent to any miner, and with --confirm each result is not_attempted; else the miners get the write request one after the other, in the order of the flags; the first failed write stops the call: that row is failed with the error code, and each later row is not_attempted; failed counts the rows with an error; exit code 0 only when each result is %s, 1 for any other result and for a preview with a failed miner, 2 for a usage error; the same host twice is a usage error and no request is sent; AXEOS_HOST and the saved host name one miner; no flag takes the hosts from discover"
+	severalWritesRules   = "; a miner that fails the check has the error code in error and null in the value columns; when a miner fails the check, no write request is sent to any miner, and with --confirm each result is not_attempted; else the miners get the write request one after the other, in the order of the flags; the first failed write stops the call: that row is failed with the error code, and each later row is not_attempted; failed counts the rows with an error; exit code 0 only when each result is changed, 1 for any other result and for a preview with a failed miner, 2 for a usage error; the same host twice is a usage error and no request is sent; AXEOS_HOST and the saved host name one miner; no flag takes the hosts from discover"
 )
 
 type minerWrite struct {
@@ -144,7 +144,6 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 
 	sent, changed, stopped := false, 0, -1
 	var stopMessage string
-	var changedHosts []string
 	if opts.confirm && checkFailed == 0 {
 		for i, m := range miners {
 			err := m.send(ctx)
@@ -160,7 +159,6 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 			}
 			results[i] = "changed"
 			changed++
-			changedHosts = append(changedHosts, opts.hosts[i])
 		}
 	}
 
@@ -242,7 +240,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		help = append(help, verify+" when it is up again")
 	default:
 		result = "each miner accepted the request; " + poolEffect
-		help = append(help, verify, "axeos-axi restart "+hostArguments(changedHosts)+" for a preview of the restart that makes each changed miner use the stored values")
+		help = append(help, verify, "axeos-axi restart "+hosts+" for a preview of the restart that makes each changed miner use the stored values")
 	}
 	if isPool && (changed != 0 || (stopped >= 0 && miners[stopped].restore != nil)) {
 		help = append(help, "restore has the command that sets the previous values of that one miner again")
@@ -260,8 +258,8 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 func severalWritesHelp(command string) string {
 	if command == "restart" {
 		return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, uptime_s, changes and error, no restart request is sent, and execute has the complete command; with --confirm the columns are host, uptime_s, result and error, and the result is changed, failed or not_attempted" +
-			fmt.Sprintf(severalWritesRules, "changed") + "; a failed write is restart_not_sent, restart_unconfirmed or restart_failed; a restart has no command that reverses it"
+			severalWritesRules + "; a failed write is restart_not_sent, restart_unconfirmed or restart_failed; a restart has no command that reverses it"
 	}
 	return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, the present and the new value of each named setting (such as port_present and port_new), changes and error, no write request is sent, and execute has the complete command; with --confirm the columns are host, the same values, result, restore and error, and the result is changed, failed or not_attempted; restore is the complete command that sets the previous values of that one miner again, printed for each changed miner and for a failed miner that got the request" +
-		fmt.Sprintf(severalWritesRules, "changed") + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is pool_not_sent, pool_unconfirmed or pool_failed; the body is not printed, and a call with one --host prints it"
+		severalWritesRules + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is pool_not_sent, pool_unconfirmed or pool_failed; the body is not printed, and a call with one --host prints it"
 }
