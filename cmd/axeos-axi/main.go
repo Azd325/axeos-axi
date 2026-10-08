@@ -10,9 +10,10 @@ import (
 )
 
 var version = "dev"
+var readBuildInfo = debug.ReadBuildInfo
 
 func buildVersion() string {
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+	if info, ok := readBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
 		return info.Main.Version
 	}
 	return version
