@@ -380,39 +380,6 @@ matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path a
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
 reports `not_supported` with exit code 1 and does not follow the redirect.
 
-### `firmware --check-release`
-
-`firmware --check-release` compares the firmware version of the miner with the newest released version.
-This is the one request of the tool that leaves the local network; it runs only with this flag.
-Without the flag no command contacts a host other than the miner you name.
-The command sends one request to the miner and one to GitHub. It reads `info` from the miner (the field `version`, which the firmware sets
-from its application description; `axeOSVersion` is the web interface version and is not used).
-Then it sends one HTTPS GET to `https://api.github.com/repos/bitaxeorg/ESP-Miner/releases/latest`.
-The address is fixed in the code. The request has no token and no cookie, carries no value from the miner,
-and its User-Agent is `axeos-axi/<version>` only. No redirect is followed. The command never downloads firmware.
-
-The newest release is the one GitHub marks as latest, so a pre-release is ignored.
-The command compares numerically by major, minor and patch, and only when the miner version and the
-release tag both have the exact form `vMAJOR.MINOR.PATCH`. `comparison` is then `up_to_date`,
-`update_available` or `newer_than_release`. For any other form (`v2.15.2rc0`, `v2.15.2rc0-30-gabc1234`,
-`-dirty`, `Unknown`) the command prints both versions, `comparison: unknown` and a `reason`.
-
-```text
-miner_version: v2.15.3
-release:
-  tag: v2.15.3
-  name: v2.15.3
-  date: "2026-09-20T15:57:20Z"
-  url: "https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3"
-comparison: up_to_date
-help: "axeos-axi firmware --host '<host>' for the running firmware checksum"
-```
-
-The command does not read the checksum path, so it works also on firmware v2.15.3 and older. The `help`
-line names the plain `firmware` command, which prints the checksum. If the release read fails (no network,
-timeout, a rate limit, HTTP 403 without a rate limit, HTTP 5xx, an answer without a tag), the command prints `miner_version` and a `release_read_failed` error
-with exit code 1. A failed miner read is `miner_read_failed`. The flag is a flag of `firmware` only, takes one
-`--host`, and cannot combine with `--fields`; `--json` prints the same fields as one JSON document.
 `scoreboard` sends one request, to the scoreboard path only. The miner keeps at most 20 shares,
 sorted by difficulty, and keeps them across restarts. `rank` is the position in that list;
 the API does not send it. `ntime` is the block-header time of the share in Unix seconds.
@@ -468,6 +435,40 @@ fault, and has no function that sends a data frame. The firmware has the path si
 bin/axeos-axi logs --follow 30
 bin/axeos-axi logs --follow 300 --show-private
 ```
+
+### `firmware --check-release`
+
+`firmware --check-release` compares the firmware version of the miner with the newest released version.
+This is the one request of the tool that leaves the local network; it runs only with this flag.
+Without the flag no command contacts a host other than the miner you name.
+The command sends one request to the miner and one to GitHub. It reads `info` from the miner (the field `version`, which the firmware sets
+from its application description; `axeOSVersion` is the web interface version and is not used).
+Then it sends one HTTPS GET to `https://api.github.com/repos/bitaxeorg/ESP-Miner/releases/latest`.
+The address is fixed in the code. The request has no token and no cookie, carries no value from the miner,
+and its User-Agent is `axeos-axi/<version>` only. No redirect is followed. The command never downloads firmware.
+
+The newest release is the one GitHub marks as latest, so a pre-release is ignored.
+The command compares numerically by major, minor and patch, and only when the miner version and the
+release tag both have the exact form `vMAJOR.MINOR.PATCH`. `comparison` is then `up_to_date`,
+`update_available` or `newer_than_release`. For any other form (`v2.15.2rc0`, `v2.15.2rc0-30-gabc1234`,
+`-dirty`, `Unknown`) the command prints both versions, `comparison: unknown` and a `reason`.
+
+```text
+miner_version: v2.15.3
+release:
+  tag: v2.15.3
+  name: v2.15.3
+  date: "2026-09-20T15:57:20Z"
+  url: "https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3"
+comparison: up_to_date
+help: "axeos-axi firmware --host '<host>' for the running firmware checksum"
+```
+
+The command does not read the checksum path, so it works also on firmware v2.15.3 and older. The `help`
+line names the plain `firmware` command, which prints the checksum. If the release read fails (no network,
+timeout, a rate limit, HTTP 403 without a rate limit, HTTP 5xx, an answer without a tag), the command prints `miner_version` and a `release_read_failed` error
+with exit code 1. A failed miner read is `miner_read_failed`. The flag is a flag of `firmware` only, takes one
+`--host`, and cannot combine with `--fields`; `--json` prints the same fields as one JSON document.
 
 ## Development
 
