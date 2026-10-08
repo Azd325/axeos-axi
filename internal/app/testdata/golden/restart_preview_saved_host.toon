@@ -1,0 +1,7 @@
+exit: 0
+saved_host: "HOST"
+host: "HOST"
+request: POST /api/system/restart
+sent: false
+effect: the miner restarts and stops hashing until it is up again
+execute: "axeos-axi restart --host 'HOST' --confirm"

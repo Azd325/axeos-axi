@@ -83,7 +83,7 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	if !opts.showPrivate {
 		info, err := client.Get(ctx, "info")
 		if err != nil {
-			return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+			return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
 		}
 		redact = newRedactor(info)
 	}
@@ -164,5 +164,5 @@ func followOpenFailure(w io.Writer, err error, host string) int {
 	case errors.Is(err, axeos.ErrHandshake):
 		return failure(w, 1, "handshake_failed", err.Error(), prefix+" --lines <n> reads the log buffer instead")
 	}
-	return failure(w, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+	return failure(w, 1, "miner_read_failed", err.Error(), connectivityHelp)
 }

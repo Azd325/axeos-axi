@@ -1,0 +1,14 @@
+exit: 0
+command: host
+description: "Saves, shows and removes one default host; a command takes its miner from --host, then AXEOS_HOST, then the saved host, and a result that used the saved host prints saved_host with the address; the saved host is one file named host in the directory axeos-axi of the user configuration directory, readable by the user only; it holds the address and nothing else; only `host save` writes it and only `host forget` removes it; `host` alone is a usage error with exit code 2"
+actions:
+  save: "host save <address>; validates the address as --host does, sends exactly one GET /api/system/info to it, and writes the file only when the answer is an AxeOS info answer (it has a version and an ASICModel text); stores the address as scheme and host, with a port that is not the default; prints saved_host and path; the same address again is no error; a failed check writes nothing, keeps a host saved before, and is miner_read_failed or not_a_miner with exit code 1"
+  show: "host show; prints saved_host and path; with no file prints saved_host: null and a state line; sends no request"
+  forget: "host forget; removes the file and prints removed: true; with no file prints removed: false and a state line, exit code 0; sends no request"
+invalid_file: "a file that cannot be read, or that does not hold one address in the form `host save` writes, is the error saved_host_invalid with exit code 1; it names the path and `host forget`, and no host is read from the file; --host and AXEOS_HOST still work"
+flags:
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 4
+examples[3]: axeos-axi host save 192.0.2.10,axeos-axi host show,axeos-axi host forget

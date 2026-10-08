@@ -2,7 +2,7 @@ exit: 0
 command: restart
 description: "Changes the miner: the miner restarts and stops hashing until it is up again; without --confirm sends no request and prints the host, the request, the effect and the command that performs it; with --confirm sends exactly one POST /api/system/restart, with no read before or after it; HTTP 200 is success; any other outcome is an error that states whether the request was sent"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"
+  host: "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required; one miner; HTTP unless a scheme is supplied"
   confirm: "--confirm; sends the restart request; default sends no request"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"

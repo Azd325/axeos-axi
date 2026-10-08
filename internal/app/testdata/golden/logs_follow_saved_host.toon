@@ -1,0 +1,10 @@
+exit: 0
+saved_host: "HOST"
+follow_limit_s: 2
+line_1: "I (10) example: user <pool-user> connected"
+line_2: "I (20) example: ssid <wifi-name> mac <mac>"
+lines: 2
+seconds_followed: S
+ended: time_limit
+private: "the pool user, the MAC, the Wi-Fi name, the payout address, coinbase outputs, the scriptsig and the block template are replaced; --show-private prints the lines unchanged"
+help[2]: "axeos-axi logs --host 'HOST' --lines <n> for the lines that are already in the log buffer","axeos-axi logs --host 'HOST' --follow 2 --show-private prints the lines unchanged"

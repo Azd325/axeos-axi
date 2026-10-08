@@ -2,6 +2,7 @@
 
 An agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
 It reads a miner and has three commands that change it: `restart`, `tuning` and `pool`.
+One more command, `host`, saves a default host in one file on this computer.
 This is an independent tool, not affiliated with the Bitaxe project.
 The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
@@ -23,11 +24,13 @@ bin/axeos-axi discover
 bin/axeos-axi restart
 bin/axeos-axi tuning --frequency 525 --core-voltage 1150
 bin/axeos-axi pool --url pool.example.org --port 3333
+bin/axeos-axi host save 192.0.2.10
 ```
 
-`--host <address>` overrides `AXEOS_HOST`. There is no configuration file.
+A command takes its miner from `--host <address>`, then from `AXEOS_HOST`, then from the saved host (see [Saved host](#saved-host)).
+The saved host is the only file the tool keeps, and only `host save` writes it.
 A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see below).
-`--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` names one miner.
+`--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` and the saved host each name one miner.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
@@ -55,6 +58,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
+| `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -66,6 +70,45 @@ the same exit code; a usage error honors `--json` when the flag is in the argume
 a value that the TOON output of the same call hides. Without `--json` the output is unchanged.
 `--help` works on every command without contacting a miner. `-v`, `-V` and `--version`
 print the bare version; with `--json` they print `{"version":"..."}`. Unknown flags and arguments are rejected.
+
+## Saved host
+
+`host` saves, shows and removes one default host, so a command needs neither `--host` nor `AXEOS_HOST`.
+
+```sh
+bin/axeos-axi host save 192.0.2.10
+bin/axeos-axi host show
+bin/axeos-axi
+bin/axeos-axi host forget
+```
+
+The order is `--host`, then `AXEOS_HOST`, then the saved host.
+A result that used the saved host prints one more line, `saved_host` with the address, before its other fields; the home view prints it after `bin` and `description`.
+An error of such a call prints the line too. `logs --follow` prints it once, in its first result.
+A result that used `--host` or `AXEOS_HOST` is unchanged, and the file is not read for it.
+With none of the three, the error is `host_required` with exit code 2, and its help names `discover` and `host save`.
+
+`host save <address>` validates the address as `--host` does and sends exactly one GET request to `/api/system/info` at that address.
+It writes the file only when the answer is an AxeOS `info` answer: a JSON object with a `version` text and an `ASICModel` text.
+It prints `saved_host` and `path`.
+The stored address is the scheme and the host, with a port that is not the default: `host save 192.0.2.10` stores `http://192.0.2.10`.
+The same address again is no error; the command makes the check again and writes the file again.
+A failed check writes nothing and keeps a host saved before: an address that does not answer, or answers without JSON or with another HTTP status, is `miner_read_failed`, and a JSON answer that is no `info` answer is `not_a_miner`, both with exit code 1.
+An invalid address is `invalid_host` with exit code 2, and no request is sent.
+
+`host show` prints `saved_host` and `path`; with no file it prints `saved_host: null` and a `state` line.
+`host forget` removes the file and prints `removed: true`; with no file it prints `removed: false` and a `state` line, with exit code 0.
+`host show` and `host forget` send no request. `host` alone is a usage error with exit code 2. `host` takes no `--host` and no `--fields`.
+
+The file is `host` in the directory `axeos-axi` of the user configuration directory: `~/.config/axeos-axi/host` on Linux (or under `XDG_CONFIG_HOME`), `~/Library/Application Support/axeos-axi/host` on macOS and `%AppData%\axeos-axi\host` on Windows.
+The commands print the path, with `~` for the home directory.
+`host save` creates the file for the user only, writes a temporary file and renames it, and stores the address and nothing else.
+No other command and no flag writes or removes the file. It stores one host; a list of hosts is not part of this command set.
+
+A file that cannot be read, or that does not hold one address in the form `host save` writes, is the error `saved_host_invalid` with exit code 1.
+The error names the path and `host forget`; the tool reads no host from such a file. `--host` and `AXEOS_HOST` still work, and `host save` replaces the file.
+
+`restart`, `tuning` and `pool` work with the saved host as they do with `--host`: the preview and the result of a confirmed write print `saved_host` and `host` with the address of the miner, and the `execute` command of the preview names it with `--host`.
 
 ## Agent integrations
 
@@ -139,7 +182,7 @@ state. A `too_early` rule does not change the verdict. A failed read prints no v
 ## Restart
 
 `restart` changes the miner: the miner restarts and stops hashing until it is up again.
-It takes one miner, through `--host` or `AXEOS_HOST`, and no `--fields`.
+It takes one miner, through `--host`, `AXEOS_HOST` or the saved host, and no `--fields`.
 
 ```sh
 bin/axeos-axi restart --host 192.0.2.10
@@ -163,7 +206,7 @@ come up again; `info` shows `uptime_s` and `reset_reason` after the restart.
 
 `tuning` changes the miner: it sets the ASIC frequency in MHz, the core voltage in mV, or both.
 The values are active at once, without a restart, and the miner keeps them across a restart.
-The command does not restart the miner. It takes one miner, through `--host` or `AXEOS_HOST`,
+The command does not restart the miner. It takes one miner, through `--host`, `AXEOS_HOST` or the saved host,
 and no `--fields`.
 
 ```sh
@@ -205,7 +248,7 @@ client outside the allowed network range. The command does not repeat the reques
 `pool` changes the miner: it sets the URL, the port or the user of the primary pool and of the
 fallback pool. The miner stores the values at once and keeps them across a restart. An open pool
 connection uses the old values until the miner restarts or connects again. The command does not
-restart the miner; `restart` does. It takes one miner, through `--host` or `AXEOS_HOST`, and no
+restart the miner; `restart` does. It takes one miner, through `--host`, `AXEOS_HOST` or the saved host, and no
 `--fields`.
 
 ```sh
@@ -301,7 +344,7 @@ A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
 The home view adds one line for `info` on the same miners.
 
-`AXEOS_HOST` names one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health`, `restart`, `tuning` or `pool` is a usage error with exit code 2, and no request is sent.
+`AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health`, `restart`, `tuning` or `pool` is a usage error with exit code 2, and no request is sent.
 Writes to several miners are not part of this command set.
 
 ## Fields, units and privacy
@@ -479,6 +522,7 @@ Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest`, and a
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
 The firmware checksum, scoreboard and logs fixtures are written from the API schema, not recorded.
 `discover` is tested against a fake browser and hand-built mDNS packets.
+The tests set the home and configuration directory variables to a temporary directory, so no test reads or writes the saved host of the user.
 The output layer keeps ordered view fields and sorts raw API object keys.
 API JSON numbers use Go's float64 precision.
 

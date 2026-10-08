@@ -81,6 +81,8 @@ type parityCase struct {
 	args     []string
 	miner    func(*parityMiner)
 	host     bool
+	saved    bool
+	file     string
 	noMiners bool
 }
 
@@ -134,6 +136,24 @@ var parityCases = []parityCase{
 	{name: "help_tuning", args: []string{"tuning", "--help"}},
 	{name: "help_pool", args: []string{"pool", "--help"}},
 	{name: "help_skill", args: []string{"skill", "--help"}},
+	{name: "help_host", args: []string{"host", "--help"}},
+	{name: "host_save", args: []string{"host", "save", "MINER"}},
+	{name: "host_show", args: []string{"host", "show"}, saved: true},
+	{name: "host_show_empty", args: []string{"host", "show"}},
+	{name: "host_forget", args: []string{"host", "forget"}, saved: true},
+	{name: "host_forget_empty", args: []string{"host", "forget"}},
+	{name: "home_saved_host", saved: true},
+	{name: "info_saved_host", args: []string{"info"}, saved: true},
+	{name: "logs_follow_saved_host", args: []string{"logs", "--follow", "2"}, saved: true},
+	{name: "restart_preview_saved_host", args: []string{"restart"}, saved: true},
+	{name: "tuning_preview_saved_host", args: []string{"tuning", "--frequency", "550", "--core-voltage", "1150"}, saved: true},
+	{name: "pool_preview_saved_host", args: []string{"pool", "--url", "pool.example.org", "--port", "3333", "--user", "example-new"}, saved: true},
+	{name: "err_saved_host_invalid", args: []string{"info"}, file: "192.0.2.10\n"},
+	{name: "err_saved_host_invalid_home", file: "192.0.2.10\n"},
+	{name: "err_host_save_usage", args: []string{"host", "save"}},
+	{name: "err_host_save_flag", args: []string{"host", "save", "--host", "192.0.2.10"}},
+	{name: "err_host_save_unreachable", args: []string{"host", "save", "127.0.0.1:1"}},
+	{name: "err_host_save_invalid", args: []string{"host", "save", "http://"}},
 	{name: "err_unknown_flag", args: []string{"info", "--bogus"}, host: true},
 	{name: "err_unknown_flag_without_host", args: []string{"info", "--bogus"}},
 	{name: "err_unknown_command", args: []string{"bogus"}},
@@ -163,6 +183,11 @@ var (
 
 func runParity(t *testing.T, tc parityCase, extra ...string) (int, string) {
 	t.Helper()
+	return runParityIn(t, tc, configHome(t), extra...)
+}
+
+func runParityIn(t *testing.T, tc parityCase, hostFile string, extra ...string) (int, string) {
+	t.Helper()
 	shortFollow(t)
 	m := &parityMiner{logs: ""}
 	if tc.miner != nil {
@@ -172,7 +197,13 @@ func runParity(t *testing.T, tc parityCase, extra ...string) (int, string) {
 	tmp := t.TempDir()
 	args := make([]string, 0, len(tc.args)+len(extra)+2)
 	for _, arg := range tc.args {
-		args = append(args, strings.ReplaceAll(arg, "TMP", tmp))
+		args = append(args, strings.ReplaceAll(strings.ReplaceAll(arg, "TMP", tmp), "MINER", host))
+	}
+	if tc.saved {
+		saveFile(t, hostFile, host+"\n")
+	}
+	if tc.file != "" {
+		saveFile(t, hostFile, tc.file)
 	}
 	args = append(args, extra...)
 	env := ""
@@ -191,6 +222,7 @@ func runParity(t *testing.T, tc parityCase, extra ...string) (int, string) {
 	}
 	text := hostPattern.ReplaceAllString(out.String(), "HOST")
 	text = strings.ReplaceAll(text, tmp, "TMP")
+	text = strings.ReplaceAll(text, tildePath(hostFile), "HOSTFILE")
 	text = secondsPattern.ReplaceAllString(text, "seconds_followed: S")
 	text = binPattern.ReplaceAllString(text, "bin: BIN")
 	return code, text

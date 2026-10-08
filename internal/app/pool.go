@@ -127,7 +127,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	configuration := "axeos-axi info --host " + hostArg + " --fields primaryPoolIndex,secondaryPoolIndex,pools shows the pool configuration, with the pool users"
 	info, err := client.Get(ctx, "info")
 	if err != nil {
-		return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
 	}
 	listed, isList := info["pools"].([]any)
 	primary, primaryKnown := number(info, "primaryPoolIndex")
@@ -206,7 +206,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	err = client.PatchPools(ctx, records)
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
-		return failure(stdout, 1, "pool_not_sent", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "pool_not_sent", err.Error(), connectivityHelp)
 	case errors.Is(err, axeos.ErrNoAnswer):
 		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; read them before another write; "+previous)
 	case err != nil:
@@ -227,7 +227,7 @@ func poolHelp() output.Object {
 		{Name: "command", Value: "pool"},
 		{Name: "description", Value: "Changes the miner: sets the URL, the port or the user of the primary pool and of the fallback pool; " + poolEffect + "; each call reads the present pool configuration with GET /api/system/info; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + poolRequest + "; the firmware replaces the whole record of a pool, so the body carries the complete record that was read, with the named settings replaced and with the password value that keeps the stored password; the body carries each pool with a named setting, also when a new value equals the present value; with --confirm, --user and --fallback-user require --show-user, because the miner does not report the previous user after the change; the command cannot set a password and does not restart the miner"},
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
+			{Name: "host", Value: hostFlagHelp},
 			{Name: "url", Value: "--url <host>; primary pool; " + poolValueRules["stratumURL"]},
 			{Name: "port", Value: "--port <port>; primary pool; " + poolValueRules["stratumPort"]},
 			{Name: "user", Value: "--user <user>; primary pool; " + poolValueRules["stratumUser"]},

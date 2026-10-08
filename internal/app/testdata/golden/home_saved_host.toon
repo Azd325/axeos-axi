@@ -1,0 +1,21 @@
+exit: 0
+bin: BIN
+description: Read and operate an AxeOS Bitcoin miner from a predictable command line
+saved_host: "HOST"
+hostname: example-miner
+model: BM1370
+firmware: v2.15.3
+hashrate: current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s
+temperature: chip=65.12 C; regulator=73.00 C
+power_w: 20.1245117
+efficiency: 19.36 J/TH
+fan: speed=60.74 %; rpm=4057
+pool: pool.example.org
+pool_connection: IPv4
+pool_fallback: false
+shares: accepted=1908; rejected=11
+best_difficulty: all_time=42896578860; session=634703787
+uptime_s: 612447
+overheat: false
+paused: false
+help[11]: "axeos-axi info --host 'HOST' for system and network detail","axeos-axi asic --host 'HOST' for hardware and tuning","axeos-axi stats --host 'HOST' for recorded statistics","axeos-axi firmware --host 'HOST' for the running firmware checksum","axeos-axi scoreboard --host 'HOST' for the best-difficulty shares","axeos-axi logs --host 'HOST' for the log line count and size",axeos-axi discover to find AxeOS miners on the local network,"axeos-axi restart --host 'HOST' for a preview of a miner restart; it sends no request without --confirm","axeos-axi tuning --host 'HOST' --frequency <MHz> --core-voltage <mV> for a preview of a tuning change; it sends no write request without --confirm","axeos-axi pool --host 'HOST' --url <host> --port <port> --user <user> for a preview of a pool change; it sends no write request without --confirm",axeos-axi skill install to install the agent skill for this tool

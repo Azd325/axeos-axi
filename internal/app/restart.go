@@ -29,7 +29,7 @@ func restart(ctx context.Context, client *axeos.Client, opts options, stdout io.
 	err := client.Post(ctx, "restart")
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
-		return failure(stdout, 1, "restart_not_sent", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "restart_not_sent", err.Error(), connectivityHelp)
 	case errors.Is(err, axeos.ErrNoAnswer):
 		return failure(stdout, 1, "restart_unconfirmed", err.Error()+"; the restart is unconfirmed", uptime+"; read them before another restart")
 	case err != nil:
@@ -47,7 +47,7 @@ func restartHelp() output.Object {
 		{Name: "command", Value: "restart"},
 		{Name: "description", Value: "Changes the miner: " + restartEffect + "; without --confirm sends no request and prints the host, the request, the effect and the command that performs it; with --confirm sends exactly one " + restartRequest + ", with no read before or after it; HTTP 200 is success; any other outcome is an error that states whether the request was sent"},
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
+			{Name: "host", Value: hostFlagHelp},
 			{Name: "confirm", Value: "--confirm; sends the restart request; default sends no request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},

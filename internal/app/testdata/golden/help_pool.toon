@@ -2,7 +2,7 @@ exit: 0
 command: pool
 description: "Changes the miner: sets the URL, the port or the user of the primary pool and of the fallback pool; the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again; each call reads the present pool configuration with GET /api/system/info; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one PATCH /api/system; the firmware replaces the whole record of a pool, so the body carries the complete record that was read, with the named settings replaced and with the password value that keeps the stored password; the body carries each pool with a named setting, also when a new value equals the present value; with --confirm, --user and --fallback-user require --show-user, because the miner does not report the previous user after the change; the command cannot set a password and does not restart the miner"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"
+  host: "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required; one miner; HTTP unless a scheme is supplied"
   url: "--url <host>; primary pool; a host name or an address of 1 to 255 bytes, without a scheme, a port or a space"
   port: "--port <port>; primary pool; a whole number from 1 to 65535"
   user: "--user <user>; primary pool; a value of 1 to 255 bytes"
