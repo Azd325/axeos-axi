@@ -6,10 +6,32 @@ One more command, `host`, saves a default host in one file on this computer.
 This is an independent tool, not affiliated with the Bitaxe project.
 The [vision](VISION.md) records the agreed interface and the rules for accepting a change.
 
-## Build and use
+## Installation
+
+Install v0.1.0 with Go:
 
 ```sh
-go build -o bin/axeos-axi ./cmd/axeos-axi
+go install github.com/Azd325/axeos-axi/cmd/axeos-axi@v0.1.0
+```
+
+This installs `axeos-axi` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not
+set. The command becomes available after that directory is on `PATH`.
+
+From a checked-out repository, use the launcher instead:
+
+```sh
+./bin/axeos-axi --help
+```
+
+The launcher builds the current checkout in the Nix development environment
+and runs it. It requires Nix with flakes enabled and is intended for development,
+not as a versioned installation.
+
+## Use
+
+The examples use the launcher of a checked-out repository; an installed `axeos-axi` takes the same arguments.
+
+```sh
 export AXEOS_HOST=192.0.2.10
 bin/axeos-axi
 bin/axeos-axi info
@@ -592,4 +614,4 @@ API JSON numbers use Go's float64 precision.
 nix develop --no-pure-eval --command check
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under [MIT](LICENSE).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Release maintainers follow [RELEASING.md](RELEASING.md); security reports belong in [SECURITY.md](SECURITY.md). Licensed under [MIT](LICENSE).

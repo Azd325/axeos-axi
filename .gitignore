@@ -1,4 +1,5 @@
-/bin/
+/bin/*
+!/bin/axeos-axi
 /coverage.out
 .DS_Store
 .devenv/
