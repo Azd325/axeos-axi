@@ -1,5 +1,5 @@
 exit: 2
 error:
   code: usage
-  message: "unknown command or argument bogus; valid commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill"
-help: "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill"
+  message: "unknown command or argument bogus; valid commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill"
+help: "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill"

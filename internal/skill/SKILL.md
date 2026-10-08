@@ -10,9 +10,11 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 
 ## Usage
 
-- Name the miner with `--host <address>` or `AXEOS_HOST`. A command takes one miner, except that the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware` accept `--host` more than once.
+- Name the miner with `--host <address>` or `AXEOS_HOST`. With neither, a command uses the saved host, and its result then prints `saved_host` with the address. A command takes one miner, except that the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware` accept `--host` more than once.
 - Several miners print `count`, `failed` and a table with one row per miner in the order of the flags: `host`, the fields of the view and `error`. A miner that fails keeps its row with `error` set to `miner_read_failed`, `not_supported` or `invalid_statistics` and `null` values, and the other rows still print. Exit code `1` when any miner failed. The same host twice, or several hosts on another command, is a usage error that sends no request.
 - `axeos-axi discover` finds miners on the local network and needs no host.
+- `host save <address>` saves one default host in a file in the user configuration directory. It sends one `info` request and writes only when an AxeOS miner answers. `host show` prints the saved host and the path, and `host forget` removes the file. No other command writes the file. Run `host save` and `host forget` only when the owner asks for it; `--host` needs no file.
+- A result with `saved_host` came from the saved host. Check that it is the miner the task names before a write with `--confirm`.
 - Read commands: no command (home view), `info`, `asic`, `stats`, `firmware`, `scoreboard`, `logs`, `health`.
 - Each read sends GET requests only. Default views are small; `--fields` selects more.
 - `health` is the only command that judges the miner. It reads `info` once and prints a verdict and one row for each rule: `ok`, `failed`, `too_early` or `unknown`, with the value read, the limit and the reason. The limits are fixed: unhealthy below 80 % of the expected 1h hashrate, above 5 % rejected shares, a fault, overheat mode, paused mining, the fallback pool, or a fan at 0 rpm while the miner hashes. Performance rules wait for 10 minutes of uptime, and `rejected_shares` also waits for the first share. A second fan is not judged. A rule with a missing value is `unknown`, and a miner with an `unknown` rule and no failed rule gets the verdict `unknown`, never `healthy`.
@@ -42,9 +44,9 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 <!-- axeos-axi-help:begin -->
 command: home
 description: Live mining health
-commands: "info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
+commands: "info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; host save stores a default host in one file, and no other command writes that file; skill install writes the agent skill file and needs no host"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
+  host: "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"

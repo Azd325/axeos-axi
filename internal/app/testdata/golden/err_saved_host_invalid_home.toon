@@ -1,0 +1,7 @@
+exit: 1
+bin: BIN
+description: Read and operate an AxeOS Bitcoin miner from a predictable command line
+error:
+  code: saved_host_invalid
+  message: the saved host file HOSTFILE does not hold one address in the form that `host save` writes; no host is read from it
+help: axeos-axi host forget removes the file; then axeos-axi host save <address>; --host <address> or AXEOS_HOST names the miner without the file

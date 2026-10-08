@@ -1,0 +1,13 @@
+exit: 0
+saved_host: "HOST"
+host: "HOST"
+request: PATCH /api/system
+body:
+  frequency: 550
+  coreVoltage: 1150
+sent: false
+settings[2]{setting,present,new,changes}:
+  frequency_mhz,525,550,true
+  core_voltage_set_mv,1100,1150,true
+effect: "the values are active at once, without a restart, and the miner keeps them across a restart"
+execute: "axeos-axi tuning --host 'HOST' --frequency 550 --core-voltage 1150 --confirm"

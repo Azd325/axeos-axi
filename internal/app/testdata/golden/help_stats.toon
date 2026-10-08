@@ -2,7 +2,7 @@ exit: 0
 command: stats
 description: "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
+  host: "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
   samples: "--samples <n|all>; the newest n samples, or all samples; without --columns prints hashrate,hashrate_1h,asicTemp,vrTemp,power; cannot combine with --fields"
   columns: "--columns <name,...>; sends the columns query to the miner and prints these columns and the timestamp; without --samples prints the newest sample; names: hashrate,hashrate_1m,hashrate_10m,hashrate_1h,errorPercentage,asicTemp,asicTemp2,vrTemp,asicVoltage,voltage,power,current,fanSpeed,fanRpm,fan2Rpm,wifiRssi,freeHeap,responseTime; firmware older than v2.11.0 ignores the query and answers its own older column names, so most named columns print null there; a column the miner omits prints null; cannot combine with --fields"

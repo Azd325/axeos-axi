@@ -1,0 +1,16 @@
+exit: 0
+saved_host: "HOST"
+host: "HOST"
+request: PATCH /api/system
+body:
+  pools[1]{id,stratumCert,stratumDecodeCoinbase,stratumExtranonceSubscribe,stratumPassword,stratumPort,stratumProtocol,stratumSuggestedDifficulty,stratumTLS,stratumURL,stratumUser,stratumV2AuthorityPubkey,stratumV2ChannelType,stratumV2RequireAuth}:
+    0,<not printed>,true,false,*****,3333,SV1,1000,0,pool.example.org,<not printed>,"",extended,false
+sent: false
+settings[3]{setting,present,new,changes}:
+  url,pool.example.org,pool.example.org,false
+  port,3333,3333,false
+  user,set,set,true
+private: the pool user is not printed; --show-user prints it
+effect: the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again
+execute: "axeos-axi pool --host 'HOST' --url='pool.example.org' --port=3333 --user=<user> --show-user --confirm"
+help[1]: "a confirmed change of a pool user needs --show-user, so the execute command has it; replace <user> with the new user"

@@ -47,7 +47,7 @@ func restartHelp() output.Object {
 		{Name: "command", Value: "restart"},
 		{Name: "description", Value: "Changes the miner: " + restartEffect + "; without --confirm sends no request and prints the host, the request, the effect and the command that performs it; with --confirm sends exactly one " + restartRequest + ", with no read before or after it; HTTP 200 is success; any other outcome is an error that states whether the request was sent"},
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
+			{Name: "host", Value: hostFlagHelp},
 			{Name: "confirm", Value: "--confirm; sends the restart request; default sends no request"},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},

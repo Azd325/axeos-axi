@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Azd325/axeos-axi/internal/axeos"
+	"github.com/Azd325/axeos-axi/internal/hostfile"
 	"github.com/Azd325/axeos-axi/internal/mdns"
 	"github.com/Azd325/axeos-axi/internal/output"
 	"github.com/Azd325/axeos-axi/internal/release"
@@ -21,12 +22,12 @@ const (
 	universalFlags  = "--json, --help, -v, -V, --version"
 	jsonFlagHelp    = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	versionFlagHelp = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
-	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; one miner; HTTP unless a scheme is supplied"
-	hostsFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
+	hostFlagHelp    = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
+	hostsFlagHelp   = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
 	severalHelp     = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "skill"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -34,6 +35,8 @@ func validFlags(command string) string {
 	switch command {
 	case "skill":
 		return "--path, " + universalFlags
+	case "host":
+		return universalFlags
 	case "discover":
 		return "--timeout, --fields, " + universalFlags
 	case "stats":
@@ -72,6 +75,7 @@ func New(getenv func(string) string) *App {
 
 type options struct {
 	command, host, action  string
+	address                string
 	hosts                  []string
 	path                   string
 	timeout, lines, follow int
@@ -259,6 +263,18 @@ func parse(args []string) (options, error) {
 				fail("unknown action %s for `skill`; valid action: install", arg)
 				continue
 			}
+			if opts.command == "host" && opts.action == "" && slices.Contains(hostActions, arg) {
+				opts.action = arg
+				continue
+			}
+			if opts.command == "host" && opts.action == "save" && opts.address == "" {
+				opts.address = arg
+				continue
+			}
+			if opts.command == "host" {
+				fail("unknown argument %s for `host`; %s", arg, hostUsage)
+				continue
+			}
 			if opts.command != "" || !slices.Contains(commandNames, arg) {
 				fail("unknown command or argument %s; valid commands: %s", arg, commands())
 				continue
@@ -279,6 +295,9 @@ func parse(args []string) (options, error) {
 		if err := severalHostsError(opts, samplesSet || columnsSet); err != nil {
 			return opts, err
 		}
+	}
+	if opts.command == "host" {
+		return parseHostCommand(opts, seen, first)
 	}
 	if opts.command == "skill" {
 		for _, flag := range seen {
@@ -367,6 +386,9 @@ func parse(args []string) (options, error) {
 }
 
 func write(w io.Writer, fields output.Object) int {
+	if saved, ok := w.(*savedHostWriter); ok {
+		w, fields = saved.Writer, saved.state(fields)
+	}
 	if err := output.Write(w, fields); err != nil {
 		return 1
 	}
@@ -417,6 +439,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "discover" {
 		return a.discover(ctx, opts, stdout)
 	}
+	if opts.command == "host" {
+		return hostCommand(ctx, opts, stdout)
+	}
 	if len(opts.hosts) == 0 {
 		if host := a.getenv("AXEOS_HOST"); host != "" {
 			opts.hosts = []string{host}
@@ -427,7 +452,17 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		if opts.command == "" {
 			lead = identity()
 		}
-		return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>")
+		var saved string
+		if path, err := hostfile.Path(); err == nil {
+			if saved, err = hostfile.Read(path); err != nil {
+				return savedHostFailure(stdout, lead, path, err)
+			}
+		}
+		if saved == "" {
+			return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>; axeos-axi host save <address> saves a default host")
+		}
+		opts.hosts = []string{saved}
+		stdout = &savedHostWriter{Writer: stdout, host: saved}
 	}
 	clients := make([]*axeos.Client, len(opts.hosts))
 	for i, host := range opts.hosts {
@@ -527,6 +562,9 @@ func help(command string) output.Object {
 	if command == "discover" {
 		return discoverHelp()
 	}
+	if command == "host" {
+		return hostHelp()
+	}
 	if command == "logs" {
 		return logsHelp()
 	}
@@ -555,7 +593,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; host save stores a default host in one file, and no other command writes that file; skill install writes the agent skill file and needs no host"})
 	}
 	flags := output.Object{
 		{Name: "flags", Value: output.Object{

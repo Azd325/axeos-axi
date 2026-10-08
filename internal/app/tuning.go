@@ -128,7 +128,7 @@ func tuningHelp() output.Object {
 		{Name: "command", Value: "tuning"},
 		{Name: "description", Value: "Changes the miner: sets the ASIC frequency, the core voltage or both; " + tuningEffect + "; each call reads the present values and the allowed lists with GET /api/system/info and GET /api/system/asic; without --confirm sends no write request and prints the present value and the new value of each named setting and the command that performs the change; with --confirm sends exactly one " + tuningRequest + " that carries each named setting, also when a new value equals the present value; a value outside the list the miner reports is an error and sends no write request; the command does not restart the miner"},
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: "--host <address>; default AXEOS_HOST; required; one miner; HTTP unless a scheme is supplied"},
+			{Name: "host", Value: hostFlagHelp},
 			{Name: "frequency", Value: "--frequency <MHz>; whole number from frequencyOptions of the miner"},
 			{Name: "core_voltage", Value: "--core-voltage <mV>; whole number from voltageOptions of the miner"},
 			{Name: "confirm", Value: "--confirm; sends the write request; default sends no write request"},
