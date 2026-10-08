@@ -8,10 +8,10 @@ The [vision](VISION.md) records the agreed interface and the rules for accepting
 
 ## Installation
 
-Install v0.1.0 with Go:
+Install the latest release with Go:
 
 ```sh
-go install github.com/Azd325/axeos-axi/cmd/axeos-axi@v0.1.0
+go install github.com/Azd325/axeos-axi/cmd/axeos-axi@latest
 ```
 
 This installs `axeos-axi` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not
