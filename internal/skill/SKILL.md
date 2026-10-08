@@ -16,6 +16,7 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 - Read commands: no command (home view), `info`, `asic`, `stats`, `firmware`, `scoreboard`, `logs`, `health`.
 - Each read sends GET requests only. Default views are small; `--fields` selects more.
 - `health` is the only command that judges the miner. It reads `info` once and prints a verdict and one row for each rule: `ok`, `failed`, `too_early` or `unknown`, with the value read, the limit and the reason. The limits are fixed: unhealthy below 80 % of the expected 1h hashrate, above 5 % rejected shares, a fault, overheat mode, paused mining, the fallback pool, or a fan at 0 rpm while the miner hashes. Performance rules wait for 10 minutes of uptime, and `rejected_shares` also waits for the first share. A second fan is not judged. A rule with a missing value is `unknown`, and a miner with an `unknown` rule and no failed rule gets the verdict `unknown`, never `healthy`.
+- `firmware --check-release` compares the miner firmware version with the newest GitHub release (`up_to_date`, `update_available`, `newer_than_release` or `unknown`). It is the one request that leaves the local network, runs only with this flag, sends no value from the miner and downloads nothing. It takes one miner and works also when the miner has no checksum path. Run it only when the task needs the comparison.
 - Run `axeos-axi <command> --help` for the flags of one command.
 
 ## Writes need `--confirm`

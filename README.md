@@ -15,6 +15,7 @@ bin/axeos-axi info
 bin/axeos-axi asic
 bin/axeos-axi stats
 bin/axeos-axi firmware
+bin/axeos-axi firmware --check-release
 bin/axeos-axi scoreboard
 bin/axeos-axi logs
 bin/axeos-axi health
@@ -30,7 +31,8 @@ A command takes one miner, except the home view, `info`, `asic`, `stats` (withou
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
-Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
+Each request to a miner goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored for it.
+The GitHub request of `firmware --check-release` times out after ten seconds and uses the proxy environment variables.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
 `/api/system/logs`, and mDNS queries from `discover`. `logs --follow` reads the WebSocket path
@@ -377,6 +379,40 @@ bin/axeos-axi stats --columns fanRpm,wifiRssi --samples all
 matches `sha256sum` of the flashed `esp-miner.bin`. Firmware without that path answers
 HTTP 404 (v2.9.0 and newer) or HTTP 302 to `/` (v2.8.0 and older); the command then
 reports `not_supported` with exit code 1 and does not follow the redirect.
+
+### `firmware --check-release`
+
+`firmware --check-release` compares the firmware version of the miner with the newest released version.
+This is the one request of the tool that leaves the local network; it runs only with this flag.
+Without the flag no command contacts a host other than the miner you name.
+The command sends one request to the miner and one to GitHub. It reads `info` from the miner (the field `version`, which the firmware sets
+from its application description; `axeOSVersion` is the web interface version and is not used).
+Then it sends one HTTPS GET to `https://api.github.com/repos/bitaxeorg/ESP-Miner/releases/latest`.
+The address is fixed in the code. The request has no token and no cookie, carries no value from the miner,
+and its User-Agent is `axeos-axi/<version>` only. No redirect is followed. The command never downloads firmware.
+
+The newest release is the one GitHub marks as latest, so a pre-release is ignored.
+The command compares numerically by major, minor and patch, and only when the miner version and the
+release tag both have the exact form `vMAJOR.MINOR.PATCH`. `comparison` is then `up_to_date`,
+`update_available` or `newer_than_release`. For any other form (`v2.15.2rc0`, `v2.15.2rc0-30-gabc1234`,
+`-dirty`, `Unknown`) the command prints both versions, `comparison: unknown` and a `reason`.
+
+```text
+miner_version: v2.15.3
+release:
+  tag: v2.15.3
+  name: v2.15.3
+  date: "2026-09-20T15:57:20Z"
+  url: "https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3"
+comparison: up_to_date
+help: "axeos-axi firmware --host '<host>' for the running firmware checksum"
+```
+
+The command does not read the checksum path, so it works also on firmware v2.15.3 and older. The `help`
+line names the plain `firmware` command, which prints the checksum. If the release read fails (no network,
+timeout, a rate limit, HTTP 403 without a rate limit, HTTP 5xx, an answer without a tag), the command prints `miner_version` and a `release_read_failed` error
+with exit code 1. A failed miner read is `miner_read_failed`. The flag is a flag of `firmware` only, takes one
+`--host`, and cannot combine with `--fields`; `--json` prints the same fields as one JSON document.
 `scoreboard` sends one request, to the scoreboard path only. The miner keeps at most 20 shares,
 sorted by difficulty, and keeps them across restarts. `rank` is the position in that list;
 the API does not send it. `ntime` is the block-header time of the share in Unix seconds.
@@ -438,7 +474,7 @@ bin/axeos-axi logs --follow 300 --show-private
 The layout follows [router-axi](https://github.com/Azd325/router-axi): `cmd/` entry
 point, `internal/app` commands, `internal/axeos` API client, `internal/mdns` browser
 and `internal/output` TOON.
-Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest` and run
+Tests use sanitized recorded AxeOS v2.15.3 responses served by `httptest`, and a local fake of the GitHub answer, and run
 offline with `go test ./...`. The statistics fixture contains three recorded rows.
 The firmware checksum, scoreboard and logs fixtures are written from the API schema, not recorded.
 `discover` is tested against a fake browser and hand-built mDNS packets.
