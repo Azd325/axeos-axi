@@ -23,7 +23,7 @@ const (
 	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "discover", "restart", "tuning", "pool", "skill"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "skill"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -37,6 +37,8 @@ func validFlags(command string) string {
 		return "--host, --fields, --samples, --columns, " + universalFlags
 	case "logs":
 		return "--host, --lines, --follow, --show-private, " + universalFlags
+	case "health":
+		return "--host, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
 	case "tuning":
@@ -311,7 +313,7 @@ func parse(args []string) (options, error) {
 	if !writes && opts.confirm {
 		return opts, errors.New("unknown flag --confirm; it is a flag of `restart`, `tuning` and `pool` only")
 	}
-	if writes && fieldsSet {
+	if (writes || opts.command == "health") && fieldsSet {
 		return opts, errors.New("unknown flag --fields for `" + opts.command + "`; it prints a fixed result")
 	}
 	if opts.command != "tuning" && len(tuningFlags) != 0 {
@@ -412,6 +414,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	if opts.command == "logs" {
 		return logs(ctx, client, opts, stdout)
+	}
+	if opts.command == "health" {
+		return health(ctx, client, opts, stdout)
 	}
 	if opts.command == "restart" {
 		return restart(ctx, client, opts, stdout)
@@ -562,6 +567,9 @@ func help(command string) output.Object {
 	}
 	if command == "logs" {
 		return logsHelp()
+	}
+	if command == "health" {
+		return healthHelp()
 	}
 	if command == "restart" {
 		return restartHelp()
