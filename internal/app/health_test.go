@@ -59,6 +59,8 @@ func TestHealthRules(t *testing.T) {
 		{"10 minutes of uptime", map[string]any{"uptimeSeconds": 600, "hashRate_1h": 10.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 0.93% of the expected hashrate"},
 		{"zero shares", map[string]any{"sharesAccepted": 0, "sharesRejected": 0}, "healthy", 0, "rejected_shares", "too_early", "no share was submitted yet; too early to judge"},
 		{"few shares", map[string]any{"sharesAccepted": 5, "sharesRejected": 5}, "unhealthy", 3, "rejected_shares", "failed", "50.00% of all shares are rejected"},
+		{"exact share prints exactly", map[string]any{"sharesAccepted": 989, "sharesRejected": 11}, "healthy", 0, "rejected_shares", "ok", ""},
+		{"hashrate value stays below the limit", map[string]any{"hashRate_1h": 856.796}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 79.99% of the expected hashrate"},
 		{"rejected just above the limit", map[string]any{"sharesAccepted": 18999, "sharesRejected": 1001}, "unhealthy", 3, "rejected_shares", "failed", "5.01% of all shares are rejected"},
 		{"fault wins over too early", map[string]any{"uptimeSeconds": 30, "miningPaused": true}, "unhealthy", 3, "mining_paused", "failed", "mining is paused"},
 	} {
@@ -177,5 +179,26 @@ func TestOnlyHealthPrintsAVerdict(t *testing.T) {
 		if strings.Contains(out, "verdict") {
 			t.Errorf("%q prints a verdict:\n%s", command, out)
 		}
+	}
+}
+
+func TestHealthPrintedValuesDoNotReachTheLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		changes map[string]any
+		rule    string
+		want    string
+	}{
+		{"exact share", map[string]any{"sharesAccepted": 989, "sharesRejected": 11}, "rejected_shares", "11 of 1000 shares (1.10%)"},
+		{"failed share", map[string]any{"sharesAccepted": 18999, "sharesRejected": 1001}, "rejected_shares", "1001 of 20000 shares (5.01%)"},
+		{"failed hashrate", map[string]any{"hashRate_1h": 856.796}, "hashrate", "856.79 GH/s"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host, _ := miner(t, healthInfo(t, tc.changes))
+			_, out := execute(t, New(func(string) string { return host }), "health")
+			if row := ruleRow(t, out, tc.rule); !strings.Contains(row, ","+tc.want+",") {
+				t.Fatalf("row %q, want value %q", row, tc.want)
+			}
+		})
 	}
 }

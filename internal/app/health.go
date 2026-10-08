@@ -93,13 +93,18 @@ func hashrateRule(info map[string]any) ruleResult {
 	case !expectedOK || expected <= 0:
 		return unknownRule(name, limit, "a positive expectedHashrate")
 	}
-	value := fmt.Sprintf("%.2f GH/s", hour)
+	failed := hour < expected*minHashrateShare
+	shown := hour
+	if failed {
+		shown = math.Floor(hour*100) / 100
+	}
+	value := fmt.Sprintf("%.2f GH/s", shown)
 	limit = fmt.Sprintf("at least %.2f GH/s (%.0f%% of expected %.2f GH/s)", expected*minHashrateShare, minHashrateShare*100, expected)
 	switch {
 	case uptime < minPerformanceUptimeS:
 		return ruleResult{name, ruleTooEarly, value, limit, earlyReason(uptime)}
-	case hour < expected*minHashrateShare:
-		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("1h hashrate is %.2f%% of the expected hashrate", math.Floor(hour*100/expected*100)/100)}
+	case failed:
+		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("1h hashrate is %.2f%% of the expected hashrate", math.Floor(hour*10000/expected)/100)}
 	}
 	return ruleResult{name, ruleOK, value, limit, ""}
 }
@@ -122,7 +127,7 @@ func rejectedSharesRule(info map[string]any) ruleResult {
 	if total == 0 {
 		return ruleResult{name, ruleTooEarly, "0 of 0 shares", limit, "no share was submitted yet; " + healthTooEarly}
 	}
-	percent := math.Ceil(rejected*100/total*100) / 100
+	percent := math.Ceil(rejected*10000/total) / 100
 	value := fmt.Sprintf("%.0f of %.0f shares (%.2f%%)", rejected, total, percent)
 	switch {
 	case uptime < minPerformanceUptimeS:
