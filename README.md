@@ -328,8 +328,9 @@ does not repeat the request;
 values that the miner reports.
 
 Firmware v2.15.3 reports the pool values from before a write on the next read, and the stored
-values are the new ones. A `pool` result for several miners says so in `note` when a miner changed or the failed write is
-`pool_unconfirmed`; a single-miner result says so in `note` or, for a failed write, in `help`. A second `pool` call
+values are the new ones. A successful `pool` result, and a several-miner result with a changed miner, say so in `note`.
+A `pool_unconfirmed` result says so in `help`, because that write can be stored. `pool_failed` and
+`pool_not_sent` do not say so, because no write was stored. A second `pool` call
 directly after the first reads those old values, so its preview and its restore command can show
 the value from before the first write. It also sends the old complete record, so it sets the first
 change back. The restore command that the first call printed is the correct one.

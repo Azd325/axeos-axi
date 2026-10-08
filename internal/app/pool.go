@@ -280,7 +280,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	case errors.Is(err, axeos.ErrNoAnswer):
 		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; "+poolStaleFailure+"; "+previous)
 	case err != nil:
-		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify+"; "+poolStaleFailure+"; "+previous)
+		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify+"; "+previous)
 	}
 	return write(stdout, append(fields,
 		output.Field{Name: "result", Value: "the miner accepted the request; " + poolEffect},

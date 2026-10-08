@@ -416,8 +416,8 @@ func TestPoolWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 			if !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --url='pool.example.org' --confirm sets the previous values again\"\n") {
 				t.Fatalf("no command for the previous values\n%s", out)
 			}
-			if !strings.Contains(out, "; firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back; axeos-axi pool") || strings.Contains(out, "read them before another") {
-				t.Fatalf("no stale-read statement\n%s", out)
+			if stale := strings.Contains(out, "firmware v2.15.3") || strings.Contains(out, "read them before another"); stale != strings.Contains(tc.want, "pool_unconfirmed") {
+				t.Fatalf("stale-read statement=%v\n%s", stale, out)
 			}
 			if calls() != poolRead+","+sentPools(sentPool(primaryPool, "new.example.org", 3333, "example-worker")) {
 				t.Fatalf("requests=%s", calls())
