@@ -15,7 +15,7 @@ const (
 	severalRestartHead     = "request: POST /api/system/restart\n"
 	severalPoolHead        = "request: PATCH /api/system\n"
 	restartEffectOfSeveral = "effect: each miner restarts and stops hashing until it is up again; a restart has no command that reverses it\n"
-	poolVerifyFields       = " --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the stored URL and port of each pool of each miner; stratumUser and fallbackStratumUser show the users"
+	poolVerifyFields       = " --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
 	restoreHelp            = "restore has the command that sets the previous values of that one miner again"
 )
 
@@ -210,7 +210,8 @@ func TestSeveralMinersWriteStopsAtTheFirstFailedWrite(t *testing.T) {
 			"miners[3]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 			fmt.Sprintf("  %q,3333,4444,changed,"+restore+",null\n  %q,3333,4444,failed,"+restore+",pool_failed\n  %q,3333,4444,not_attempted,null,null\n", first, first, second, second, third) +
 			"result: \"the write to miner 2 of 3 failed: the request was sent; miner returned HTTP 500 for settings; the call stopped with 1 changed before it and 1 not attempted after it\"\n" +
-			"help[2]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; read them before another pool call\"," +
+			"note: " + staleReadNote + "\n" +
+			"help[2]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back\"," +
 			restoreHelp + "\n"
 		if code != 1 || out != want {
 			t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
@@ -237,6 +238,33 @@ func TestSeveralMinersWriteStopsAtTheFirstFailedWrite(t *testing.T) {
 	})
 }
 
+func TestSeveralMinersRejectedFirstWriteHasNoStaleReadText(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized} {
+		first, _ := poolMiner(t, nil, restartAnswer(status, "text/plain", "private-identifier"))
+		second, secondCalls := poolMiner(t, nil, settingsSaved)
+		code, out := execute(t, New(noHost), onHosts([]string{"pool", "--fallback-port", "4444", "--confirm"}, first, second)...)
+		if code != 1 || !strings.Contains(out, "changed: 0\n") || strings.Contains(out, "note:") || strings.Contains(out, "v2.15.3") || secondCalls() != poolRead {
+			t.Fatalf("status=%d code=%d\n%s", status, code, out)
+		}
+	}
+}
+
+func TestSeveralMinersUnconfirmedFirstWriteHasStaleReadHelpAndNoNote(t *testing.T) {
+	first, _ := poolMiner(t, nil, func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		_ = conn.Close()
+	})
+	second, secondCalls := poolMiner(t, nil, settingsSaved)
+	code, out := execute(t, New(noHost), onHosts([]string{"pool", "--fallback-port", "4444", "--confirm"}, first, second)...)
+	if code != 1 || !strings.Contains(out, "changed: 0\n") || !strings.Contains(out, "pool_unconfirmed") || strings.Contains(out, "note:") || !strings.Contains(out, "firmware v2.15.3 reports the pool values from before a write") || secondCalls() != poolRead {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+}
+
 func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 	gone, goneCalls := minerGoneAfterTheCheck(t)
 	last, lastCalls := poolMiner(t, nil, settingsSaved)
@@ -245,7 +273,7 @@ func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,3333,4444,failed,null,pool_not_sent\n  %q,3333,4444,not_attempted,null,null\n", gone, last) +
 		"result: \"the write to miner 1 of 2 failed: miner unreachable or request timed out; the request was not sent; the call stopped with 0 changed before it and 1 not attempted after it\"\n" +
-		"help[1]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "; read them before another pool call\"\n"
+		"help[1]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "\"\n"
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -265,6 +293,7 @@ func TestSeveralMinersWriteSendsARequestToAMinerAtTheNewValue(t *testing.T) {
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n  %q,3333,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=3333 --confirm\",null\n", second, second, first, first) +
 		"result: each miner accepted the request; " + poolEffects + "\n" +
+		"note: " + staleReadNote + "\n" +
 		"help[3]: \"axeos-axi info " + hostList(second, first) + poolVerifyFields + "\"," +
 		"\"axeos-axi restart " + hostList(second, first) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
 	if code != 0 || out != want {
@@ -276,6 +305,7 @@ func TestSeveralMinersWriteSendsARequestToAMinerAtTheNewValue(t *testing.T) {
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n", second, second, third, third) +
 		"result: each miner accepted the request; " + poolEffects + "\n" +
+		"note: " + staleReadNote + "\n" +
 		"help[3]: \"axeos-axi info " + hostList(second, third) + poolVerifyFields + "\"," +
 		"\"axeos-axi restart " + hostList(second, third) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
 	if code != 0 || out != want {
@@ -327,6 +357,7 @@ func TestSeveralMinersWriteSendsOneRequestToEachMinerInTheOrderOfTheFlags(t *tes
 			"miners[2]{host,port_present,port_new,user_present,user_new,result,restore,error}:\n" +
 			fmt.Sprintf("  %q,3333,4444,example-worker,other-worker,changed,"+restore+",null\n  %q,3333,4444,second-worker,other-worker,changed,"+restore+",null\n", first, first, "example-worker", second, second, "second-worker") +
 			"result: each miner accepted the request; " + poolEffects + "\n" +
+			"note: " + staleReadNote + "\n" +
 			"help[3]: \"axeos-axi info " + hostList(first, second) + poolVerifyFields + "\"," +
 			"\"axeos-axi restart " + hostList(first, second) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
 		if code != 0 || out != want {
@@ -387,7 +418,8 @@ func TestOneHostOnAWriteIsUnchanged(t *testing.T) {
 	rows := "settings[1]{setting,present,new,changes}:\n  fallback_port,3333,4444,true\n"
 	poolPreview := "host: \"" + host + "\"\n" + body + "sent: false\n" + rows + poolPrivate + "effect: " + poolEffects + "\nexecute: \"axeos-axi pool --host '" + host + "' --fallback-port=4444 --confirm\"\n"
 	poolSent := "host: \"" + host + "\"\n" + body + "sent: true\n" + rows + poolPrivate + "result: the miner accepted the request; " + poolEffects + "\n" +
-		"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the stored URL and port of each pool; stratumUser and fallbackStratumUser show the users\"," +
+		"note: " + staleReadNote + "\n" +
+		"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users\"," +
 		"\"axeos-axi restart --host '" + host + "' for a preview of the restart that makes the miner use the stored values\"," +
 		"\"axeos-axi pool --host '" + host + "' --fallback-port=3333 --confirm sets the previous values again\"\n"
 	for _, tc := range []struct {

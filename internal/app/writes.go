@@ -226,15 +226,23 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 
 	verify := "axeos-axi info " + hosts + " --fields uptime_s,reset_reason shows uptime_s and reset_reason of each miner"
 	if isPool {
-		verify = "axeos-axi info " + hosts + poolVerify + " shows the stored URL and port of each pool of each miner; stratumUser and fallbackStratumUser show the users"
+		verify = "axeos-axi info " + hosts + poolVerify + " shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
 	}
+	staleRead := isPool && (changed != 0 || (stopped >= 0 && codes[stopped] == "pool_unconfirmed"))
 	var result string
 	switch {
 	case checkFailed != 0:
 		result = fmt.Sprintf("%d of %d miners failed the check before the write, so no write request was sent to any miner", checkFailed, count)
 	case stopped >= 0:
 		result = fmt.Sprintf("the write to miner %d of %d failed: %s; the call stopped with %d changed before it and %d not attempted after it", stopped+1, count, stopMessage, changed, count-stopped-1)
-		help = append(help, verify+"; read them before another "+opts.command+" call")
+		switch {
+		case staleRead:
+			help = append(help, verify+"; "+poolStaleFailure)
+		case isPool:
+			help = append(help, verify)
+		default:
+			help = append(help, verify+"; read them before another "+opts.command+" call")
+		}
 	case !isPool:
 		result = "each miner accepted the restart and stops hashing until it is up again; a restart has no command that reverses it"
 		help = append(help, verify+" when it is up again")
@@ -246,6 +254,9 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		help = append(help, "restore has the command that sets the previous values of that one miner again")
 	}
 	fields = append(fields, output.Field{Name: "result", Value: result})
+	if isPool && changed != 0 {
+		fields = append(fields, output.Field{Name: "note", Value: poolStaleRead})
+	}
 	if len(help) != 0 {
 		fields = append(fields, output.Field{Name: "help", Value: help})
 	}
