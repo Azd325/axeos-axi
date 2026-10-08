@@ -382,16 +382,14 @@ With `--confirm` the command writes only when each miner passes the check:
 
 1. When a miner fails the check, no write request goes to any miner. Each row has the result `not_attempted`, and the row of the failed miner has the error code.
 2. When each miner passes, the miners get the write request one after the other, in the order of the flags: one request for each miner.
-3. `pool` sends no request to a miner that has each new value already. Its result is `unchanged`, which is a success. A call with one `--host` sends the request also then.
-4. The first failed write stops the call. That row has the result `failed` and the error code (`restart_not_sent`, `restart_unconfirmed`, `restart_failed`, `pool_not_sent`, `pool_unconfirmed` or `pool_failed`). Each later row is `not_attempted`. The `result` line has the error message.
+3. The first failed write stops the call. That row has the result `failed` and the error code (`restart_not_sent`, `restart_unconfirmed`, `restart_failed`, `pool_not_sent`, `pool_unconfirmed` or `pool_failed`). Each later row is `not_attempted`. The `result` line has the error message.
 
 The command does not set a changed miner back by itself. For `pool`, the column `restore` has the complete command line that sets the previous values of that one miner again.
 It is printed for each `changed` miner and for a `failed` miner that got the request. A pool user is in it only with `--show-user`, and a confirmed change of a user needs `--show-user`, as with one miner.
 A restart has no command that reverses it, and the result says so.
 
 `sent` is `true` when one or more write requests were sent, and `changed` counts the miners with the result `changed`.
-The exit code is 0 only when each result is `changed` or `unchanged`. It is 1 for each other result and 2 for a usage error.
-After a stopped `pool` call, the same command again sends a request only to each miner that does not have the new values.
+The exit code is 0 only when each result is `changed`. It is 1 for each other result and 2 for a usage error.
 
 ## Fields, units and privacy
 

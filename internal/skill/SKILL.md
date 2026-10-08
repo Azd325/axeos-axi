@@ -31,7 +31,7 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 - `restart` and `pool` with `--host` more than once change several miners. Name each miner; no flag takes the hosts from `discover`.
 - Such a call first reads `info` of each miner. Without `--confirm` it prints one row per miner with the present value, the new value and `changes`, and it sends no write request.
 - With `--confirm`, when a miner fails that read, no write request goes to any miner. Else the miners get the request one after the other, and the first failed write stops the call.
-- Each row has a `result`: `changed`, `unchanged` (`pool` only: the miner has the new values and got no request), `failed` or `not_attempted`. Exit code `0` only when each result is `changed` or `unchanged`.
+- Each row has a `result`: `changed`, `failed` or `not_attempted`. Exit code `0` only when each result is `changed`.
 - The tool does not set a changed miner back by itself. For `pool`, the column `restore` has the command that sets the previous values of that one miner again. A restart has no reverse.
 
 ## Private values

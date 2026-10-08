@@ -142,16 +142,11 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 	}
 	checkFailed := failed
 
-	sent, changed, unchanged, stopped := false, 0, 0, -1
+	sent, changed, stopped := false, 0, -1
 	var stopMessage string
 	var changedHosts []string
 	if opts.confirm && checkFailed == 0 {
 		for i, m := range miners {
-			if !m.changes {
-				results[i] = "unchanged"
-				unchanged++
-				continue
-			}
 			err := m.send(ctx)
 			sent = sent || !errors.Is(err, axeos.ErrNotSent)
 			if err != nil {
@@ -242,19 +237,11 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 	case stopped >= 0:
 		result = fmt.Sprintf("the write to miner %d of %d failed: %s; the call stopped with %d changed before it and %d not attempted after it", stopped+1, count, stopMessage, changed, count-stopped-1)
 		help = append(help, verify+"; read them before another "+opts.command+" call")
-		if isPool {
-			help = append(help, "the same command again sends a request only to each miner that does not have the new values")
-		}
 	case !isPool:
 		result = "each miner accepted the restart and stops hashing until it is up again; a restart has no command that reverses it"
 		help = append(help, verify+" when it is up again")
-	case changed == 0:
-		result = "each miner has the new values already; no write request was sent"
 	default:
 		result = "each miner accepted the request; " + poolEffect
-		if unchanged != 0 {
-			result = fmt.Sprintf("%d of %d miners accepted the request, and %d had the new values already and got no request; %s", changed, count, unchanged, poolEffect)
-		}
 		help = append(help, verify, "axeos-axi restart "+hostArguments(changedHosts)+" for a preview of the restart that makes each changed miner use the stored values")
 	}
 	if isPool && (changed != 0 || (stopped >= 0 && miners[stopped].restore != nil)) {
@@ -275,6 +262,6 @@ func severalWritesHelp(command string) string {
 		return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, uptime_s, changes and error, no restart request is sent, and execute has the complete command; with --confirm the columns are host, uptime_s, result and error, and the result is changed, failed or not_attempted" +
 			fmt.Sprintf(severalWritesRules, "changed") + "; a failed write is restart_not_sent, restart_unconfirmed or restart_failed; a restart has no command that reverses it"
 	}
-	return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, the present and the new value of each named setting (such as port_present and port_new), changes and error, no write request is sent, and execute has the complete command; with --confirm the columns are host, the same values, result, restore and error, and the result is changed, unchanged, failed or not_attempted; a miner that has each new value already gets no request and is unchanged; restore is the complete command that sets the previous values of that one miner again, printed for each changed miner and for a failed miner that got the request" +
-		fmt.Sprintf(severalWritesRules, "changed or unchanged") + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is pool_not_sent, pool_unconfirmed or pool_failed; the body is not printed, and a call with one --host prints it"
+	return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, the present and the new value of each named setting (such as port_present and port_new), changes and error, no write request is sent, and execute has the complete command; with --confirm the columns are host, the same values, result, restore and error, and the result is changed, failed or not_attempted; restore is the complete command that sets the previous values of that one miner again, printed for each changed miner and for a failed miner that got the request" +
+		fmt.Sprintf(severalWritesRules, "changed") + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is pool_not_sent, pool_unconfirmed or pool_failed; the body is not printed, and a call with one --host prints it"
 }

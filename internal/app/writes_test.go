@@ -210,8 +210,8 @@ func TestSeveralMinersWriteStopsAtTheFirstFailedWrite(t *testing.T) {
 			"miners[3]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 			fmt.Sprintf("  %q,3333,4444,changed,"+restore+",null\n  %q,3333,4444,failed,"+restore+",pool_failed\n  %q,3333,4444,not_attempted,null,null\n", first, first, second, second, third) +
 			"result: \"the write to miner 2 of 3 failed: the request was sent; miner returned HTTP 500 for settings; the call stopped with 1 changed before it and 1 not attempted after it\"\n" +
-			"help[3]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; read them before another pool call\"," +
-			"the same command again sends a request only to each miner that does not have the new values," + restoreHelp + "\n"
+			"help[2]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; read them before another pool call\"," +
+			restoreHelp + "\n"
 		if code != 1 || out != want {
 			t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 		}
@@ -245,8 +245,7 @@ func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,3333,4444,failed,null,pool_not_sent\n  %q,3333,4444,not_attempted,null,null\n", gone, last) +
 		"result: \"the write to miner 1 of 2 failed: miner unreachable or request timed out; the request was not sent; the call stopped with 0 changed before it and 1 not attempted after it\"\n" +
-		"help[2]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "; read them before another pool call\"," +
-		"the same command again sends a request only to each miner that does not have the new values\n"
+		"help[1]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "; read them before another pool call\"\n"
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -255,32 +254,34 @@ func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 	}
 }
 
-func TestSeveralMinersWriteLeavesAMinerAtTheNewValueUnchanged(t *testing.T) {
+func TestSeveralMinersWriteSendsARequestToAMinerAtTheNewValue(t *testing.T) {
 	first, firstCalls := poolMiner(t, nil, settingsSaved)
 	second, secondCalls := poolMiner(t, fallbackPortAt(4444), settingsSaved)
 	third, thirdCalls := poolMiner(t, fallbackPortAt(4444), settingsSaved)
 	a := New(noHost)
 
 	code, out := execute(t, a, onHosts([]string{"pool", "--fallback-port", "4444", "--confirm"}, second, first)...)
-	want := severalPoolHead + "sent: true\ncount: 2\nfailed: 0\nchanged: 1\n" +
+	want := severalPoolHead + "sent: true\ncount: 2\nfailed: 0\nchanged: 2\n" +
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
-		fmt.Sprintf("  %q,4444,4444,unchanged,null,null\n  %q,3333,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=3333 --confirm\",null\n", second, first, first) +
-		"result: \"1 of 2 miners accepted the request, and 1 had the new values already and got no request; " + poolEffects + "\"\n" +
+		fmt.Sprintf("  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n  %q,3333,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=3333 --confirm\",null\n", second, second, first, first) +
+		"result: each miner accepted the request; " + poolEffects + "\n" +
 		"help[3]: \"axeos-axi info " + hostList(second, first) + poolVerifyFields + "\"," +
-		"\"axeos-axi restart " + hostList(first) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
+		"\"axeos-axi restart " + hostList(second, first) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
 
 	code, out = execute(t, a, onHosts([]string{"pool", "--fallback-port", "4444", "--confirm"}, second, third)...)
-	want = severalPoolHead + "sent: false\ncount: 2\nfailed: 0\nchanged: 0\n" +
+	want = severalPoolHead + "sent: true\ncount: 2\nfailed: 0\nchanged: 2\n" +
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
-		fmt.Sprintf("  %q,4444,4444,unchanged,null,null\n  %q,4444,4444,unchanged,null,null\n", second, third) +
-		"result: each miner has the new values already; no write request was sent\n"
+		fmt.Sprintf("  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n  %q,4444,4444,changed,\"axeos-axi pool --host '%s' --fallback-port=4444 --confirm\",null\n", second, second, third, third) +
+		"result: each miner accepted the request; " + poolEffects + "\n" +
+		"help[3]: \"axeos-axi info " + hostList(second, third) + poolVerifyFields + "\"," +
+		"\"axeos-axi restart " + hostList(second, third) + " for a preview of the restart that makes each changed miner use the stored values\"," + restoreHelp + "\n"
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
-	if firstCalls() != poolRead+","+fallbackPortWrite || secondCalls() != poolRead+","+poolRead || thirdCalls() != poolRead {
+	if firstCalls() != poolRead+","+fallbackPortWrite || secondCalls() != poolRead+","+fallbackPortWrite+","+poolRead+","+fallbackPortWrite || thirdCalls() != poolRead+","+fallbackPortWrite {
 		t.Fatalf("requests: %s | %s | %s", firstCalls(), secondCalls(), thirdCalls())
 	}
 }
@@ -418,7 +419,7 @@ func TestSeveralMinersWriteJSON(t *testing.T) {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
 	code, out = execute(t, a, onHosts([]string{"pool", "--json", "--fallback-port", "4444", "--confirm"}, first, second)...)
-	if code != 0 || !strings.Contains(out, fmt.Sprintf(`"miners":[{"host":%q,"fallback_port_present":3333,"fallback_port_new":4444,"result":"changed","restore":"axeos-axi pool --host '%s' --fallback-port=3333 --confirm","error":null},{"host":%q,"fallback_port_present":4444,"fallback_port_new":4444,"result":"unchanged","restore":null,"error":null}]`, first, first, second)) {
+	if code != 0 || !strings.Contains(out, fmt.Sprintf(`"miners":[{"host":%q,"fallback_port_present":3333,"fallback_port_new":4444,"result":"changed","restore":"axeos-axi pool --host '%s' --fallback-port=3333 --confirm","error":null},{"host":%q,"fallback_port_present":4444,"fallback_port_new":4444,"result":"changed","restore":"axeos-axi pool --host '%s' --fallback-port=4444 --confirm","error":null}]`, first, first, second, second)) {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
@@ -445,7 +446,7 @@ func TestWriteHelpStatesTheRulesForSeveralMiners(t *testing.T) {
 	a := New(noHost)
 	for command, want := range map[string][]string{
 		"restart": {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info to each miner", "the result is changed, failed or not_attempted", "a restart has no command that reverses it", "no flag takes the hosts from discover"},
-		"pool":    {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info to each miner", "the result is changed, unchanged, failed or not_attempted", "restore is the complete command that sets the previous values of that one miner again", "no flag takes the hosts from discover"},
+		"pool":    {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info to each miner", "the result is changed, failed or not_attempted", "restore is the complete command that sets the previous values of that one miner again", "no flag takes the hosts from discover"},
 		"tuning":  {"--host more than once is a usage error, because tuning for several miners is not supported yet"},
 	} {
 		code, out := execute(t, a, command, "--help")
