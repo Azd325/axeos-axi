@@ -21,8 +21,9 @@ const (
 	// The firmware stores a pool record and loads it at once (update_pool_nvs in ESP-Miner main/http_server/http_server.c);
 	// the stratum task reads it only when it opens a connection (stratum_v1_task in main/tasks/stratum_v1_task.c).
 	poolEffect         = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
-	poolStaleRead      = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones"
-	poolStaleReadHelp  = "firmware v2.15.3 reports the pool values from before a write on the next read, and the stored values are the new ones; a second pool call directly after the first reads those old values, so its preview and its restore command can show the value from before the first write; the restore command that the first call printed is the correct one"
+	poolStaleRead      = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones; a second pool call directly after this one sends the old complete record and sets this change back"
+	poolStaleFailure   = "firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back"
+	poolStaleReadHelp  = "firmware v2.15.3 reports the pool values from before a write on the next read, and the stored values are the new ones; a second pool call directly after the first reads those old values, so its preview and its restore command can show the value from before the first write, and it sends the old complete record, so it sets the first change back; the restore command that the first call printed is the correct one"
 	poolUsage          = "pool requires one or more of --url, --port, --user, --fallback-url, --fallback-port and --fallback-user"
 	poolUserUsage      = " with --confirm requires --show-user; the miner does not report the previous pool user after the change, so the result must print it in the command that sets it again"
 	poolNotPrinted     = "<not printed>"
@@ -277,9 +278,9 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	case errors.Is(err, axeos.ErrNotSent):
 		return failure(stdout, 1, "pool_not_sent", err.Error(), connectivityHelp)
 	case errors.Is(err, axeos.ErrNoAnswer):
-		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; read them before another write; "+previous)
+		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; "+poolStaleFailure+"; "+previous)
 	case err != nil:
-		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify+"; "+previous)
+		return failure(stdout, 1, "pool_failed", err.Error()+"; the miner did not confirm the change", verify+"; "+poolStaleFailure+"; "+previous)
 	}
 	return write(stdout, append(fields,
 		output.Field{Name: "result", Value: "the miner accepted the request; " + poolEffect},

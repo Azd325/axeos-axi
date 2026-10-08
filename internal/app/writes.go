@@ -234,7 +234,11 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		result = fmt.Sprintf("%d of %d miners failed the check before the write, so no write request was sent to any miner", checkFailed, count)
 	case stopped >= 0:
 		result = fmt.Sprintf("the write to miner %d of %d failed: %s; the call stopped with %d changed before it and %d not attempted after it", stopped+1, count, stopMessage, changed, count-stopped-1)
-		help = append(help, verify+"; read them before another "+opts.command+" call")
+		if isPool {
+			help = append(help, verify+"; "+poolStaleFailure)
+		} else {
+			help = append(help, verify+"; read them before another "+opts.command+" call")
+		}
 	case !isPool:
 		result = "each miner accepted the restart and stops hashing until it is up again; a restart has no command that reverses it"
 		help = append(help, verify+" when it is up again")

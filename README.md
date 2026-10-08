@@ -330,8 +330,8 @@ values that the miner reports.
 Firmware v2.15.3 reports the pool values from before a write on the next read, and the stored
 values are the new ones. Each result with `sent: true` says so in `note`. A second `pool` call
 directly after the first reads those old values, so its preview and its restore command can show
-the value from before the first write. The restore command that the first call printed is the
-correct one.
+the value from before the first write. It also sends the old complete record, so it sets the first
+change back. The restore command that the first call printed is the correct one.
 
 ## Several miners
 

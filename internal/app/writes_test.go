@@ -211,7 +211,7 @@ func TestSeveralMinersWriteStopsAtTheFirstFailedWrite(t *testing.T) {
 			fmt.Sprintf("  %q,3333,4444,changed,"+restore+",null\n  %q,3333,4444,failed,"+restore+",pool_failed\n  %q,3333,4444,not_attempted,null,null\n", first, first, second, second, third) +
 			"result: \"the write to miner 2 of 3 failed: the request was sent; miner returned HTTP 500 for settings; the call stopped with 1 changed before it and 1 not attempted after it\"\n" +
 			"note: " + staleReadNote + "\n" +
-			"help[2]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; read them before another pool call\"," +
+			"help[2]: \"axeos-axi info " + hostList(first, second, third) + poolVerifyFields + "; firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back\"," +
 			restoreHelp + "\n"
 		if code != 1 || out != want {
 			t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
@@ -246,7 +246,7 @@ func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 		"miners[2]{host,fallback_port_present,fallback_port_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,3333,4444,failed,null,pool_not_sent\n  %q,3333,4444,not_attempted,null,null\n", gone, last) +
 		"result: \"the write to miner 1 of 2 failed: miner unreachable or request timed out; the request was not sent; the call stopped with 0 changed before it and 1 not attempted after it\"\n" +
-		"help[1]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "; read them before another pool call\"\n"
+		"help[1]: \"axeos-axi info " + hostList(gone, last) + poolVerifyFields + "; firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back\"\n"
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}

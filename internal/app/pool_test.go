@@ -15,7 +15,7 @@ import (
 const (
 	poolRead      = "GET /api/system/info"
 	poolColumns   = "{id,stratumCert,stratumDecodeCoinbase,stratumExtranonceSubscribe,stratumPassword,stratumPort,stratumProtocol,stratumSuggestedDifficulty,stratumTLS,stratumURL,stratumUser,stratumV2AuthorityPubkey,stratumV2ChannelType,stratumV2RequireAuth}"
-	staleReadNote = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones"
+	staleReadNote = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones; a second pool call directly after this one sends the old complete record and sets this change back"
 	poolEffects   = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
 	poolPrivate   = "private: the pool user is not printed; --show-user prints it\n"
 	primaryPool   = "primary"
@@ -415,6 +415,9 @@ func TestPoolWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 			}
 			if !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --url='pool.example.org' --confirm sets the previous values again\"\n") {
 				t.Fatalf("no command for the previous values\n%s", out)
+			}
+			if !strings.Contains(out, "; firmware v2.15.3 reports the pool values from before a write on the next read; a pool call that uses that read sends the old complete record and sets the change back; axeos-axi pool") || strings.Contains(out, "read them before another") {
+				t.Fatalf("no stale-read statement\n%s", out)
 			}
 			if calls() != poolRead+","+sentPools(sentPool(primaryPool, "new.example.org", 3333, "example-worker")) {
 				t.Fatalf("requests=%s", calls())
