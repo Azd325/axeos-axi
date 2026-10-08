@@ -226,7 +226,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 
 	verify := "axeos-axi info " + hosts + " --fields uptime_s,reset_reason shows uptime_s and reset_reason of each miner"
 	if isPool {
-		verify = "axeos-axi info " + hosts + poolVerify + " shows the stored URL and port of each pool of each miner; stratumUser and fallbackStratumUser show the users"
+		verify = "axeos-axi info " + hosts + poolVerify + " shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
 	}
 	var result string
 	switch {
@@ -246,6 +246,9 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		help = append(help, "restore has the command that sets the previous values of that one miner again")
 	}
 	fields = append(fields, output.Field{Name: "result", Value: result})
+	if isPool && sent {
+		fields = append(fields, output.Field{Name: "note", Value: poolStaleRead})
+	}
 	if len(help) != 0 {
 		fields = append(fields, output.Field{Name: "help", Value: help})
 	}

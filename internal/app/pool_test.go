@@ -13,12 +13,13 @@ import (
 )
 
 const (
-	poolRead     = "GET /api/system/info"
-	poolColumns  = "{id,stratumCert,stratumDecodeCoinbase,stratumExtranonceSubscribe,stratumPassword,stratumPort,stratumProtocol,stratumSuggestedDifficulty,stratumTLS,stratumURL,stratumUser,stratumV2AuthorityPubkey,stratumV2ChannelType,stratumV2RequireAuth}"
-	poolEffects  = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
-	poolPrivate  = "private: the pool user is not printed; --show-user prints it\n"
-	primaryPool  = "primary"
-	fallbackPool = "fallback"
+	poolRead      = "GET /api/system/info"
+	poolColumns   = "{id,stratumCert,stratumDecodeCoinbase,stratumExtranonceSubscribe,stratumPassword,stratumPort,stratumProtocol,stratumSuggestedDifficulty,stratumTLS,stratumURL,stratumUser,stratumV2AuthorityPubkey,stratumV2ChannelType,stratumV2RequireAuth}"
+	staleReadNote = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones"
+	poolEffects   = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
+	poolPrivate   = "private: the pool user is not printed; --show-user prints it\n"
+	primaryPool   = "primary"
+	fallbackPool  = "fallback"
 )
 
 func poolMiner(t *testing.T, change func(info map[string]any, pools []map[string]any), answer http.HandlerFunc) (string, func() string) {
@@ -177,7 +178,8 @@ func TestPoolWithConfirmSendsOneWriteWithTheCompleteRecord(t *testing.T) {
 			code, out := execute(t, New(func(string) string { return host }), append(slices.Clone(tc.args), "--confirm")...)
 			want := "host: \"" + host + "\"\n" + tc.body + "sent: true\n" + tc.rows + tc.private +
 				"result: the miner accepted the request; " + poolEffects + "\n" +
-				"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the stored URL and port of each pool; stratumUser and fallbackStratumUser show the users\"," +
+				"note: " + staleReadNote + "\n" +
+				"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users\"," +
 				"\"axeos-axi restart --host '" + host + "' for a preview of the restart that makes the miner use the stored values\"," +
 				"\"axeos-axi pool --host '" + host + "' " + tc.revert + " --confirm sets the previous values again\"\n"
 			if code != 0 || out != want {

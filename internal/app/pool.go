@@ -21,6 +21,8 @@ const (
 	// The firmware stores a pool record and loads it at once (update_pool_nvs in ESP-Miner main/http_server/http_server.c);
 	// the stratum task reads it only when it opens a connection (stratum_v1_task in main/tasks/stratum_v1_task.c).
 	poolEffect         = "the miner stores the values at once and keeps them across a restart; an open pool connection uses the old values until the miner restarts or connects again"
+	poolStaleRead      = "firmware v2.15.3 reports the pool values from before this write on the next read; the stored values are the new ones"
+	poolStaleReadHelp  = "firmware v2.15.3 reports the pool values from before a write on the next read, and the stored values are the new ones; a second pool call directly after the first reads those old values, so its preview and its restore command can show the value from before the first write; the restore command that the first call printed is the correct one"
 	poolUsage          = "pool requires one or more of --url, --port, --user, --fallback-url, --fallback-port and --fallback-user"
 	poolUserUsage      = " with --confirm requires --show-user; the miner does not report the previous pool user after the change, so the result must print it in the command that sets it again"
 	poolNotPrinted     = "<not printed>"
@@ -268,7 +270,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		}
 		return write(stdout, fields)
 	}
-	verify := "axeos-axi info --host " + hostArg + poolVerify + " shows the stored URL and port of each pool; stratumUser and fallbackStratumUser show the users"
+	verify := "axeos-axi info --host " + hostArg + poolVerify + " shows the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users"
 	previous := command + plan.previousArguments(opts) + " --confirm sets the previous values again"
 	err = client.PatchPools(ctx, plan.records)
 	switch {
@@ -281,6 +283,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	}
 	return write(stdout, append(fields,
 		output.Field{Name: "result", Value: "the miner accepted the request; " + poolEffect},
+		output.Field{Name: "note", Value: poolStaleRead},
 		output.Field{Name: "help", Value: []any{
 			verify,
 			"axeos-axi restart --host " + hostArg + " for a preview of the restart that makes the miner use the stored values",
@@ -307,6 +310,7 @@ func poolHelp() output.Object {
 			{Name: "help", Value: "--help; no network request"},
 			{Name: "version", Value: versionFlagHelp},
 		}},
+		{Name: "stale_read", Value: poolStaleReadHelp},
 		{Name: "several_miners", Value: severalWritesHelp("pool")},
 		{Name: "timeout_s", Value: int(axeos.Timeout / time.Second)},
 		{Name: "private_fields", Value: "the pool user prints only with --show-user; the pool certificate and the password are never printed"},

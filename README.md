@@ -324,8 +324,14 @@ for a rejected record or 401 for a client outside the allowed network range. The
 checks each record before it stores one. When the request was sent, `help` also has the command
 line that sets the previous values again; a user is in it only with `--show-user`. The command
 does not repeat the request;
-`info --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` shows the stored
-values after the change.
+`info --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` shows the pool
+values that the miner reports.
+
+Firmware v2.15.3 reports the pool values from before a write on the next read, and the stored
+values are the new ones. Each result with `sent: true` says so in `note`. A second `pool` call
+directly after the first reads those old values, so its preview and its restore command can show
+the value from before the first write. The restore command that the first call printed is the
+correct one.
 
 ## Several miners
 
