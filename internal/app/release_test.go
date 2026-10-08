@@ -185,6 +185,11 @@ func TestCheckReleaseJSON(t *testing.T) {
 	}
 }
 
+func helpLine(out string) string {
+	_, help, _ := strings.Cut(out, "\nhelp: ")
+	return help
+}
+
 func TestCheckReleaseReadErrors(t *testing.T) {
 	gone := httptest.NewServer(http.NotFoundHandler())
 	goneURL := gone.URL + releasePath
@@ -193,22 +198,23 @@ func TestCheckReleaseReadErrors(t *testing.T) {
 		name    string
 		handler http.HandlerFunc
 		message string
+		help    string
 	}{
-		{"rate limit", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "0"), "rate limit"},
-		{"refused", status(http.StatusForbidden), "HTTP 403"},
-		{"refused with requests left", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "12"), "HTTP 403"},
-		{"too many requests", status(http.StatusTooManyRequests), "rate limit"},
-		{"server error", status(http.StatusInternalServerError), "HTTP 500"},
-		{"bad gateway", status(http.StatusBadGateway), "HTTP 502"},
-		{"not found", status(http.StatusNotFound), "HTTP 404"},
-		{"no tag", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"name":"x"}`)) }, "no release tag"},
-		{"not json", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`<html>`)) }, "not a release document"},
+		{"rate limit", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "0"), "rate limit", "wait and run"},
+		{"refused", status(http.StatusForbidden), "HTTP 403", "GitHub refused the request"},
+		{"refused with requests left", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "12"), "HTTP 403", "GitHub refused the request"},
+		{"too many requests", status(http.StatusTooManyRequests), "rate limit", "wait and run"},
+		{"server error", status(http.StatusInternalServerError), "HTTP 500", "again later"},
+		{"bad gateway", status(http.StatusBadGateway), "HTTP 502", "again later"},
+		{"not found", status(http.StatusNotFound), "HTTP 404", "again later"},
+		{"no tag", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"name":"x"}`)) }, "no release tag", "again later"},
+		{"not json", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`<html>`)) }, "not a release document", "again later"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := githubFake(t, tc.handler)
 			host, _ := minerWithVersion(t, "v2.15.3")
 			code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", host)
-			if code != 1 || !strings.HasPrefix(out, "miner_version: v2.15.3\nerror:\n  code: release_read_failed\n  message: ") || !strings.Contains(out, tc.message) || !strings.Contains(out, "\nhelp: ") {
+			if code != 1 || !strings.HasPrefix(out, "miner_version: v2.15.3\nerror:\n  code: release_read_failed\n  message: ") || !strings.Contains(out, tc.message) || !strings.Contains(out, "\nhelp: ") || !strings.Contains(helpLine(out), tc.help) {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
 			if strings.Contains(out, "comparison") {
@@ -220,7 +226,7 @@ func TestCheckReleaseReadErrors(t *testing.T) {
 		a := releaseApp(&fakeGitHub{url: goneURL})
 		host, _ := minerWithVersion(t, "v2.15.3")
 		code, out := execute(t, a, "firmware", "--check-release", "--host", host)
-		if code != 1 || !strings.Contains(out, "miner_version: v2.15.3\nerror:\n  code: release_read_failed\n  message: GitHub is unreachable") {
+		if code != 1 || !strings.Contains(out, "miner_version: v2.15.3\nerror:\n  code: release_read_failed\n  message: GitHub is unreachable") || !strings.Contains(helpLine(out), "reaches api.github.com") {
 			t.Fatalf("code=%d\n%s", code, out)
 		}
 	})
@@ -266,9 +272,12 @@ func TestCheckReleaseMinerErrors(t *testing.T) {
 
 func TestCheckReleaseIgnoresAFailingChecksumPath(t *testing.T) {
 	g := githubFake(t, latestRelease("v2.15.3"))
+	var mu sync.Mutex
 	var paths []string
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		paths = append(paths, r.URL.Path)
+		mu.Unlock()
 		if r.URL.Path == "/api/system/info" {
 			_ = json.NewEncoder(w).Encode(fixture(t, "info"))
 			return
@@ -277,6 +286,8 @@ func TestCheckReleaseIgnoresAFailingChecksumPath(t *testing.T) {
 	}))
 	t.Cleanup(s.Close)
 	code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", s.URL)
+	mu.Lock()
+	defer mu.Unlock()
 	if code != 0 || !strings.Contains(out, "comparison: up_to_date\n") || len(paths) != 1 {
 		t.Fatalf("code=%d paths=%v\n%s", code, paths, out)
 	}
