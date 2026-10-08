@@ -14,7 +14,7 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 - `axeos-axi discover` finds miners on the local network and needs no host.
 - Read commands: no command (home view), `info`, `asic`, `stats`, `firmware`, `scoreboard`, `logs`, `health`.
 - Each read sends GET requests only. Default views are small; `--fields` selects more.
-- `health` is the only command that judges the miner. It reads `info` once and prints a verdict and one row for each rule: `ok`, `failed`, `too_early` or `unknown`, with the value read, the limit and the reason. The limits are fixed: unhealthy below 80 % of the expected 1h hashrate, above 5 % rejected shares, a fault, overheat mode, paused mining, the fallback pool, or a fan at 0 rpm while the miner hashes. Performance rules wait for 10 minutes of uptime and 20 shares. A rule with a missing value is `unknown`, and a miner with an `unknown` rule and no failed rule gets the verdict `unknown`, never `healthy`.
+- `health` is the only command that judges the miner. It reads `info` once and prints a verdict and one row for each rule: `ok`, `failed`, `too_early` or `unknown`, with the value read, the limit and the reason. The limits are fixed: unhealthy below 80 % of the expected 1h hashrate, above 5 % rejected shares, a fault, overheat mode, paused mining, the fallback pool, or a fan at 0 rpm while the miner hashes. Performance rules wait for 10 minutes of uptime, and `rejected_shares` also waits for the first share. A second fan is not judged. A rule with a missing value is `unknown`, and a miner with an `unknown` rule and no failed rule gets the verdict `unknown`, never `healthy`.
 - Run `axeos-axi <command> --help` for the flags of one command.
 
 ## Writes need `--confirm`

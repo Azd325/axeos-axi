@@ -47,20 +47,19 @@ func TestHealthRules(t *testing.T) {
 		{"overheat mode", map[string]any{"overheat_mode": 1}, "unhealthy", 3, "overheat_mode", "failed", "overheat mode is active"},
 		{"mining paused", map[string]any{"miningPaused": true}, "unhealthy", 3, "mining_paused", "failed", "mining is paused"},
 		{"fallback pool", map[string]any{"isUsingFallbackStratum": 1}, "unhealthy", 3, "fallback_pool", "failed", "the miner runs on the fallback pool"},
-		{"low hashrate", map[string]any{"hashRate_1h": 856.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 80% of the expected hashrate"},
+		{"low hashrate", map[string]any{"hashRate_1h": 856.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 79.92% of the expected hashrate"},
 		{"hashrate above the limit", map[string]any{"hashRate_1h": 857.0}, "healthy", 0, "hashrate", "ok", ""},
-		{"many rejected shares", map[string]any{"sharesAccepted": 94, "sharesRejected": 6}, "unhealthy", 3, "rejected_shares", "failed", "6.0% of all shares are rejected"},
+		{"many rejected shares", map[string]any{"sharesAccepted": 94, "sharesRejected": 6}, "unhealthy", 3, "rejected_shares", "failed", "6.00% of all shares are rejected"},
 		{"rejected shares at the limit", map[string]any{"sharesAccepted": 95, "sharesRejected": 5}, "healthy", 0, "rejected_shares", "ok", ""},
-		{"fan stopped while hashing", map[string]any{"fanrpm": 0}, "unhealthy", 3, "fan", "failed", "a fan reads 0 rpm while the miner hashes at 1039.52 GH/s"},
+		{"fan stopped while hashing", map[string]any{"fanrpm": 0}, "unhealthy", 3, "fan", "failed", "the fan reads 0 rpm while the miner hashes at 1039.52 GH/s"},
 		{"fan stopped without hashing", map[string]any{"fanrpm": 0, "hashRate": 0}, "healthy", 0, "fan", "ok", ""},
-		{"single fan board ignores fan2rpm 0", nil, "healthy", 0, "fan", "ok", ""},
-		{"second fan stopped", map[string]any{"boardVersion": "302", "fan2rpm": 0}, "unhealthy", 3, "fan", "failed", "a fan reads 0 rpm while the miner hashes at 1039.52 GH/s"},
-		{"both fans run", map[string]any{"boardVersion": "702", "fan2rpm": 3900}, "healthy", 0, "fan", "ok", ""},
+		{"second fan is not judged", map[string]any{"boardVersion": "302", "fan2rpm": 0}, "healthy", 0, "fan", "ok", ""},
 		{"first 10 minutes hashrate", map[string]any{"uptimeSeconds": 599, "hashRate_1h": 10.0}, "healthy", 0, "hashrate", "too_early", "uptime 599 s is below 600 s; too early to judge"},
 		{"first 10 minutes shares", map[string]any{"uptimeSeconds": 599, "sharesAccepted": 10, "sharesRejected": 10}, "healthy", 0, "rejected_shares", "too_early", "uptime 599 s is below 600 s; too early to judge"},
-		{"10 minutes of uptime", map[string]any{"uptimeSeconds": 600, "hashRate_1h": 10.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 1% of the expected hashrate"},
+		{"10 minutes of uptime", map[string]any{"uptimeSeconds": 600, "hashRate_1h": 10.0}, "unhealthy", 3, "hashrate", "failed", "1h hashrate is 0.93% of the expected hashrate"},
 		{"zero shares", map[string]any{"sharesAccepted": 0, "sharesRejected": 0}, "healthy", 0, "rejected_shares", "too_early", "no share was submitted yet; too early to judge"},
-		{"few shares", map[string]any{"sharesAccepted": 5, "sharesRejected": 5}, "healthy", 0, "rejected_shares", "too_early", "10 shares are below the minimum of 20; too early to judge"},
+		{"few shares", map[string]any{"sharesAccepted": 5, "sharesRejected": 5}, "unhealthy", 3, "rejected_shares", "failed", "50.00% of all shares are rejected"},
+		{"rejected just above the limit", map[string]any{"sharesAccepted": 18999, "sharesRejected": 1001}, "unhealthy", 3, "rejected_shares", "failed", "5.01% of all shares are rejected"},
 		{"fault wins over too early", map[string]any{"uptimeSeconds": 30, "miningPaused": true}, "unhealthy", 3, "mining_paused", "failed", "mining is paused"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,7 +93,6 @@ func TestHealthOmittedFieldsAreUnknown(t *testing.T) {
 		{[]string{"sharesRejected"}, []string{"rejected_shares"}},
 		{[]string{"fanrpm"}, []string{"fan"}},
 		{[]string{"hashRate"}, []string{"fan"}},
-		{[]string{"boardVersion"}, []string{"fan"}},
 		{[]string{"uptimeSeconds"}, []string{"power_fault", "hardware_fault", "hashrate", "rejected_shares"}},
 	} {
 		t.Run(strings.Join(tc.omitted, ","), func(t *testing.T) {
@@ -113,14 +111,6 @@ func TestHealthOmittedFieldsAreUnknown(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestHealthSecondFanFieldOmittedIsUnknown(t *testing.T) {
-	host, _ := miner(t, healthInfo(t, map[string]any{"boardVersion": "302", "fan2rpm": deleted}))
-	code, out := execute(t, New(func(string) string { return host }), "health")
-	if row := ruleRow(t, out, "fan"); code != 1 || !strings.Contains(row, ",unknown,unknown,") {
-		t.Fatalf("code=%d row=%s", code, row)
 	}
 }
 
@@ -165,7 +155,7 @@ func TestHealthHelpStatesRulesAndLimits(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
-	for _, want := range []string{"80%", "5%", "600 s", "20 shares", "exit 3", "unknown when no rule failed", "power_fault", "hardware_fault", "overheat_mode", "mining_paused", "fallback_pool", "hashrate", "rejected_shares", "fan2rpm", "no flag changes them"} {
+	for _, want := range []string{"80%", "5%", "600 s", "exit 3", "unknown when no rule failed", "power_fault", "hardware_fault", "overheat_mode", "mining_paused", "fallback_pool", "hashrate", "rejected_shares", "second fan is not judged", "no flag changes them"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help lacks %q", want)
 		}

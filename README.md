@@ -118,11 +118,11 @@ bin/axeos-axi health --host 192.0.2.10
 | `fallback_pool` | the miner runs on the fallback pool |
 | `hashrate` | `hashRate_1h` is below 80 % of `expectedHashrate` |
 | `rejected_shares` | more than 5 % of all shares are rejected |
-| `fan` | `fanrpm` is 0 while `hashRate` is above 0; a board with a second fan (`boardVersion` 302, 303, 701 or 702) checks `fan2rpm` too |
+| `fan` | `fanrpm` is 0 while `hashRate` is above 0 |
 
 `hashrate` and `rejected_shares` give `too_early` in the first 10 minutes of uptime; the reason
-says "too early to judge". `rejected_shares` is also `too_early` with 0 shares and with fewer
-than 20 shares. The firmware resets the share counters when it switches to the fallback pool.
+says "too early to judge". `rejected_shares` is also `too_early` with 0 shares. A second fan is not
+judged. The firmware resets the share counters when it switches to the fallback pool.
 
 The firmware sends `power_fault` and `hardware_fault` only while a fault exists. A missing fault
 field is `ok` when the miner sends `uptimeSeconds`, which shows that the miner reports faults.

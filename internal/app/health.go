@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
+	"math"
 	"strings"
 
 	"github.com/Azd325/axeos-axi/internal/axeos"
@@ -16,13 +16,8 @@ const (
 	minPerformanceUptimeS = 600
 	minHashrateShare      = 0.8
 	maxRejectedShare      = 0.05
-	minSharesForRule      = 20
 	healthTooEarly        = "too early to judge"
 )
-
-// Boards whose fan controller (EMC2302) reads a second fan: main/device_config.h and
-// main/thermal/thermal.c in ESP-Miner, tags v2.15.3 and master. Every other board reports fan2rpm 0.
-var twoFanBoards = []string{"302", "303", "701", "702"}
 
 const (
 	ruleOK       = "ok"
@@ -104,7 +99,7 @@ func hashrateRule(info map[string]any) ruleResult {
 	case uptime < minPerformanceUptimeS:
 		return ruleResult{name, ruleTooEarly, value, limit, earlyReason(uptime)}
 	case hour < expected*minHashrateShare:
-		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("1h hashrate is %.0f%% of the expected hashrate", hour/expected*100)}
+		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("1h hashrate is %.2f%% of the expected hashrate", math.Floor(hour*100/expected*100)/100)}
 	}
 	return ruleResult{name, ruleOK, value, limit, ""}
 }
@@ -127,14 +122,13 @@ func rejectedSharesRule(info map[string]any) ruleResult {
 	if total == 0 {
 		return ruleResult{name, ruleTooEarly, "0 of 0 shares", limit, "no share was submitted yet; " + healthTooEarly}
 	}
-	value := fmt.Sprintf("%.0f of %.0f shares (%.1f%%)", rejected, total, rejected/total*100)
+	percent := math.Ceil(rejected*100/total*100) / 100
+	value := fmt.Sprintf("%.0f of %.0f shares (%.2f%%)", rejected, total, percent)
 	switch {
 	case uptime < minPerformanceUptimeS:
 		return ruleResult{name, ruleTooEarly, value, limit, earlyReason(uptime)}
-	case total < minSharesForRule:
-		return ruleResult{name, ruleTooEarly, value, limit, fmt.Sprintf("%.0f shares are below the minimum of %d; %s", total, minSharesForRule, healthTooEarly)}
 	case rejected/total > maxRejectedShare:
-		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("%.1f%% of all shares are rejected", rejected/total*100)}
+		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("%.2f%% of all shares are rejected", percent)}
 	}
 	return ruleResult{name, ruleOK, value, limit, ""}
 }
@@ -142,29 +136,16 @@ func rejectedSharesRule(info map[string]any) ruleResult {
 func fanRule(info map[string]any) ruleResult {
 	const name, limit = "fan", "above 0 rpm while the miner hashes"
 	hashrate, hashOK := number(info, "hashRate")
-	fan1, fan1OK := number(info, "fanrpm")
+	fan, fanOK := number(info, "fanrpm")
 	switch {
 	case !hashOK:
 		return unknownRule(name, limit, "hashRate")
-	case !fan1OK:
+	case !fanOK:
 		return unknownRule(name, limit, "fanrpm")
 	}
-	board, boardOK := info["boardVersion"].(string)
-	if !boardOK || board == "" {
-		return unknownRule(name, limit, "boardVersion, which shows whether the board has a second fan")
-	}
-	value := fmt.Sprintf("%.0f rpm", fan1)
-	fans := []float64{fan1}
-	if slices.Contains(twoFanBoards, board) {
-		fan2, ok := number(info, "fan2rpm")
-		if !ok {
-			return unknownRule(name, limit, "fan2rpm")
-		}
-		value = fmt.Sprintf("fan 1 %.0f rpm; fan 2 %.0f rpm", fan1, fan2)
-		fans = append(fans, fan2)
-	}
-	if hashrate > 0 && slices.Contains(fans, 0) {
-		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("a fan reads 0 rpm while the miner hashes at %.2f GH/s", hashrate)}
+	value := fmt.Sprintf("%.0f rpm", fan)
+	if hashrate > 0 && fan == 0 {
+		return ruleResult{name, ruleFailed, value, limit, fmt.Sprintf("the fan reads 0 rpm while the miner hashes at %.2f GH/s", hashrate)}
 	}
 	return ruleResult{name, ruleOK, value, limit, ""}
 }
@@ -248,8 +229,8 @@ func healthHelp() output.Object {
 			{Name: "mining_paused", Value: "failed when mining is paused (miningPaused is true)"},
 			{Name: "fallback_pool", Value: "failed when the miner runs on the fallback pool (isUsingFallbackStratum is 1)"},
 			{Name: "hashrate", Value: fmt.Sprintf("failed when hashRate_1h is below %.0f%% of expectedHashrate; too_early in the first %d s of uptime; unknown without a positive expectedHashrate", minHashrateShare*100, minPerformanceUptimeS)},
-			{Name: "rejected_shares", Value: fmt.Sprintf("failed when more than %.0f%% of all shares (sharesRejected of sharesAccepted plus sharesRejected) are rejected; too_early in the first %d s of uptime, with 0 shares and with fewer than %d shares; the firmware resets the counters when it switches to the fallback pool", maxRejectedShare*100, minPerformanceUptimeS, minSharesForRule)},
-			{Name: "fan", Value: "failed when fanrpm is 0 while hashRate is above 0; a board with a second fan (boardVersion " + strings.Join(twoFanBoards, ", ") + ") checks fan2rpm too"},
+			{Name: "rejected_shares", Value: fmt.Sprintf("failed when more than %.0f%% of all shares (sharesRejected of sharesAccepted plus sharesRejected) are rejected; too_early in the first %d s of uptime and with 0 shares; the firmware resets the counters when it switches to the fallback pool", maxRejectedShare*100, minPerformanceUptimeS)},
+			{Name: "fan", Value: "failed when fanrpm is 0 while hashRate is above 0; a second fan is not judged"},
 		}},
 		{Name: "results", Value: "ok, failed, too_early (not judged yet, the reason names the limit that is not met), unknown (the miner did not send a field the rule needs)"},
 		{Name: "exit_codes", Value: "0 healthy, 3 unhealthy, 1 unknown verdict or a failed read, 2 usage error"},
