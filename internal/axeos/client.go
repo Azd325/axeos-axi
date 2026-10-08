@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -37,23 +36,9 @@ var (
 	ErrStreamFull   = errors.New("the miner has no free WebSocket place; it holds at most 10")
 	ErrAccess       = errors.New("the miner refused access to the log stream")
 	ErrHandshake    = errors.New("the miner did not accept the WebSocket handshake")
-	ErrTimeout      = errors.New("the miner did not answer within the timeout")
 	errInvalidJSON  = errors.New("miner returned invalid JSON; check AxeOS API compatibility")
 	errNotText      = errors.New("miner returned a response that is not plain text; check AxeOS API compatibility")
 )
-
-// timeoutError keeps the message of the failure and answers errors.Is(err, ErrTimeout).
-type timeoutError struct{ message string }
-
-func (e timeoutError) Error() string        { return e.message }
-func (e timeoutError) Is(target error) bool { return target == ErrTimeout }
-
-func readFailure(message string, err error) error {
-	if os.IsTimeout(err) {
-		return timeoutError{message}
-	}
-	return errors.New(message)
-}
 
 type Client struct {
 	base string
@@ -79,8 +64,17 @@ func New(host string) (*Client, error) {
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery {
 		return nil, ErrHost
 	}
-	return &Client{base: u.Scheme + "://" + u.Host, http: httpClient(Timeout), logs: httpClient(LogsTimeout)}, nil
+	host = strings.ToLower(u.Hostname())
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port := u.Port(); port != "" && port != map[string]string{"http": "80", "https": "443"}[u.Scheme] {
+		host += ":" + port
+	}
+	return &Client{base: u.Scheme + "://" + host, http: httpClient(Timeout), logs: httpClient(LogsTimeout)}, nil
 }
+
+func (c *Client) Base() string { return c.base }
 
 func (c *Client) Get(ctx context.Context, endpoint string) (map[string]any, error) {
 	switch endpoint {
@@ -245,7 +239,7 @@ func (c *Client) fetch(ctx context.Context, client *http.Client, endpoint string
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, "", readFailure("miner unreachable or request timed out; check the host and network", err)
+		return nil, "", errors.New("miner unreachable or request timed out; check the host and network")
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
@@ -260,7 +254,7 @@ func (c *Client) fetch(ctx context.Context, client *http.Client, endpoint string
 	const maxBytes = 4 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
-		return nil, "", readFailure("miner response timed out or was interrupted; check the host and network", err)
+		return nil, "", errors.New("miner response timed out or was interrupted; check the host and network")
 	}
 	if len(body) > maxBytes {
 		return nil, "", errors.New("cannot read miner response within the 4 MiB limit")

@@ -22,7 +22,7 @@ const (
 	versionFlagHelp = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
 	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; one miner; HTTP unless a scheme is supplied"
 	hostsFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
-	severalHelp     = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (timeout, miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool, discover and skill take one miner"
+	severalHelp     = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "skill"}
@@ -148,10 +148,6 @@ func parse(args []string) (options, error) {
 			case "--path":
 				opts.path = value
 			case "--host":
-				if slices.ContainsFunc(opts.hosts, func(h string) bool { return sameHost(h, value) }) {
-					fail("--host names %s more than once", value)
-					continue
-				}
 				opts.hosts = append(opts.hosts, value)
 			case "--timeout":
 				seconds, err := strconv.Atoi(value)
@@ -421,6 +417,11 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		client, err := axeos.New(host)
 		if err != nil {
 			return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
+		}
+		for j := range i {
+			if clients[j].Base() == client.Base() {
+				return failure(stdout, 2, "usage", "--host names "+client.Base()+" more than once; "+opts.hosts[j]+" and "+host+" are the same miner", "valid flags: "+validFlags(opts.command)+"; commands: "+commands())
+			}
 		}
 		clients[i] = client
 	}

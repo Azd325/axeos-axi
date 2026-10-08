@@ -20,7 +20,6 @@ const (
 type viewFailure struct {
 	exit                int
 	code, message, help string
-	timeout             bool
 }
 
 type minerView struct {
@@ -32,11 +31,11 @@ func optionalViewFailure(err error, subject, host string) *viewFailure {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
 		return &viewFailure{exit: 1, code: "not_supported", message: subject + " is not supported by this firmware", help: "axeos-axi info --host " + shellQuote(host) + " shows the firmware version"}
 	}
-	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: "check --host or AXEOS_HOST and local network connectivity", timeout: errors.Is(err, axeos.ErrTimeout)}
+	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: "check --host or AXEOS_HOST and local network connectivity"}
 }
 
 func readFailed(err error, help string) *viewFailure {
-	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: help, timeout: errors.Is(err, axeos.ErrTimeout)}
+	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: help}
 }
 
 func readView(ctx context.Context, client *axeos.Client, host string, opts options) (*minerView, *viewFailure) {
@@ -140,16 +139,9 @@ func (v *minerView) selected(opts options) (output.Object, string) {
 	return selected, ""
 }
 
-func normalizeHost(host string) string {
-	host = strings.ToLower(strings.TrimSuffix(host, "/"))
-	return strings.TrimPrefix(host, "http://")
-}
-
-func sameHost(a, b string) bool { return normalizeHost(a) == normalizeHost(b) }
-
 func severalHostsError(opts options, tableStats bool) error {
 	switch opts.command {
-	case "", "info", "asic", "firmware":
+	case "", "info", "asic", "firmware", "discover", "skill":
 		return nil
 	case "stats":
 		if !tableStats {
@@ -229,9 +221,6 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 		var code any
 		if r.failure != nil {
 			code = r.failure.code
-			if r.failure.timeout {
-				code = "timeout"
-			}
 			if len(failureHelp) < maxFailureHelp {
 				failureHelp = append(failureHelp, strings.TrimSpace("axeos-axi "+opts.command)+" --host "+shellQuote(opts.hosts[i])+" for the error message of that miner")
 			}

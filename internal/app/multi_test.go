@@ -73,22 +73,41 @@ func TestSeveralMinersPrintOneRowEach(t *testing.T) {
 func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 	first, _ := miner(t, renamed(t, "miner-a"))
 	second, _ := miner(t, renamed(t, "miner-b"))
-	third, _ := miner(t, renamed(t, "miner-c"))
 	a := New(func(string) string { return "" })
-	for _, command := range []string{"", "info", "asic", "stats", "firmware"} {
-		args := append([]string{}, hostArgs(first, second, third)...)
-		if command != "" {
-			args = append([]string{command}, args...)
+	cases := []struct{ command, header, row string }{
+		{"", "hostname,model,firmware,hashrate,temperature,power_w,efficiency,fan,pool,pool_connection,pool_fallback,shares,best_difficulty,uptime_s,overheat,paused",
+			"%s,miner-%s,BM1370,v2.15.3,current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s,chip=65.12 C; regulator=73.00 C,20.1245117,19.36 J/TH,speed=60.74 %%; rpm=4057,pool.example.org,IPv4,false,accepted=1908; rejected=11,all_time=42896578860; session=634703787,612447,false,false,null"},
+		{"info", "hostname,asic_model,firmware,axeos_version,idf_version,board,heap_free_bytes,heap_internal_free_bytes,heap_min_free_bytes,heap_max_alloc_bytes,wifi_state,wifi_signal_dbm,uptime_s,reset_reason,partition",
+			"%s,miner-%s,BM1370,v2.15.3,Unified,v6.0.2,\"601\",7515284,85415,7091532,31744,Connected!,-49,612447,Software reset via esp_restart,ota_1,null"},
+		{"asic", "model,device_model,asic_count,hash_domains,frequency_mhz,frequency_actual_mhz,frequency_default_mhz,core_voltage_set_mv,core_voltage_actual_mv,core_voltage_default_mv,fan_mode,fan_manual_pct,temperature_target_c",
+			"%s,BM1370,Gamma,1,4,525,525,525,1100,1093,1150,auto,57,65,null"},
+		{"stats", "sample_count,logging_interval_s,current_timestamp_ms,latest_timestamp_ms,hashrate_ghs,hashrate_1h_ghs,chip_temperature_c,regulator_temperature_c,power_w,state",
+			"%s,3,120,612447946,612447553,979.0009766,1070.2735596,64.875,73,20.1245117,null,null"},
+		{"firmware", "partition,version,size_bytes,sha256",
+			"%s,ota_1,v2.15.3,1638400,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null"},
+	}
+	for _, c := range cases {
+		args := hostArgs(first, second)
+		if c.command != "" {
+			args = append([]string{c.command}, args...)
 		}
 		code, out := execute(t, a, args...)
-		header := "miners[3]{host," + viewNames(command) + ",error}:"
-		if code != 0 || !strings.Contains(out, "count: 3\nfailed: 0\n"+header+"\n") || strings.Count(out, ",null\n") != 3 {
-			t.Errorf("command=%q code=%d out=%s", command, code, out)
+		var row1, row2 string
+		if c.command == "" || c.command == "info" {
+			row1 = fmt.Sprintf(c.row, fmt.Sprintf("%q", first), "a")
+			row2 = fmt.Sprintf(c.row, fmt.Sprintf("%q", second), "b")
+		} else {
+			row1 = fmt.Sprintf(c.row, fmt.Sprintf("%q", first))
+			row2 = fmt.Sprintf(c.row, fmt.Sprintf("%q", second))
 		}
-		if command == "" && (!strings.HasPrefix(out, "bin:") || !strings.Contains(out, "\nhelp[1]: \"axeos-axi info --host '"+first+"' --host '"+second+"' --host '"+third+"'")) {
+		want := "count: 2\nfailed: 0\nminers[2]{host," + c.header + ",error}:\n  " + row1 + "\n  " + row2 + "\n"
+		if code != 0 || !strings.Contains(out, want) {
+			t.Errorf("command=%q code=%d out=%s\nwant %s", c.command, code, out, want)
+		}
+		if c.command == "" && (!strings.HasPrefix(out, "bin:") || !strings.Contains(out, "\nhelp[1]: \"axeos-axi info --host '"+first+"' --host '"+second+"'")) {
 			t.Errorf("home output: %s", out)
 		}
-		if command != "" && strings.Contains(out, "help") {
+		if c.command != "" && strings.Contains(out, "help") {
 			t.Errorf("a result without a failed miner has no help line: %s", out)
 		}
 	}
@@ -103,7 +122,7 @@ func TestFailedMinerKeepsItsRowAndTheOthersPrint(t *testing.T) {
 	started := time.Now()
 	code, out := execute(t, a, append([]string{"info", "--fields", "hostname"}, hostArgs(slow, broken, good, slowTwo)...)...)
 	elapsed := time.Since(started)
-	want := fmt.Sprintf("count: 4\nfailed: 3\nminers[4]{host,hostname,error}:\n  %q,null,timeout\n  %q,null,miner_read_failed\n  %q,miner-a,null\n  %q,null,timeout\nhelp[3]: \"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\"\n", slow, broken, good, slowTwo, slow, broken, slowTwo)
+	want := fmt.Sprintf("count: 4\nfailed: 3\nminers[4]{host,hostname,error}:\n  %q,null,miner_read_failed\n  %q,null,miner_read_failed\n  %q,miner-a,null\n  %q,null,miner_read_failed\nhelp[3]: \"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\"\n", slow, broken, good, slowTwo, slow, broken, slowTwo)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -199,10 +218,15 @@ func TestSeveralHostsOnOtherCommandsAreRefused(t *testing.T) {
 	for _, command := range [][]string{
 		{"scoreboard"}, {"stats", "--samples", "2"}, {"stats", "--columns", "power"}, {"logs"}, {"logs", "--lines", "3"}, {"health"},
 		{"restart"}, {"restart", "--confirm"}, {"tuning", "--frequency", "550"}, {"pool", "--url", "pool.example.org"},
-		{"discover"}, {"skill", "install"},
 	} {
 		code, out := execute(t, a, append(slices.Clone(command), hostArgs(first, second)...)...)
 		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "several miners are accepted by the home view, `info`, `asic`, `stats` and `firmware`") {
+			t.Errorf("command=%v code=%d out=%s", command, code, out)
+		}
+	}
+	for _, command := range [][]string{{"discover"}, {"skill", "install"}} {
+		code, out := execute(t, a, append(slices.Clone(command), hostArgs(first, second)...)...)
+		if code != 2 || !strings.Contains(out, "unknown flag --host") {
 			t.Errorf("command=%v code=%d out=%s", command, code, out)
 		}
 	}
@@ -219,6 +243,9 @@ func TestSameHostTwiceAndInvalidHostSendNothing(t *testing.T) {
 		{"info", "--host", first, "--host", second, "--host", first},
 		{"info", "--host", strings.TrimPrefix(first, "http://"), "--host", first},
 		{"info", "--host", strings.ToUpper(first), "--host", first},
+		{"info", "--host", first + "/#/", "--host", first},
+		{"info", "--host", "192.0.2.10", "--host", "http://192.0.2.10/#/"},
+		{"info", "--host", "192.0.2.10", "--host", "192.0.2.10:80"},
 	} {
 		code, out := execute(t, a, args...)
 		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "more than once") {
