@@ -20,7 +20,9 @@ const (
 	universalFlags  = "--json, --help, -v, -V, --version"
 	jsonFlagHelp    = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	versionFlagHelp = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
-	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+	hostFlagHelp    = "--host <address>; default AXEOS_HOST; required for reads; one miner; HTTP unless a scheme is supplied"
+	hostsFlagHelp   = "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
+	severalHelp     = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (timeout, miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool, discover and skill take one miner"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "skill"}
@@ -65,6 +67,7 @@ func New(getenv func(string) string) *App {
 
 type options struct {
 	command, host, action  string
+	hosts                  []string
 	path                   string
 	timeout, lines, follow int
 	samples                int
@@ -95,9 +98,6 @@ func parse(args []string) (options, error) {
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
 		case "--host", "--fields", "--timeout", "--lines", "--follow", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
-			if flag == "--host" && hostSet {
-				fail("--host was given more than once; a command takes one miner")
-			}
 			if slices.Contains(tuningFlags, flag) || slices.Contains(poolFlags, flag) {
 				fail("%s was given more than once", flag)
 			}
@@ -148,7 +148,11 @@ func parse(args []string) (options, error) {
 			case "--path":
 				opts.path = value
 			case "--host":
-				opts.host = value
+				if slices.ContainsFunc(opts.hosts, func(h string) bool { return sameHost(h, value) }) {
+					fail("--host names %s more than once", value)
+					continue
+				}
+				opts.hosts = append(opts.hosts, value)
 			case "--timeout":
 				seconds, err := strconv.Atoi(value)
 				if err != nil || seconds < 1 || seconds > maxDiscoverTimeout {
@@ -256,6 +260,14 @@ func parse(args []string) (options, error) {
 				continue
 			}
 			opts.command = arg
+		}
+	}
+	if len(opts.hosts) > 1 {
+		if first != nil {
+			return opts, first
+		}
+		if err := severalHostsError(opts, samplesSet || columnsSet); err != nil {
+			return opts, err
 		}
 	}
 	if opts.command == "skill" {
@@ -392,20 +404,31 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "discover" {
 		return a.discover(ctx, opts, stdout)
 	}
-	if opts.host == "" {
-		opts.host = a.getenv("AXEOS_HOST")
+	if len(opts.hosts) == 0 {
+		if host := a.getenv("AXEOS_HOST"); host != "" {
+			opts.hosts = []string{host}
+		}
 	}
-	if opts.host == "" {
+	if len(opts.hosts) == 0 {
 		var lead output.Object
 		if opts.command == "" {
 			lead = identity()
 		}
 		return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>")
 	}
-	client, err := axeos.New(opts.host)
-	if err != nil {
-		return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
+	clients := make([]*axeos.Client, len(opts.hosts))
+	for i, host := range opts.hosts {
+		client, err := axeos.New(host)
+		if err != nil {
+			return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
+		}
+		clients[i] = client
 	}
+	if len(clients) > 1 {
+		return readMiners(ctx, clients, opts, stdout)
+	}
+	opts.host = opts.hosts[0]
+	client := clients[0]
 	if opts.command == "scoreboard" {
 		return scoreboard(ctx, client, opts, stdout)
 	}
@@ -427,95 +450,13 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "pool" {
 		return pool(ctx, client, opts, stdout)
 	}
-	var info map[string]any
-	if opts.command != "firmware" {
-		info, err = client.Get(ctx, "info")
-		if err != nil {
-			return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
-		}
+	view, readErr := readView(ctx, client, opts.host, opts)
+	if readErr != nil {
+		return failure(stdout, readErr.exit, readErr.code, readErr.message, readErr.help)
 	}
-	var fields output.Object
-	raw := info
-	switch opts.command {
-	case "firmware":
-		checksum, readErr := client.Get(ctx, "firmware/checksum")
-		if readErr != nil {
-			return optionalReadFailure(stdout, readErr, "firmware checksum", opts.host)
-		}
-		raw = checksum
-		fields = firmwareView(checksum)
-	case "info":
-		fields = infoView(info)
-	case "asic":
-		asic, readErr := client.Get(ctx, "asic")
-		if readErr != nil {
-			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check the miner API with axeos-axi info")
-		}
-		raw = make(map[string]any, len(info)+len(asic))
-		for k, v := range info {
-			raw[k] = v
-		}
-		for k, v := range asic {
-			raw[k] = v
-		}
-		fields = asicView(raw)
-	case "stats":
-		var stats map[string]any
-		var readErr error
-		if len(opts.columns) != 0 {
-			stats, readErr = client.GetStatistics(ctx, opts.columns)
-		} else {
-			stats, readErr = client.Get(ctx, "statistics")
-		}
-		if readErr != nil {
-			return failure(stdout, 1, "miner_read_failed", readErr.Error(), "check the miner API with axeos-axi info")
-		}
-		raw = stats
-		if opts.samples != 0 {
-			fields, err = statsHistoryView(info, stats, opts.columns, opts.samples, shellQuote(opts.host))
-		} else {
-			fields, err = statsView(info, stats)
-		}
-		if err != nil {
-			return failure(stdout, 1, "invalid_statistics", err.Error(), "check AxeOS statistics API compatibility")
-		}
-	default:
-		fields = homeView(info)
-	}
-	if len(opts.fields) != 0 {
-		selected := make(output.Object, 0, len(opts.fields))
-		available := map[string]any{}
-		for _, name := range strings.Split(viewNames(opts.command), ",") {
-			available[name] = nil
-		}
-		if readsInfoFields(opts.command) {
-			for _, name := range conditionalInfoFields {
-				available[name] = nil
-			}
-		}
-		for k, v := range raw {
-			available[k] = v
-		}
-		for _, f := range fields {
-			available[f.Name] = f.Value
-		}
-		for _, name := range opts.fields {
-			value, ok := available[name]
-			if !ok {
-				return failure(stdout, 2, "unknown_field", "unknown field "+name, strings.TrimSpace("axeos-axi "+opts.command)+" --help; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
-			}
-			selected = append(selected, output.Field{Name: name, Value: value})
-		}
-		if opts.command == "stats" && available["state"] != nil {
-			stateSelected := false
-			for _, name := range opts.fields {
-				stateSelected = stateSelected || name == "state"
-			}
-			if !stateSelected {
-				selected = append(output.Object{{Name: "state", Value: available["state"]}}, selected...)
-			}
-		}
-		fields = selected
+	fields, unknown := view.selected(opts)
+	if unknown != "" {
+		return failure(stdout, 2, "unknown_field", "unknown field "+unknown, strings.TrimSpace("axeos-axi "+opts.command)+" --help; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
 	}
 	if opts.command == "" {
 		fields = append(identity(), fields...)
@@ -584,6 +525,11 @@ func help(command string) output.Object {
 	if label == "" {
 		label = "home"
 	}
+	hostHelp := hostFlagHelp
+	several := slices.Contains([]string{"", "info", "asic", "stats", "firmware"}, command)
+	if several {
+		hostHelp = hostsFlagHelp
+	}
 	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
@@ -592,7 +538,7 @@ func help(command string) output.Object {
 	}
 	flags := output.Object{
 		{Name: "flags", Value: output.Object{
-			{Name: "host", Value: hostFlagHelp},
+			{Name: "host", Value: hostHelp},
 			{Name: "fields", Value: fieldsHelp(command)},
 			{Name: "json", Value: jsonFlagHelp},
 			{Name: "help", Value: "--help; no network request"},
@@ -600,6 +546,9 @@ func help(command string) output.Object {
 		}},
 		{Name: "timeout_s", Value: 4},
 		{Name: "view_fields", Value: viewNames(command)},
+	}
+	if several {
+		flags = append(flags[:1:1], append(output.Object{{Name: "several_miners", Value: severalHelp}}, flags[1:]...)...)
 	}
 	if command == "stats" {
 		flagList := flags[0].Value.(output.Object)
@@ -615,6 +564,9 @@ func help(command string) output.Object {
 	examples := []any{prefix + " --host 192.0.2.10", prefix + " --host 192.0.2.10 --fields " + exampleFields(command), prefix + " --help"}
 	if command == "stats" {
 		examples[2] = prefix + " --host 192.0.2.10 --samples 10 --columns fanRpm,wifiRssi"
+	}
+	if several {
+		examples = append(examples, prefix+" --host 192.0.2.10 --host 192.0.2.11")
 	}
 	return append(fields, append(flags, output.Object{
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},

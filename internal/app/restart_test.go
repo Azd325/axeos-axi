@@ -181,7 +181,7 @@ func TestRestartWithRepeatedHostSendsNothing(t *testing.T) {
 		{"restart", "--host", first, "--host", second},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; a command takes one miner") || !strings.Contains(out, "valid flags: --host, --confirm,") {
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; `restart` takes one miner; several miners are accepted by the home view") || !strings.Contains(out, "valid flags: --host, --confirm,") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}

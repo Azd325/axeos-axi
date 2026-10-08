@@ -282,7 +282,7 @@ func TestTuningWithRepeatedHostSendsNothing(t *testing.T) {
 		{"tuning", "--host=" + first, "--host=" + second, "--core-voltage", "1150"},
 	} {
 		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "--host was given more than once; a command takes one miner") || !strings.Contains(out, "valid flags: --host, --frequency, --core-voltage, --confirm,") {
+		if code != 2 || !strings.Contains(out, "--host was given more than once; `tuning` takes one miner; several miners are accepted by the home view") || !strings.Contains(out, "valid flags: --host, --frequency, --core-voltage, --confirm,") {
 			t.Errorf("args=%v code=%d out=%s", args, code, out)
 		}
 	}

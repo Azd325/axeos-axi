@@ -2,12 +2,13 @@ exit: 0
 command: firmware
 description: "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported"
 flags:
-  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
+  host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST names one miner"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names"
   json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
   help: "--help; no network request"
   version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+several_miners: "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (timeout, miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool, discover and skill take one miner"
 timeout_s: 4
 view_fields: "partition,version,size_bytes,sha256"
 private_fields: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"
-examples[3]: axeos-axi firmware --host 192.0.2.10,"axeos-axi firmware --host 192.0.2.10 --fields version,sha256",axeos-axi firmware --help
+examples[4]: axeos-axi firmware --host 192.0.2.10,"axeos-axi firmware --host 192.0.2.10 --fields version,sha256",axeos-axi firmware --help,axeos-axi firmware --host 192.0.2.10 --host 192.0.2.11
