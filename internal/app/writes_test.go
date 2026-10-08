@@ -479,7 +479,7 @@ func TestWriteHelpStatesTheRulesForSeveralMiners(t *testing.T) {
 	for command, want := range map[string][]string{
 		"restart": {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info to each miner", "the result is changed, failed or not_attempted", "a restart has no command that reverses it", "no flag takes the hosts from discover"},
 		"pool":    {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info to each miner", "the result is changed, failed or not_attempted", "restore is the complete command that sets the previous values of that one miner again", "no flag takes the hosts from discover"},
-		"tuning":  {"--host more than once is a usage error, because tuning for several miners is not supported yet"},
+		"tuning":  {"repeat --host to change several miners in one call", "several_miners: \"with --host given more than once: each call first sends one GET /api/system/info and one GET /api/system/asic to each miner", "the result is changed, failed or not_attempted", "restore is the complete command that sets the previous values of that one miner again", "the list of each miner must have it", "the column allowed with the list of that miner", "no flag takes the hosts from discover"},
 	} {
 		code, out := execute(t, a, command, "--help")
 		for _, text := range want {
@@ -487,8 +487,5 @@ func TestWriteHelpStatesTheRulesForSeveralMiners(t *testing.T) {
 				t.Errorf("%s --help lacks %q\n%s", command, text, out)
 			}
 		}
-	}
-	if _, out := execute(t, a, "tuning", "--help"); strings.Contains(out, "several_miners") {
-		t.Errorf("tuning --help: %s", out)
 	}
 }
