@@ -384,7 +384,7 @@ reports `not_supported` with exit code 1 and does not follow the redirect.
 `firmware --check-release` compares the firmware version of the miner with the newest released version.
 This is the one request of the tool that leaves the local network; it runs only with this flag.
 Without the flag no command contacts a host other than the miner you name.
-The command makes two reads. It reads `info` from the miner (the field `version`, which the firmware sets
+The command sends one request to the miner and one to GitHub. It reads `info` from the miner (the field `version`, which the firmware sets
 from its application description; `axeOSVersion` is the web interface version and is not used).
 Then it sends one HTTPS GET to `https://api.github.com/repos/bitaxeorg/ESP-Miner/releases/latest`.
 The address is fixed in the code. The request has no token and no cookie, carries no value from the miner,
@@ -404,16 +404,12 @@ release:
   date: "2026-09-20T15:57:20Z"
   url: "https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3"
 comparison: up_to_date
-partition: ota_1
-version: v2.15.3
-size_bytes: 1638400
-sha256: ...
+help: "axeos-axi firmware --host '<host>' for the running firmware checksum"
 ```
 
-When the miner has the checksum path, the command also prints the fields of `firmware`.
-Firmware without it (v2.15.3 and older, as the table above says) prints `checksum: not supported by this firmware`
-instead, and the exit code stays 0. If the release read fails (no network, timeout, HTTP 403 rate limit,
-HTTP 5xx, an answer without a tag), the command prints `miner_version` and a `release_read_failed` error
+The command does not read the checksum path, so it works also on firmware v2.15.3 and older. The `help`
+line names the plain `firmware` command, which prints the checksum. If the release read fails (no network,
+timeout, a rate limit, HTTP 403 without a rate limit, HTTP 5xx, an answer without a tag), the command prints `miner_version` and a `release_read_failed` error
 with exit code 1. A failed miner read is `miner_read_failed`. The flag is a flag of `firmware` only, takes one
 `--host`, and cannot combine with `--fields`; `--json` prints the same fields as one JSON document.
 `scoreboard` sends one request, to the scoreboard path only. The miner keeps at most 20 shares,

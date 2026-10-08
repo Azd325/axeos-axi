@@ -1,6 +1,12 @@
 package release
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestDefaultAddressIsFixed(t *testing.T) {
 	if Latest != "https://api.github.com/repos/bitaxeorg/ESP-Miner/releases/latest" {
@@ -36,5 +42,32 @@ func TestCompare(t *testing.T) {
 		if got != tc.want || (got == Unknown) != (reason != "") {
 			t.Errorf("Compare(%q, %q) = %s, %q; want %s", tc.miner, tc.tag, got, reason, tc.want)
 		}
+	}
+}
+
+func TestLatestSeparatesRateLimitFromRefusal(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		code      int
+		remaining string
+		want      error
+	}{
+		{"429", http.StatusTooManyRequests, "", ErrRateLimit},
+		{"403 with no requests left", http.StatusForbidden, "0", ErrRateLimit},
+		{"403 with requests left", http.StatusForbidden, "5", ErrRefused},
+		{"403 without the header", http.StatusForbidden, "", ErrRefused},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.remaining != "" {
+					w.Header().Set("X-RateLimit-Remaining", tc.remaining)
+				}
+				w.WriteHeader(tc.code)
+			}))
+			defer s.Close()
+			if _, err := New(s.URL, "1").Latest(context.Background()); !errors.Is(err, tc.want) {
+				t.Fatalf("err=%v want %v", err, tc.want)
+			}
+		})
 	}
 }

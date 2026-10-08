@@ -109,7 +109,7 @@ func TestCheckReleaseSendsTheCompleteRequest(t *testing.T) {
 	if strings.Contains(got[0], strings.TrimPrefix(host, "http://")) || strings.Contains(got[0], "miner-a") {
 		t.Fatalf("the request carries a value of the miner: %q", got[0])
 	}
-	if c := calls(); len(c) != 2 || c[0] != "GET /api/system/info" || c[1] != "GET /api/system/firmware/checksum" {
+	if c := calls(); len(c) != 1 || c[0] != "GET /api/system/info" {
 		t.Fatalf("miner requests %v", c)
 	}
 }
@@ -130,7 +130,7 @@ func TestCheckReleaseComparisons(t *testing.T) {
 			host, _ := minerWithVersion(t, tc.miner)
 			code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", host)
 			want := "miner_version: " + tc.miner + "\nrelease:\n  tag: " + tc.tag + "\n  name: Release " + tc.tag + "\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/" + tc.tag + "\"\ncomparison: " + tc.comparison + "\n" + tc.reason +
-				"partition: ota_1\nversion: v2.15.3\nsize_bytes: 1638400\nsha256: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\n"
+				"help: \"axeos-axi firmware --host " + shellQuote(host) + " for the running firmware checksum\"\n"
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 			}
@@ -151,16 +151,23 @@ func TestCheckReleaseWithoutChecksumPath(t *testing.T) {
 	g := githubFake(t, latestRelease("v2.15.3"))
 	host, calls := minerWithoutChecksum(t, "v2.15.2")
 	code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", host)
-	want := "miner_version: v2.15.2\nrelease:\n  tag: v2.15.3\n  name: Release v2.15.3\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3\"\ncomparison: update_available\nchecksum: not supported by this firmware\n"
+	want := "miner_version: v2.15.2\nrelease:\n  tag: v2.15.3\n  name: Release v2.15.3\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3\"\ncomparison: update_available\nhelp: \"axeos-axi firmware --host " + shellQuote(host) + " for the running firmware checksum\"\n"
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
-	if len(g.requests()) != 1 || len(calls()) != 2 {
+	if len(g.requests()) != 1 || len(calls()) != 1 {
 		t.Fatalf("requests %v %v", g.requests(), calls())
 	}
 	code, out = execute(t, releaseApp(g), "firmware", "--host", host)
 	if code != 1 || !strings.Contains(out, "code: not_supported") {
 		t.Fatalf("firmware without the flag: code=%d\n%s", code, out)
+	}
+}
+
+func withHeader(code int, name, value string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set(name, value)
+		w.WriteHeader(code)
 	}
 }
 
@@ -173,7 +180,7 @@ func TestCheckReleaseJSON(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	release, _ := doc["release"].(map[string]any)
-	if code != 0 || doc["miner_version"] != "v2.15.2" || doc["comparison"] != "update_available" || release["tag"] != "v2.15.3" || release["date"] != "2026-09-20T15:57:20Z" || release["url"] == nil || doc["sha256"] == nil {
+	if code != 0 || doc["miner_version"] != "v2.15.2" || doc["comparison"] != "update_available" || release["tag"] != "v2.15.3" || release["date"] != "2026-09-20T15:57:20Z" || release["url"] == nil || doc["help"] == nil {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
@@ -187,7 +194,9 @@ func TestCheckReleaseReadErrors(t *testing.T) {
 		handler http.HandlerFunc
 		message string
 	}{
-		{"rate limit", status(http.StatusForbidden), "rate limit"},
+		{"rate limit", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "0"), "rate limit"},
+		{"refused", status(http.StatusForbidden), "HTTP 403"},
+		{"refused with requests left", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "12"), "HTTP 403"},
 		{"too many requests", status(http.StatusTooManyRequests), "rate limit"},
 		{"server error", status(http.StatusInternalServerError), "HTTP 500"},
 		{"bad gateway", status(http.StatusBadGateway), "HTTP 502"},
@@ -250,20 +259,26 @@ func TestCheckReleaseMinerErrors(t *testing.T) {
 	if code != 1 || !strings.HasPrefix(out, "error:\n  code: miner_read_failed\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	infoOnly := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	if n := len(g.requests()); n != 0 {
+		t.Fatalf("a failed miner read sent %d release requests", n)
+	}
+}
+
+func TestCheckReleaseIgnoresAFailingChecksumPath(t *testing.T) {
+	g := githubFake(t, latestRelease("v2.15.3"))
+	var paths []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
 		if r.URL.Path == "/api/system/info" {
 			_ = json.NewEncoder(w).Encode(fixture(t, "info"))
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	t.Cleanup(infoOnly.Close)
-	code, out = execute(t, releaseApp(g), "firmware", "--check-release", "--host", infoOnly.URL)
-	if code != 1 || !strings.HasPrefix(out, "miner_version: v2.15.3\nerror:\n  code: miner_read_failed\n") {
-		t.Fatalf("checksum read failure: code=%d\n%s", code, out)
-	}
-	if n := len(g.requests()); n != 0 {
-		t.Fatalf("a failed miner read sent %d release requests", n)
+	t.Cleanup(s.Close)
+	code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", s.URL)
+	if code != 0 || !strings.Contains(out, "comparison: up_to_date\n") || len(paths) != 1 {
+		t.Fatalf("code=%d paths=%v\n%s", code, paths, out)
 	}
 }
 

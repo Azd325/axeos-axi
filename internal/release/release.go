@@ -23,7 +23,8 @@ const (
 
 var (
 	ErrUnreachable = errors.New("GitHub is unreachable or the request timed out")
-	ErrRateLimit   = errors.New("GitHub refused the request with HTTP 403 or 429; the rate limit for requests without a token is reached")
+	ErrRateLimit   = errors.New("the rate limit of GitHub for requests without a token is reached")
+	ErrRefused     = errors.New("GitHub answered with HTTP 403")
 	ErrNoTag       = errors.New("the GitHub answer has no release tag")
 	ErrInvalid     = errors.New("the GitHub answer is not a release document")
 )
@@ -68,8 +69,10 @@ func (c *Client) Latest(ctx context.Context) (Release, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	switch {
-	case resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests:
+	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusForbidden && resp.Header.Get("X-Ratelimit-Remaining") == "0":
 		return Release{}, ErrRateLimit
+	case resp.StatusCode == http.StatusForbidden:
+		return Release{}, ErrRefused
 	case resp.StatusCode >= 300 && resp.StatusCode < 400:
 		return Release{}, fmt.Errorf("GitHub answered with HTTP %d; the tool follows no redirect", resp.StatusCode)
 	case resp.StatusCode != http.StatusOK:
