@@ -254,7 +254,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		help = append(help, "restore has the command that sets the previous values of that one miner again")
 	}
 	fields = append(fields, output.Field{Name: "result", Value: result})
-	if staleRead {
+	if isPool && changed != 0 {
 		fields = append(fields, output.Field{Name: "note", Value: poolStaleRead})
 	}
 	if len(help) != 0 {

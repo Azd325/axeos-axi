@@ -249,6 +249,22 @@ func TestSeveralMinersRejectedFirstWriteHasNoStaleReadText(t *testing.T) {
 	}
 }
 
+func TestSeveralMinersUnconfirmedFirstWriteHasStaleReadHelpAndNoNote(t *testing.T) {
+	first, _ := poolMiner(t, nil, func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		_ = conn.Close()
+	})
+	second, secondCalls := poolMiner(t, nil, settingsSaved)
+	code, out := execute(t, New(noHost), onHosts([]string{"pool", "--fallback-port", "4444", "--confirm"}, first, second)...)
+	if code != 1 || !strings.Contains(out, "changed: 0\n") || !strings.Contains(out, "pool_unconfirmed") || strings.Contains(out, "note:") || !strings.Contains(out, "firmware v2.15.3 reports the pool values from before a write") || secondCalls() != poolRead {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+}
+
 func TestSeveralMinersWriteThatWasNotSentHasNoRestoreCommand(t *testing.T) {
 	gone, goneCalls := minerGoneAfterTheCheck(t)
 	last, lastCalls := poolMiner(t, nil, settingsSaved)
