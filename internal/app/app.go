@@ -14,6 +14,7 @@ import (
 	"github.com/Azd325/axeos-axi/internal/axeos"
 	"github.com/Azd325/axeos-axi/internal/mdns"
 	"github.com/Azd325/axeos-axi/internal/output"
+	"github.com/Azd325/axeos-axi/internal/release"
 )
 
 const (
@@ -43,6 +44,8 @@ func validFlags(command string) string {
 		return "--host, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
+	case "firmware":
+		return "--host, --fields, --check-release, " + universalFlags
 	case "tuning":
 		return "--host, --frequency, --core-voltage, --confirm, " + universalFlags
 	case "pool":
@@ -59,6 +62,8 @@ type App struct {
 	getenv  func(string) string
 	Version string
 	Browser Browser
+
+	releaseURL string
 }
 
 func New(getenv func(string) string) *App {
@@ -77,6 +82,7 @@ type options struct {
 	pool                   map[string]any
 	help, version, confirm bool
 	showUser, showPrivate  bool
+	checkRelease           bool
 	json                   bool
 }
 
@@ -215,7 +221,7 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version", "--json", "--confirm", "--show-user", "--show-private":
+		case "--help", "-v", "-V", "--version", "--json", "--confirm", "--show-user", "--show-private", "--check-release":
 			if assigned {
 				opts.json = opts.json || flag == "--json"
 				fail("%s does not accept a value", flag)
@@ -235,6 +241,8 @@ func parse(args []string) (options, error) {
 				opts.showUser = true
 			case "--show-private":
 				opts.showPrivate = true
+			case "--check-release":
+				opts.checkRelease = true
 			default:
 				opts.version = true
 			}
@@ -258,9 +266,15 @@ func parse(args []string) (options, error) {
 			opts.command = arg
 		}
 	}
+	if opts.checkRelease && opts.command != "firmware" && first == nil {
+		return opts, errors.New("unknown flag --check-release; it is a flag of `firmware` only")
+	}
 	if len(opts.hosts) > 1 {
 		if first != nil {
 			return opts, first
+		}
+		if opts.checkRelease {
+			return opts, errors.New("--check-release takes one miner; --host was given more than once, and the comparison for several miners is not available")
 		}
 		if err := severalHostsError(opts, samplesSet || columnsSet); err != nil {
 			return opts, err
@@ -304,6 +318,9 @@ func parse(args []string) (options, error) {
 	}
 	if fieldsSet && (samplesSet || columnsSet) {
 		return opts, errors.New("--fields cannot be combined with --samples or --columns; they print a table of samples")
+	}
+	if opts.checkRelease && fieldsSet {
+		return opts, errors.New("--fields cannot be combined with --check-release; it prints a fixed result")
 	}
 	if columnsSet && !samplesSet {
 		opts.samples = 1
@@ -451,6 +468,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "pool" {
 		return pool(ctx, client, opts, stdout)
 	}
+	if opts.checkRelease {
+		return a.checkRelease(ctx, client, opts, stdout)
+	}
 	view, readErr := readView(ctx, client, opts.host, opts)
 	if readErr != nil {
 		return failure(stdout, readErr.exit, readErr.code, readErr.message, readErr.help)
@@ -531,7 +551,7 @@ func help(command string) output.Object {
 	if several {
 		hostHelp = hostsFlagHelp
 	}
-	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
+	descriptions := map[string]string{"home": "Live mining health", "info": "System and network detail", "asic": "ASIC hardware and current tuning", "stats": "Recorded sample count and latest sample; disabled logging is an explicit empty state; --samples and --columns print recorded samples, oldest first and newest last, as a table of the timestamp and the named columns, with sample_count and shown_samples; --columns alone prints the newest sample; --samples alone prints the default columns", "firmware": "Running firmware image and its SHA-256, comparable to sha256sum of the release esp-miner.bin; needs firmware newer than v2.15.3, and v2.15.3 and older answer not_supported; --check-release also compares the miner firmware version with the newest GitHub release and works without the checksum path", "scoreboard": "Best-difficulty shares, highest first, at most 20; default columns " + strings.Join(scoreboardDefaults, ",") + "; --fields replaces the row columns; ntime is the block-header time in Unix seconds"}
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
@@ -559,6 +579,12 @@ func help(command string) output.Object {
 		}, flagList[2:]...)...)
 		flags[0].Value = flagList
 	}
+	if command == "firmware" {
+		flagList := flags[0].Value.(output.Object)
+		flagList = append(flagList[:2:2], append(output.Object{{Name: "check_release", Value: checkReleaseHelp}}, flagList[2:]...)...)
+		flags[0].Value = flagList
+		flags = append(flags, output.Field{Name: "release_timeout_s", Value: int(release.Timeout.Seconds())})
+	}
 	if readsInfoFields(command) {
 		flags = append(flags, output.Field{Name: "conditional_fields", Value: strings.Join(conditionalInfoFields, ",")})
 	}
@@ -568,6 +594,9 @@ func help(command string) output.Object {
 	}
 	if several {
 		examples = append(examples, prefix+" --host 192.0.2.10 --host 192.0.2.11")
+	}
+	if command == "firmware" {
+		examples = append(examples, prefix+" --host 192.0.2.10 --check-release")
 	}
 	return append(fields, append(flags, output.Object{
 		{Name: "private_fields", Value: "info/home/asic: stratumUser,fallbackStratumUser,pools,ssid,macAddr are explicit opt-ins"},
