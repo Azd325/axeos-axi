@@ -46,7 +46,7 @@ func TestHostSaveChecksTheMinerAndWritesOneFile(t *testing.T) {
 	path := configHome(t)
 	host, calls := miner(t, fixture(t, "info"))
 	code, out := execute(t, New(noHost), "host", "save", host)
-	want := "saved_host: \"" + host + "\"\npath: " + tildePath(path) + "\nfirmware: v2.15.3\nwritten: true\nhelp[2]: "
+	want := "saved_host: \"" + host + "\"\npath: " + tildePath(path) + "\nfirmware: v2.15.3\nhelp[2]: "
 	if code != 0 || !strings.HasPrefix(out, want) {
 		t.Fatalf("code=%d\n%s\nwant prefix\n%s", code, out, want)
 	}
@@ -80,26 +80,17 @@ func TestHostSaveStoresTheValidatedAddress(t *testing.T) {
 	}
 }
 
-func TestHostSaveAgainIsNoError(t *testing.T) {
+func TestHostSaveReplacesTheSavedHost(t *testing.T) {
 	path := configHome(t)
-	host, calls := miner(t, fixture(t, "info"))
-	if code, out := execute(t, New(noHost), "host", "save", host); code != 0 {
-		t.Fatal(out)
-	}
-	first, _ := os.Stat(path)
-	code, out := execute(t, New(noHost), "host", "save", host)
-	if code != 0 || !strings.Contains(out, "saved_host: \""+host+"\"\n") || !strings.Contains(out, "firmware: v2.15.3\nwritten: false\n") {
-		t.Fatalf("code=%d\n%s", code, out)
-	}
-	second, _ := os.Stat(path)
-	if !second.ModTime().Equal(first.ModTime()) || len(calls()) != 2 {
-		t.Fatalf("second save rewrote the file or skipped the check: %v", calls())
-	}
+	host, _ := miner(t, fixture(t, "info"))
 	other, _ := miner(t, fixture(t, "info"))
-	code, out = execute(t, New(noHost), "host", "save", other)
-	content, _ := os.ReadFile(path)
-	if code != 0 || !strings.Contains(out, "written: true") || string(content) != other+"\n" {
-		t.Fatalf("code=%d file=%q\n%s", code, content, out)
+	for _, address := range []string{host, host, other} {
+		if code, out := execute(t, New(noHost), "host", "save", address); code != 0 {
+			t.Fatal(out)
+		}
+	}
+	if content, _ := os.ReadFile(path); string(content) != other+"\n" {
+		t.Fatalf("file=%q", content)
 	}
 }
 
@@ -183,10 +174,21 @@ func TestHostUsageErrorsSendAndWriteNothing(t *testing.T) {
 	}
 }
 
-func TestHostAlonePrintsItsHelp(t *testing.T) {
+func TestHostAloneIsAUsageError(t *testing.T) {
+	path := configHome(t)
+	code, out := execute(t, New(noHost), "host")
+	if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, hostUsage) {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+		t.Fatalf("usage error wrote into the configuration directory: %v", err)
+	}
+}
+
+func TestHostHelp(t *testing.T) {
 	path := configHome(t)
 	_, help := execute(t, New(noHost), "host", "--help")
-	for _, args := range [][]string{{"host"}, {"host", "save", "--help"}, {"host", "show", "--help"}, {"--help", "host", "forget"}} {
+	for _, args := range [][]string{{"host", "save", "--help"}, {"host", "show", "--help"}, {"--help", "host", "forget"}} {
 		code, out := execute(t, New(noHost), args...)
 		if code != 0 || out != help || !strings.HasPrefix(out, "command: host\n") {
 			t.Errorf("%v: code=%d\n%s", args, code, out)
@@ -349,6 +351,13 @@ func TestSavedHostIsStatedOnAFailedRead(t *testing.T) {
 	if code != 1 || !strings.HasPrefix(out, "saved_host: \""+host+"\"\nerror:\n  code: miner_read_failed\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
+	if !strings.Contains(out, "help: "+savedConnectivityHelp+"\n") || strings.Contains(out, "AXEOS_HOST") {
+		t.Fatalf("help names a source that was not used:\n%s", out)
+	}
+	code, out = execute(t, New(noHost), "info", "--host", host)
+	if code != 1 || !strings.Contains(out, "help: "+connectivityHelp+"\n") || strings.Contains(out, "saved_host") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
 }
 
 func TestInvalidSavedHostFileIsAnError(t *testing.T) {
@@ -424,7 +433,7 @@ func TestHostSaveReplacesAnInvalidFile(t *testing.T) {
 	saveFile(t, path, "malformed")
 	code, out := execute(t, New(noHost), "host", "save", host)
 	content, _ := os.ReadFile(path)
-	if code != 0 || !strings.Contains(out, "written: true") || string(content) != host+"\n" {
+	if code != 0 || string(content) != host+"\n" {
 		t.Fatalf("code=%d file=%q\n%s", code, content, out)
 	}
 }

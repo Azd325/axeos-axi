@@ -19,12 +19,14 @@ import (
 )
 
 const (
-	universalFlags  = "--json, --help, -v, -V, --version"
-	jsonFlagHelp    = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
-	versionFlagHelp = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
-	hostFlagHelp    = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
-	hostsFlagHelp   = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
-	severalHelp     = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
+	connectivityHelp      = "check --host or AXEOS_HOST and local network connectivity"
+	savedConnectivityHelp = "check local network connectivity; axeos-axi host show prints the saved host; axeos-axi host save <address> replaces it; axeos-axi host forget removes it"
+	universalFlags        = "--json, --help, -v, -V, --version"
+	jsonFlagHelp          = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+	versionFlagHelp       = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+	hostFlagHelp          = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
+	hostsFlagHelp         = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
+	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs, health, restart, tuning, pool take one miner"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill"}
@@ -400,6 +402,9 @@ func failure(w io.Writer, exit int, code, message, help string) int {
 }
 
 func failureAfter(w io.Writer, lead output.Object, exit int, code, message, help string) int {
+	if _, ok := w.(*savedHostWriter); ok && help == connectivityHelp {
+		help = savedConnectivityHelp
+	}
 	if write(w, append(lead, output.Object{{Name: "error", Value: output.Object{{Name: "code", Value: code}, {Name: "message", Value: message}}}, {Name: "help", Value: help}}...)) != 0 {
 		return 1
 	}
@@ -410,7 +415,7 @@ func optionalReadFailure(w io.Writer, err error, subject, host string) int {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
 		return failure(w, 1, "not_supported", subject+" is not supported by this firmware", "axeos-axi info --host "+shellQuote(host)+" shows the firmware version")
 	}
-	return failure(w, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+	return failure(w, 1, "miner_read_failed", err.Error(), connectivityHelp)
 }
 
 func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {

@@ -58,7 +58,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
-| `host` | `host save <address>`: the saved host, the path of its file, the firmware version the miner reported and whether the command wrote the file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone prints its help |
+| `host` | `host save <address>`: the saved host, the path of its file and the firmware version the miner reported. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -90,15 +90,15 @@ With none of the three, the error is `host_required` with exit code 2, and its h
 
 `host save <address>` validates the address as `--host` does and sends exactly one GET request to `/api/system/info` at that address.
 It writes the file only when the answer is an AxeOS `info` answer: a JSON object with a `version` text and an `ASICModel` text.
-It prints `saved_host`, `path`, `firmware` (the version the miner reported) and `written`.
+It prints `saved_host`, `path` and `firmware` (the version the miner reported).
 The stored address is the scheme and the host, with a port that is not the default: `host save 192.0.2.10` stores `http://192.0.2.10`.
-The same address again is no error; the command makes the check again and prints `written: false`.
+The same address again is no error; the command makes the check again and writes the file again.
 A failed check writes nothing and keeps a host saved before: an address that does not answer, or answers without JSON or with another HTTP status, is `miner_read_failed`, and a JSON answer that is no `info` answer is `not_a_miner`, both with exit code 1.
 An invalid address is `invalid_host` with exit code 2, and no request is sent.
 
 `host show` prints `saved_host` and `path`; with no file it prints `saved_host: null` and a `state` line.
 `host forget` removes the file and prints `removed: true`; with no file it prints `removed: false` and a `state` line, with exit code 0.
-`host show` and `host forget` send no request. `host` alone prints its help. `host` takes no `--host` and no `--fields`.
+`host show` and `host forget` send no request. `host` alone is a usage error with exit code 2. `host` takes no `--host` and no `--fields`.
 
 The file is `host` in the directory `axeos-axi` of the user configuration directory: `~/.config/axeos-axi/host` on Linux (or under `XDG_CONFIG_HOME`), `~/Library/Application Support/axeos-axi/host` on macOS and `%AppData%\axeos-axi\host` on Windows.
 The commands print the path, with `~` for the home directory.

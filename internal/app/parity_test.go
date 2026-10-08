@@ -138,7 +138,6 @@ var parityCases = []parityCase{
 	{name: "help_skill", args: []string{"skill", "--help"}},
 	{name: "help_host", args: []string{"host", "--help"}},
 	{name: "host_save", args: []string{"host", "save", "MINER"}},
-	{name: "host_save_again", args: []string{"host", "save", "MINER"}, saved: true},
 	{name: "host_show", args: []string{"host", "show"}, saved: true},
 	{name: "host_show_empty", args: []string{"host", "show"}},
 	{name: "host_forget", args: []string{"host", "forget"}, saved: true},

@@ -52,21 +52,18 @@ func valid(host string) bool {
 	return err == nil && client.Base() == host && len(host) < maxBytes
 }
 
-// Write stores the base address of a client (axeos.Client.Base); the same address again writes nothing.
-func Write(path, host string) (written bool, err error) {
+// Write stores the base address of a client (axeos.Client.Base).
+func Write(path, host string) error {
 	if !valid(host) {
-		return false, ErrMalformed
-	}
-	if saved, readErr := Read(path); readErr == nil && saved == host {
-		return false, nil
+		return ErrMalformed
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return false, err
+		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".host-*")
 	if err != nil {
-		return false, err
+		return err
 	}
 	tmpName := tmp.Name()
 	defer func() {
@@ -76,16 +73,16 @@ func Write(path, host string) (written bool, err error) {
 	}()
 	if _, err := tmp.WriteString(host + "\n"); err != nil {
 		_ = tmp.Close()
-		return false, err
+		return err
 	}
 	if err := tmp.Close(); err != nil {
-		return false, err
+		return err
 	}
 	if err := os.Rename(tmpName, path); err != nil {
-		return false, err
+		return err
 	}
 	tmpName = ""
-	return true, nil
+	return nil
 }
 
 func Remove(path string) (removed bool, err error) {

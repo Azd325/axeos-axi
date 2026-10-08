@@ -15,11 +15,10 @@ func TestWriteReadRemove(t *testing.T) {
 	if removed, err := Remove(path); removed || err != nil {
 		t.Fatalf("no file: removed=%v error=%v", removed, err)
 	}
-	if written, err := Write(path, "http://192.0.2.10"); !written || err != nil {
-		t.Fatalf("written=%v error=%v", written, err)
-	}
-	if written, err := Write(path, "http://192.0.2.10"); written || err != nil {
-		t.Fatalf("same host again: written=%v error=%v", written, err)
+	for range 2 {
+		if err := Write(path, "http://192.0.2.10"); err != nil {
+			t.Fatalf("error=%v", err)
+		}
 	}
 	if host, err := Read(path); host != "http://192.0.2.10" || err != nil {
 		t.Fatalf("host=%q error=%v", host, err)
@@ -38,8 +37,8 @@ func TestWriteReadRemove(t *testing.T) {
 func TestWriteRefusesAnAddressThatReadWouldRefuse(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "axeos-axi", "host")
 	for _, host := range []string{"", "192.0.2.10", "http://192.0.2.10/", "http://192.0.2.10:80", "http://192.0.2.10\nhttp://192.0.2.11"} {
-		if written, err := Write(path, host); written || !errors.Is(err, ErrMalformed) {
-			t.Errorf("%q: written=%v error=%v", host, written, err)
+		if err := Write(path, host); !errors.Is(err, ErrMalformed) {
+			t.Errorf("%q: error=%v", host, err)
 		}
 	}
 	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {

@@ -1,6 +1,0 @@
-exit: 0
-saved_host: "HOST"
-path: HOSTFILE
-firmware: v2.15.3
-written: false
-help[2]: axeos-axi for the home view of the saved host; --host and AXEOS_HOST come before it,axeos-axi host forget to remove the saved host

@@ -127,7 +127,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	configuration := "axeos-axi info --host " + hostArg + " --fields primaryPoolIndex,secondaryPoolIndex,pools shows the pool configuration, with the pool users"
 	info, err := client.Get(ctx, "info")
 	if err != nil {
-		return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
 	}
 	listed, isList := info["pools"].([]any)
 	primary, primaryKnown := number(info, "primaryPoolIndex")
@@ -206,7 +206,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	err = client.PatchPools(ctx, records)
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
-		return failure(stdout, 1, "pool_not_sent", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "pool_not_sent", err.Error(), connectivityHelp)
 	case errors.Is(err, axeos.ErrNoAnswer):
 		return failure(stdout, 1, "pool_unconfirmed", err.Error()+"; the change is unconfirmed", verify+"; read them before another write; "+previous)
 	case err != nil:

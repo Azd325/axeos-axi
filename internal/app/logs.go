@@ -173,7 +173,7 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	if opts.lines != noLogLines && !opts.showPrivate {
 		info, err := client.Get(ctx, "info")
 		if err != nil {
-			return failure(stdout, 1, "miner_read_failed", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+			return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
 		}
 		redact = newRedactor(info)
 	}

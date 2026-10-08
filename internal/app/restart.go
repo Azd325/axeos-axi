@@ -29,7 +29,7 @@ func restart(ctx context.Context, client *axeos.Client, opts options, stdout io.
 	err := client.Post(ctx, "restart")
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
-		return failure(stdout, 1, "restart_not_sent", err.Error(), "check --host or AXEOS_HOST and local network connectivity")
+		return failure(stdout, 1, "restart_not_sent", err.Error(), connectivityHelp)
 	case errors.Is(err, axeos.ErrNoAnswer):
 		return failure(stdout, 1, "restart_unconfirmed", err.Error()+"; the restart is unconfirmed", uptime+"; read them before another restart")
 	case err != nil:

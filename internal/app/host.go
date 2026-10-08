@@ -94,14 +94,12 @@ func saveHost(ctx context.Context, address, path string, location output.Field, 
 	if _, hasModel := info["ASICModel"].(string); !hasVersion || version == "" || !hasModel {
 		return failure(stdout, 1, "not_a_miner", "the address answered, but not with an AxeOS info answer: it has no version and ASICModel text; nothing was saved", hostSaveHelp)
 	}
-	written, err := hostfile.Write(path, client.Base())
-	if err != nil {
+	if err := hostfile.Write(path, client.Base()); err != nil {
 		return failure(stdout, 1, "host_save_failed", "the saved host file could not be written to "+tildePath(path), "check the directory and its permissions")
 	}
 	return write(stdout, output.Object{
 		{Name: "saved_host", Value: client.Base()}, location,
 		{Name: "firmware", Value: version},
-		{Name: "written", Value: written},
 		{Name: "help", Value: []any{
 			"axeos-axi for the home view of the saved host; --host and AXEOS_HOST come before it",
 			"axeos-axi host forget to remove the saved host",
@@ -116,8 +114,8 @@ func parseHostCommand(opts options, seen []string, first error) (options, error)
 	if first != nil || opts.version {
 		return opts, first
 	}
-	if opts.action == "" {
-		opts.help = true
+	if opts.action == "" && !opts.help {
+		return opts, errors.New(hostUsage)
 	}
 	if opts.action == "save" && opts.address == "" && !opts.help {
 		return opts, errors.New(hostSaveUsage)
@@ -128,9 +126,9 @@ func parseHostCommand(opts options, seen []string, first error) (options, error)
 func hostHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "host"},
-		{Name: "description", Value: "Saves, shows and removes one default host; a command takes its miner from --host, then AXEOS_HOST, then the saved host, and a result that used the saved host prints saved_host with the address; the saved host is one file named host in the directory axeos-axi of the user configuration directory, readable by the user only; it holds the address and nothing else; only `host save` writes it and only `host forget` removes it; `host` alone prints this help"},
+		{Name: "description", Value: "Saves, shows and removes one default host; a command takes its miner from --host, then AXEOS_HOST, then the saved host, and a result that used the saved host prints saved_host with the address; the saved host is one file named host in the directory axeos-axi of the user configuration directory, readable by the user only; it holds the address and nothing else; only `host save` writes it and only `host forget` removes it; `host` alone is a usage error with exit code 2"},
 		{Name: "actions", Value: output.Object{
-			{Name: "save", Value: "host save <address>; validates the address as --host does, sends exactly one GET /api/system/info to it, and writes the file only when the answer is an AxeOS info answer (it has a version and an ASICModel text); stores the address as scheme and host, with a port that is not the default; prints saved_host, path, firmware (the version the miner reported) and written; the same address again is no error and prints written: false; a failed check writes nothing, keeps a host saved before, and is miner_read_failed or not_a_miner with exit code 1"},
+			{Name: "save", Value: "host save <address>; validates the address as --host does, sends exactly one GET /api/system/info to it, and writes the file only when the answer is an AxeOS info answer (it has a version and an ASICModel text); stores the address as scheme and host, with a port that is not the default; prints saved_host, path and firmware (the version the miner reported); the same address again is no error; a failed check writes nothing, keeps a host saved before, and is miner_read_failed or not_a_miner with exit code 1"},
 			{Name: "show", Value: "host show; prints saved_host and path; with no file prints saved_host: null and a state line; sends no request"},
 			{Name: "forget", Value: "host forget; removes the file and prints removed: true; with no file prints removed: false and a state line, exit code 0; sends no request"},
 		}},

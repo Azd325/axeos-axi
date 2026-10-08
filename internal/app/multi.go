@@ -31,7 +31,7 @@ func optionalViewFailure(err error, subject, host string) *viewFailure {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
 		return &viewFailure{exit: 1, code: "not_supported", message: subject + " is not supported by this firmware", help: "axeos-axi info --host " + shellQuote(host) + " shows the firmware version"}
 	}
-	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: "check --host or AXEOS_HOST and local network connectivity"}
+	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: connectivityHelp}
 }
 
 func readFailed(err error, help string) *viewFailure {
@@ -44,7 +44,7 @@ func readView(ctx context.Context, client *axeos.Client, host string, opts optio
 	if opts.command != "firmware" {
 		info, err = client.Get(ctx, "info")
 		if err != nil {
-			return nil, readFailed(err, "check --host or AXEOS_HOST and local network connectivity")
+			return nil, readFailed(err, connectivityHelp)
 		}
 	}
 	raw := info
