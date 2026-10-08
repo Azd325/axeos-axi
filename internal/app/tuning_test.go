@@ -236,6 +236,7 @@ func TestTuningRejectsInputBeforeNetwork(t *testing.T) {
 		{"tuning", "--frequency"}, {"tuning", "--frequency", "--confirm"}, {"tuning", "--frequency="}, {"tuning", "--frequency", "fast"},
 		{"tuning", "--frequency", "0"}, {"tuning", "--frequency", "-550"}, {"tuning", "--frequency", "550.5"}, {"tuning", "--frequency", "550MHz"},
 		{"tuning", "--core-voltage", "1.15"}, {"tuning", "--core-voltage", "1150mV"}, {"tuning", "--core-voltage"},
+		{"tuning", "--frequency", "Default"}, {"tuning", "--core-voltage", "defaults"}, {"tuning", "--frequency", "default", "--frequency", "550"},
 		{"tuning", "--frequency", "550", "--frequency", "600"}, {"tuning", "--frequency=550", "--frequency=550", "--confirm"},
 		{"tuning", "--core-voltage", "1150", "--core-voltage", "1200", "--confirm"},
 		{"tuning", "--frequency", "550", "--fields", "host"}, {"tuning", "--frequency", "550", "--lines", "1"}, {"tuning", "--frequency", "550", "--timeout", "1"},
@@ -251,7 +252,8 @@ func TestTuningRejectsInputBeforeNetwork(t *testing.T) {
 	for want, args := range map[string][]string{
 		"tuning requires --frequency <MHz>, --core-voltage <mV> or both":            {"tuning", "--confirm"},
 		"--frequency was given more than once":                                      {"tuning", "--frequency", "550", "--frequency", "600"},
-		"--core-voltage requires a whole number from 1":                             {"tuning", "--core-voltage", "1.15"},
+		"--core-voltage requires a whole number from 1, or default":                 {"tuning", "--core-voltage", "1.15"},
+		"--frequency requires a whole number from 1, or default":                    {"tuning", "--frequency", "Default"},
 		"unknown flag --fields for `tuning`; it prints a fixed result":              {"tuning", "--frequency", "550", "--fields", "host"},
 		"unknown flag --core-voltage; it is a flag of `tuning` only":                {"restart", "--core-voltage", "1150"},
 		"valid flags: --host, --frequency, --core-voltage, --confirm, --json, --he": {"tuning"},
@@ -273,24 +275,6 @@ func TestTuningRejectsInputBeforeNetwork(t *testing.T) {
 	}
 }
 
-func TestTuningWithRepeatedHostSendsNothing(t *testing.T) {
-	first, firstCalls := tuningMiner(t, nil, settingsSaved)
-	second, secondCalls := tuningMiner(t, nil, settingsSaved)
-	a := New(func(string) string { return "" })
-	for _, args := range [][]string{
-		{"tuning", "--frequency", "550", "--host", first, "--host", second, "--confirm"},
-		{"tuning", "--host=" + first, "--host=" + second, "--core-voltage", "1150"},
-	} {
-		code, out := execute(t, a, args...)
-		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, "--host was given more than once; `tuning` for several miners is not supported yet and takes one miner; `restart` and `pool` accept several miners") || !strings.Contains(out, "valid flags: --host, --frequency, --core-voltage, --confirm,") {
-			t.Errorf("args=%v code=%d out=%s", args, code, out)
-		}
-	}
-	if firstCalls() != "" || secondCalls() != "" {
-		t.Fatalf("requests after a repeated --host: %s %s", firstCalls(), secondCalls())
-	}
-}
-
 func TestTuningUnreachableMiner(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	host := s.URL
@@ -306,7 +290,7 @@ func TestTuningHelpAndVersionSendNothing(t *testing.T) {
 	a.Version = "1.2.3"
 	for _, args := range [][]string{{"tuning", "--help"}, {"tuning", "--frequency", "550", "--confirm", "--help"}, {"--help", "tuning"}} {
 		code, out := execute(t, a, args...)
-		if code != 0 || !strings.HasPrefix(out, "command: tuning\ndescription: \"Changes the miner: ") || !strings.Contains(out, "frequency: \"--frequency <MHz>; ") || !strings.Contains(out, "core_voltage: \"--core-voltage <mV>; ") || !strings.Contains(out, "examples[3]:") || strings.Contains(out, "--fields") {
+		if code != 0 || !strings.HasPrefix(out, "command: tuning\ndescription: \"Changes the miner: ") || !strings.Contains(out, "frequency: \"--frequency <MHz|default>; ") || !strings.Contains(out, "core_voltage: \"--core-voltage <mV|default>; ") || !strings.Contains(out, "examples[4]:") || strings.Contains(out, "--fields") {
 			t.Fatalf("args=%v code=%d\n%s", args, code, out)
 		}
 	}

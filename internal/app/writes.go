@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 
@@ -28,9 +29,10 @@ type minerWrite struct {
 type severalWrite struct {
 	request, effect, arguments string
 	columns                    []string
-	hiddenUser                 bool
+	hiddenUser, restores       bool
 	check                      func(context.Context, *axeos.Client, string) minerWrite
 	inspect                    func(hostArg string) string
+	verify                     func(hosts string) string
 }
 
 func restartSeveral() severalWrite {
@@ -50,6 +52,45 @@ func restartSeveral() severalWrite {
 			}
 		},
 		inspect: func(hostArg string) string { return "axeos-axi info --host " + hostArg },
+		verify: func(hosts string) string {
+			return "axeos-axi info " + hosts + " --fields uptime_s,reset_reason shows uptime_s and reset_reason of each miner"
+		},
+	}
+}
+
+func tuningSeveral(opts options) severalWrite {
+	arguments := tuningArguments(opts)
+	var columns []string
+	for _, s := range tuningSettings {
+		if _, named := opts.tuning[s.flag]; named {
+			columns = append(columns, s.view+"_present", s.view+"_new")
+		}
+	}
+	return severalWrite{
+		request:   tuningRequest,
+		effect:    tuningEffect,
+		arguments: arguments,
+		columns:   columns,
+		restores:  true,
+		check: func(ctx context.Context, client *axeos.Client, host string) minerWrite {
+			plan, refused := planTuning(ctx, client, opts, host)
+			if refused != nil {
+				return minerWrite{refused: refused}
+			}
+			miner := minerWrite{
+				send:    func(ctx context.Context) error { return client.Patch(ctx, plan.settings) },
+				restore: "axeos-axi tuning --host " + shellQuote(host) + plan.previousArguments() + " --confirm",
+			}
+			for _, c := range plan.changes {
+				miner.values = append(miner.values, c.present, c.new)
+				miner.changes = miner.changes || c.present != float64(c.new)
+			}
+			return miner
+		},
+		inspect: func(hostArg string) string { return "axeos-axi tuning --host " + hostArg + arguments },
+		verify: func(hosts string) string {
+			return "axeos-axi asic " + hosts + " shows frequency_mhz and core_voltage_set_mv of each miner"
+		},
 	}
 }
 
@@ -65,6 +106,7 @@ func poolSeveral(opts options) severalWrite {
 		arguments:  arguments,
 		columns:    columns,
 		hiddenUser: hiddenUser,
+		restores:   true,
 		check: func(ctx context.Context, client *axeos.Client, host string) minerWrite {
 			info, err := client.Get(ctx, "info")
 			if err != nil {
@@ -86,6 +128,9 @@ func poolSeveral(opts options) severalWrite {
 			return miner
 		},
 		inspect: func(hostArg string) string { return "axeos-axi pool --host " + hostArg + arguments },
+		verify: func(hosts string) string {
+			return "axeos-axi info " + hosts + poolVerify + " shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
+		},
 	}
 }
 
@@ -109,9 +154,14 @@ func hostArguments(hosts []string) string {
 
 func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, stdout io.Writer) int {
 	isPool := opts.command == "pool"
-	job := restartSeveral()
-	if isPool {
+	var job severalWrite
+	switch opts.command {
+	case "pool":
 		job = poolSeveral(opts)
+	case "tuning":
+		job = tuningSeveral(opts)
+	default:
+		job = restartSeveral()
 	}
 	count := len(clients)
 	miners := make([]minerWrite, count)
@@ -162,9 +212,10 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		}
 	}
 
+	listsAllowed := slices.ContainsFunc(miners, func(m minerWrite) bool { return m.refused != nil && m.refused.allowed != "" })
 	rows := make([]any, count)
 	for i, m := range miners {
-		row := make(output.Object, 0, len(job.columns)+4)
+		row := make(output.Object, 0, len(job.columns)+5)
 		row = append(row, output.Field{Name: "host", Value: opts.hosts[i]})
 		for j, name := range job.columns {
 			var value any
@@ -180,7 +231,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 				changes = m.changes
 			}
 			row = append(row, output.Field{Name: "changes", Value: changes})
-		case isPool:
+		case job.restores:
 			var restore any
 			if results[i] == "changed" || results[i] == "failed" {
 				restore = m.restore
@@ -188,6 +239,13 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 			row = append(row, output.Field{Name: "result", Value: results[i]}, output.Field{Name: "restore", Value: restore})
 		default:
 			row = append(row, output.Field{Name: "result", Value: results[i]})
+		}
+		if listsAllowed {
+			var allowed any
+			if m.refused != nil && m.refused.allowed != "" {
+				allowed = m.refused.allowed
+			}
+			row = append(row, output.Field{Name: "allowed", Value: allowed})
 		}
 		rows[i] = append(row, output.Field{Name: "error", Value: codes[i]})
 	}
@@ -224,10 +282,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		return 0
 	}
 
-	verify := "axeos-axi info " + hosts + " --fields uptime_s,reset_reason shows uptime_s and reset_reason of each miner"
-	if isPool {
-		verify = "axeos-axi info " + hosts + poolVerify + " shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
-	}
+	verify := job.verify(hosts)
 	staleRead := isPool && (changed != 0 || (stopped >= 0 && codes[stopped] == "pool_unconfirmed"))
 	var result string
 	switch {
@@ -243,14 +298,17 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		default:
 			help = append(help, verify+"; read them before another "+opts.command+" call")
 		}
-	case !isPool:
+	case opts.command == "restart":
 		result = "each miner accepted the restart and stops hashing until it is up again; a restart has no command that reverses it"
 		help = append(help, verify+" when it is up again")
-	default:
+	case isPool:
 		result = "each miner accepted the request; " + poolEffect
 		help = append(help, verify, "axeos-axi restart "+hosts+" for a preview of the restart that makes each changed miner use the stored values")
+	default:
+		result = "each miner accepted the request; " + tuningEffect
+		help = append(help, verify)
 	}
-	if isPool && (changed != 0 || (stopped >= 0 && miners[stopped].restore != nil)) {
+	if job.restores && (changed != 0 || (stopped >= 0 && miners[stopped].restore != nil)) {
 		help = append(help, "restore has the command that sets the previous values of that one miner again")
 	}
 	fields = append(fields, output.Field{Name: "result", Value: result})
@@ -271,6 +329,11 @@ func severalWritesHelp(command string) string {
 		return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, uptime_s, changes and error, no restart request is sent, and execute has the complete command; with --confirm the columns are host, uptime_s, result and error, and the result is changed, failed or not_attempted" +
 			severalWritesRules + "; a failed write is restart_not_sent, restart_unconfirmed or restart_failed; a restart has no command that reverses it"
 	}
-	return "with --host given more than once: each call first sends one GET /api/system/info to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, the present and the new value of each named setting (such as port_present and port_new), changes and error, no write request is sent, and execute has the complete command; with --confirm the columns are host, the same values, result, restore and error, and the result is changed, failed or not_attempted; restore is the complete command that sets the previous values of that one miner again, printed for each changed miner and for a failed miner that got the request" +
-		severalWritesRules + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is pool_not_sent, pool_unconfirmed or pool_failed; the body is not printed, and a call with one --host prints it"
+	reads, example, values := "one GET /api/system/info", "port_present and port_new", ""
+	if command == "tuning" {
+		reads, example = "one GET /api/system/info and one GET /api/system/asic", "frequency_mhz_present and frequency_mhz_new"
+		values = "; one value applies to each named miner, and the list of each miner must have it; default is for each miner the default that this miner reports, and the new value prints that number; when a miner fails the check with value_not_allowed, the table has the column allowed with the list of that miner for the refused setting"
+	}
+	return "with --host given more than once: each call first sends " + reads + " to each miner, at the same time, as the check; prints request, sent, count, failed and miners, a table with one row per miner in the order of the flags; without --confirm the columns are host, the present and the new value of each named setting (such as " + example + "), changes and error, no write request is sent, and execute has the complete command; with --confirm the columns are host, the same values, result, restore and error, and the result is changed, failed or not_attempted; restore is the complete command that sets the previous values of that one miner again, printed for each changed miner and for a failed miner that got the request" + values +
+		severalWritesRules + "; a miner fails the check when its read fails or when a call with one --host refuses the write; a failed write is " + command + "_not_sent, " + command + "_unconfirmed or " + command + "_failed; the body is not printed, and a call with one --host prints it"
 }

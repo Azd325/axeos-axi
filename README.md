@@ -29,7 +29,7 @@ bin/axeos-axi host save 192.0.2.10
 
 A command takes its miner from `--host <address>`, then from `AXEOS_HOST`, then from the saved host (see [Saved host](#saved-host)).
 The saved host is the only file the tool keeps, and only `host save` writes it.
-A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see [Several miners](#several-miners)), and `restart` and `pool`, which accept it to change several miners in one call (see [Writes to several miners](#writes-to-several-miners)).
+A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see [Several miners](#several-miners)), and `restart`, `tuning` and `pool`, which accept it to change several miners in one call (see [Writes to several miners](#writes-to-several-miners)).
 `--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` and the saved host each name one miner.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
@@ -42,8 +42,8 @@ The read commands send only GET requests to `/api/system/info`, `/api/system/asi
 `/api/ws`. `logs --lines` and `logs --follow` also read `/api/system/info`
 first, to find the private values to replace. Three commands change the miner, each only
 with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
-`pool` each send one PATCH request to `/api/system`. With several miners, `restart` and `pool`
-send that request one time for each miner.
+`pool` each send one PATCH request to `/api/system`. With several miners, each of the three
+sends that request one time for each miner.
 
 | Command | Default view |
 | --- | --- |
@@ -208,16 +208,20 @@ come up again; `info` shows `uptime_s` and `reset_reason` after the restart.
 
 `tuning` changes the miner: it sets the ASIC frequency in MHz, the core voltage in mV, or both.
 The values are active at once, without a restart, and the miner keeps them across a restart.
-The command does not restart the miner. It takes one miner, through `--host`, `AXEOS_HOST` or the saved host,
-and no `--fields`. `--host` more than once is a usage error with exit code 2: tuning for several miners is not supported yet.
+The command does not restart the miner. It takes the miner from `--host`, `AXEOS_HOST` or the saved host,
+and no `--fields`. With `--host` more than once it changes several miners (see [Writes to several miners](#writes-to-several-miners)).
 
 ```sh
 bin/axeos-axi tuning --host 192.0.2.10 --frequency 525
 bin/axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage 1150 --confirm
+bin/axeos-axi tuning --host 192.0.2.10 --frequency default
 ```
 
 `--frequency <MHz>` and `--core-voltage <mV>` take whole numbers. A call with neither flag, or
 with one of them given more than once, is a usage error with exit code 2 and sends no request.
+Each flag also takes the word `default`. It is the default that the miner reports for that setting,
+`defaultFrequency` or `defaultVoltage` of `/api/system/asic`. The preview and the result print its number,
+and the `execute` command keeps the word. `no_default_value` is the error when the miner reports no default.
 Each call first sends two GET requests: `/api/system/info` for the present values and
 `/api/system/asic` for the lists of allowed values, `frequencyOptions` and `voltageOptions`.
 Without `--confirm` the command sends no write request. It prints `sent: false`, the request,
@@ -237,7 +241,7 @@ code 1, in the preview and in the confirmed call, and sends no write request:
 that value again. The present value is outside the list after overclock mode stored such a value
 or after the firmware reduced the values in an overheat event.
 A new value that equals the present value is not an error: its row has `changes: false`, and
-the confirmed call sends the one write request with that value.
+the confirmed call sends the one write request with that value. This is also true for each of several miners.
 A failed read is `miner_read_failed`, or `not_supported` for firmware without the `asic` path.
 Each failed write states whether the request was sent: `tuning_not_sent`, `tuning_unconfirmed`
 when the miner closed the connection or did not answer in four seconds, and `tuning_failed`
@@ -354,25 +358,30 @@ A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
 The home view adds one line for `info` on the same miners.
 
-`AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs`, `health` or `tuning` is a usage error with exit code 2, and no request is sent.
+`AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs` or `health` is a usage error with exit code 2, and no request is sent.
 
 ## Writes to several miners
 
-`restart` and `pool` change several miners in one call when `--host` is repeated:
+`restart`, `tuning` and `pool` change several miners in one call when `--host` is repeated:
 
 ```sh
 bin/axeos-axi pool --host 192.0.2.10 --host 192.0.2.11 --fallback-port 3334
 bin/axeos-axi pool --host 192.0.2.10 --host 192.0.2.11 --fallback-port 3334 --confirm
 bin/axeos-axi restart --host 192.0.2.10 --host 192.0.2.11
+bin/axeos-axi tuning --host 192.0.2.10 --host 192.0.2.11 --frequency 525
+bin/axeos-axi tuning --host 192.0.2.10 --host 192.0.2.11 --frequency default --core-voltage default
 ```
 
 The list of miners is explicit. No flag takes the hosts from `discover`, and `AXEOS_HOST` and the saved host each name one miner.
-`tuning` takes one miner: with `--host` more than once it is a usage error that says tuning for several miners is not supported yet.
 The same host twice is a usage error with exit code 2, and no request is sent. The comparison uses the scheme, the host and the port; two names of one miner are two hosts.
 A call with one `--host` prints exactly what it printed before and sends the same requests.
 
-Each call starts with the check: one GET request to `/api/system/info` for each miner, all at the same time.
-A miner fails the check when the read fails (`miner_read_failed`) or when `pool` refuses the write for that miner as a call with one miner does (`not_supported`, `same_slot`, `no_pool_in_slot`, `present_value_unknown`, `not_reversible`).
+Each call starts with the check: one GET request to `/api/system/info` for each miner, all at the same time. `tuning` also sends one GET request to `/api/system/asic` for each miner.
+A miner fails the check when the read fails (`miner_read_failed`) or when `pool` or `tuning` refuses the write for that miner as a call with one miner does (`pool`: `not_supported`, `same_slot`, `no_pool_in_slot`, `present_value_unknown`, `not_reversible`; `tuning`: `not_supported`, `no_allowed_values`, `no_default_value`, `value_not_allowed`, `present_value_unknown`, `not_reversible`).
+
+`tuning` takes one value for all named miners, and the list of each miner must have it. No call gives a value for each miner.
+When the list of one miner lacks the value, no miner is changed: the row of that miner has `value_not_allowed` in `error`, and the table gets the column `allowed` with the list of that miner for the refused setting, such as `frequency_mhz: 400, 490, 525`.
+The word `default` is for each miner its own default, and the column of the new value prints that number.
 
 Without `--confirm` the command sends no write request. It prints `sent: false`, `count`, `failed`, the table `miners`, the effect and, as `execute`, the complete command line.
 `miners` has one row per miner in the order of the flags. `failed` counts the rows with an error.
@@ -381,18 +390,19 @@ Without `--confirm` the command sends no write request. It prints `sent: false`,
 | --- | --- | --- |
 | `restart` | `host`, `uptime_s`, `changes`, `error` | `host`, `uptime_s`, `result`, `error` |
 | `pool` | `host`, the present and the new value of each named setting (such as `fallback_port_present` and `fallback_port_new`), `changes`, `error` | `host`, the same values, `result`, `restore`, `error` |
+| `tuning` | `host`, the present and the new value of each named setting (`frequency_mhz_present`, `frequency_mhz_new`, `core_voltage_set_mv_present`, `core_voltage_set_mv_new`), `changes`, `error` | `host`, the same values, `result`, `restore`, `error` |
 
 A miner that fails the check keeps its row: `error` has the error code and the value columns are `null`.
 The exit code of such a preview is 1. A help line names the command that prints the error message of that miner, up to three lines.
-The `body` of a `pool` request is not printed for several miners; a call with one `--host` prints it.
+The `body` of a `pool` or `tuning` request is not printed for several miners; a call with one `--host` prints it.
 
 With `--confirm` the command writes only when each miner passes the check:
 
 1. When a miner fails the check, no write request goes to any miner. Each row has the result `not_attempted`, and the row of the failed miner has the error code.
 2. When each miner passes, the miners get the write request one after the other, in the order of the flags: one request for each miner.
-3. The first failed write stops the call. That row has the result `failed` and the error code (`restart_not_sent`, `restart_unconfirmed`, `restart_failed`, `pool_not_sent`, `pool_unconfirmed` or `pool_failed`). Each later row is `not_attempted`. The `result` line has the error message.
+3. The first failed write stops the call. That row has the result `failed` and the error code (`restart_not_sent`, `restart_unconfirmed` or `restart_failed`, and the same three codes with `pool_` or `tuning_`). Each later row is `not_attempted`. The `result` line has the error message.
 
-The command does not set a changed miner back by itself. For `pool`, the column `restore` has the complete command line that sets the previous values of that one miner again.
+The command does not set a changed miner back by itself. For `pool` and `tuning`, the column `restore` has the complete command line that sets the previous values of that one miner again.
 It is printed for each `changed` miner and for a `failed` miner that got the request. A pool user is in it only with `--show-user`, and a confirmed change of a user needs `--show-user`, as with one miner.
 A restart has no command that reverses it, and the result says so.
 
