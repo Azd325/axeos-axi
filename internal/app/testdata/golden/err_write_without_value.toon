@@ -2,4 +2,4 @@ exit: 2
 error:
   code: usage
   message: "tuning requires --frequency <MHz>, --core-voltage <mV> or both"
-help: "valid flags: --host, --frequency, --core-voltage, --confirm, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill"
+help: "valid flags: --host, --frequency, --core-voltage, --confirm, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill"

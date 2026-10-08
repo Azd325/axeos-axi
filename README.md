@@ -17,6 +17,7 @@ bin/axeos-axi stats
 bin/axeos-axi firmware
 bin/axeos-axi scoreboard
 bin/axeos-axi logs
+bin/axeos-axi health
 bin/axeos-axi discover
 bin/axeos-axi restart
 bin/axeos-axi tuning --frequency 525 --core-voltage 1150
@@ -46,6 +47,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; with `--follow <seconds>`, each new line while it runs; private values replaced unless `--show-private` |
+| `health` | The verdict (`healthy`, `unhealthy` or `unknown`) and one row for each of eight rules: result, value read, limit and reason. Exit code 3 for an unhealthy miner |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
@@ -53,7 +55,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
-on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error.
+on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error, **3** an unhealthy miner (`health` only).
 `--json` on any command prints the same result as one JSON document: the same field names, values,
 counts, empty states and help lines, in the same order. A TOON table becomes an array of objects, a
 TOON list becomes an array. An error is one object with `error` (`code` and `message`) and `help`, with
@@ -94,6 +96,42 @@ from the TXT records of the advertisement and are `null` when a miner does not s
 `port` is the advertised HTTP port. `instance` is the service instance name; it carries a MAC
 suffix and is absent from default output. mDNS stays inside one network segment, and firmware
 that does not register the `_axeos` subtype is not found.
+
+## Health
+
+`health` judges one miner. It sends exactly one request, `GET /api/system/info`, and prints the
+verdict and one row for each rule: `rule`, `result`, `value` (what it read), `limit` (what it
+used) and `reason`. The result of a rule is `ok`, `failed`, `too_early` or `unknown`. `failed`,
+`unknown` and `too_early` also list the rule names. No other command prints a verdict. The limits
+are fixed; no flag changes them, and `--fields` is refused.
+
+```sh
+bin/axeos-axi health --host 192.0.2.10
+```
+
+| Rule | Fails when |
+| --- | --- |
+| `power_fault` | the miner reports a power fault |
+| `hardware_fault` | the miner reports a hardware fault |
+| `overheat_mode` | overheat mode is active |
+| `mining_paused` | mining is paused |
+| `fallback_pool` | the miner runs on the fallback pool |
+| `hashrate` | `hashRate_1h` is below 80 % of `expectedHashrate` |
+| `rejected_shares` | more than 5 % of all shares are rejected |
+| `fan` | `fanrpm` is 0 while `hashRate` is above 0 |
+
+`hashrate` and `rejected_shares` give `too_early` in the first 10 minutes of uptime; the reason
+says "too early to judge". `rejected_shares` is also `too_early` with 0 shares. A second fan is not
+judged. The firmware resets the share counters when it switches to the fallback pool.
+
+The firmware sends `power_fault` and `hardware_fault` only while a fault exists. A missing fault
+field is `ok` when the miner sends `uptimeSeconds`, which shows that the miner reports faults.
+For every other rule a missing field makes the rule `unknown`, never `ok`.
+
+Exit codes: **0** `healthy`, **3** `unhealthy` (at least one rule failed), **1** `unknown` or a
+failed read (`miner_read_failed`), **2** usage error. A miner with an `unknown` rule and no failed
+rule gets the verdict `unknown` and exit code 1, because a missing value is never an inferred healthy
+state. A `too_early` rule does not change the verdict. A failed read prints no verdict.
 
 ## Restart
 
@@ -251,7 +289,7 @@ listed in command help or exact top-level JSON field names from the
 `firmware` accepts its checksum-response fields;
 `scoreboard` accepts only the view names in its help, as row columns;
 `discover` accepts only the view names in its help;
-`logs`, `restart`, `tuning` and `pool` do not take `--fields`; `stats` does not combine `--fields` with `--samples` or `--columns`.
+`logs`, `health`, `restart`, `tuning` and `pool` do not take `--fields`; `stats` does not combine `--fields` with `--samples` or `--columns`.
 For `info`, `asic` and the home view, firmware v2.15.3 sends some fields only on a condition,
 for example `power_fault` during a fault. `--help` lists them as `conditional_fields`.
 With `--fields`, such a name that the miner omits prints `null`.

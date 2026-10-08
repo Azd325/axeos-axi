@@ -1,6 +1,6 @@
 ---
 name: axeos-axi
-description: Read an AxeOS or Bitaxe Bitcoin miner (health, ASIC, statistics, firmware, shares, logs, discovery) and restart it, tune frequency and core voltage, or set its pools with confirmation, through the axeos-axi CLI. Use when an agent works with a miner on the local network.
+description: Read an AxeOS or Bitaxe Bitcoin miner (health verdict, ASIC, statistics, firmware, shares, logs, discovery) and restart it, tune frequency and core voltage, or set its pools with confirmation, through the axeos-axi CLI. Use when an agent works with a miner on the local network.
 ---
 
 # axeos-axi
@@ -12,8 +12,9 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 
 - Name the miner with `--host <address>` or `AXEOS_HOST`. A command takes one miner.
 - `axeos-axi discover` finds miners on the local network and needs no host.
-- Read commands: no command (home view), `info`, `asic`, `stats`, `firmware`, `scoreboard`, `logs`.
+- Read commands: no command (home view), `info`, `asic`, `stats`, `firmware`, `scoreboard`, `logs`, `health`.
 - Each read sends GET requests only. Default views are small; `--fields` selects more.
+- `health` is the only command that judges the miner. It reads `info` once and prints a verdict and one row for each rule: `ok`, `failed`, `too_early` or `unknown`, with the value read, the limit and the reason. The limits are fixed: unhealthy below 80 % of the expected 1h hashrate, above 5 % rejected shares, a fault, overheat mode, paused mining, the fallback pool, or a fan at 0 rpm while the miner hashes. Performance rules wait for 10 minutes of uptime, and `rejected_shares` also waits for the first share. A second fan is not judged. A rule with a missing value is `unknown`, and a miner with an `unknown` rule and no failed rule gets the verdict `unknown`, never `healthy`.
 - Run `axeos-axi <command> --help` for the flags of one command.
 
 ## Writes need `--confirm`
@@ -32,13 +33,14 @@ It prints compact TOON on stdout; `--json` on any command prints the same result
 ## Exit codes
 
 - `0` success, `1` request or output error, `2` usage error.
+- `health` only: `3` for an unhealthy miner, so a failed read (`1`) and an unhealthy miner stay distinct. The verdict `unknown` exits with `1`.
 
 ## Help output
 
 <!-- axeos-axi-help:begin -->
 command: home
 description: Live mining health
-commands: "info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
+commands: "info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
 flags:
   host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"

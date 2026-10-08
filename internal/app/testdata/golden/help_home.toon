@@ -1,7 +1,7 @@
 exit: 0
 command: home
 description: Live mining health
-commands: "info, asic, stats, firmware, scoreboard, logs, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
+commands: "info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, skill; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; skill install writes the agent skill file and needs no host"
 flags:
   host: "--host <address>; default AXEOS_HOST; required for reads; HTTP unless a scheme is supplied"
   fields: "--fields <name,...>; default compact view; replaces data fields; accepts view fields and exact API field names; fields the firmware sends only on a condition print null when absent"
