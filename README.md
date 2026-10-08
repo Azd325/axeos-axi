@@ -31,7 +31,8 @@ A command takes one miner, except the home view, `info`, `asic`, `stats` (withou
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
-Each request goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored.
+Each request to a miner goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored for it.
+The GitHub request of `firmware --check-release` times out after ten seconds and uses the proxy environment variables.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
 `/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
 `/api/system/logs`, and mDNS queries from `discover`. `logs --follow` reads the WebSocket path
