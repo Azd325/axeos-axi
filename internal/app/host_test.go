@@ -46,7 +46,7 @@ func TestHostSaveChecksTheMinerAndWritesOneFile(t *testing.T) {
 	path := configHome(t)
 	host, calls := miner(t, fixture(t, "info"))
 	code, out := execute(t, New(noHost), "host", "save", host)
-	want := "saved_host: \"" + host + "\"\npath: " + tildePath(path) + "\nfirmware: v2.15.3\nhelp[2]: "
+	want := "saved_host: \"" + host + "\"\npath: " + tildePath(path) + "\nhelp[2]: "
 	if code != 0 || !strings.HasPrefix(out, want) {
 		t.Fatalf("code=%d\n%s\nwant prefix\n%s", code, out, want)
 	}

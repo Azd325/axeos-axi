@@ -58,7 +58,7 @@ with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and
 | `restart` | Without `--confirm`: the host, the request, the effect and the command that performs the restart; no request is sent. With `--confirm`: the result of the one restart request |
 | `tuning` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request |
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user` |
-| `host` | `host save <address>`: the saved host, the path of its file and the firmware version the miner reported. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
+| `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -90,7 +90,7 @@ With none of the three, the error is `host_required` with exit code 2, and its h
 
 `host save <address>` validates the address as `--host` does and sends exactly one GET request to `/api/system/info` at that address.
 It writes the file only when the answer is an AxeOS `info` answer: a JSON object with a `version` text and an `ASICModel` text.
-It prints `saved_host`, `path` and `firmware` (the version the miner reported).
+It prints `saved_host` and `path`.
 The stored address is the scheme and the host, with a port that is not the default: `host save 192.0.2.10` stores `http://192.0.2.10`.
 The same address again is no error; the command makes the check again and writes the file again.
 A failed check writes nothing and keeps a host saved before: an address that does not answer, or answers without JSON or with another HTTP status, is `miner_read_failed`, and a JSON answer that is no `info` answer is `not_a_miner`, both with exit code 1.

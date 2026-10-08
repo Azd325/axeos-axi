@@ -99,7 +99,6 @@ func saveHost(ctx context.Context, address, path string, location output.Field, 
 	}
 	return write(stdout, output.Object{
 		{Name: "saved_host", Value: client.Base()}, location,
-		{Name: "firmware", Value: version},
 		{Name: "help", Value: []any{
 			"axeos-axi for the home view of the saved host; --host and AXEOS_HOST come before it",
 			"axeos-axi host forget to remove the saved host",
@@ -128,7 +127,7 @@ func hostHelp() output.Object {
 		{Name: "command", Value: "host"},
 		{Name: "description", Value: "Saves, shows and removes one default host; a command takes its miner from --host, then AXEOS_HOST, then the saved host, and a result that used the saved host prints saved_host with the address; the saved host is one file named host in the directory axeos-axi of the user configuration directory, readable by the user only; it holds the address and nothing else; only `host save` writes it and only `host forget` removes it; `host` alone is a usage error with exit code 2"},
 		{Name: "actions", Value: output.Object{
-			{Name: "save", Value: "host save <address>; validates the address as --host does, sends exactly one GET /api/system/info to it, and writes the file only when the answer is an AxeOS info answer (it has a version and an ASICModel text); stores the address as scheme and host, with a port that is not the default; prints saved_host, path and firmware (the version the miner reported); the same address again is no error; a failed check writes nothing, keeps a host saved before, and is miner_read_failed or not_a_miner with exit code 1"},
+			{Name: "save", Value: "host save <address>; validates the address as --host does, sends exactly one GET /api/system/info to it, and writes the file only when the answer is an AxeOS info answer (it has a version and an ASICModel text); stores the address as scheme and host, with a port that is not the default; prints saved_host and path; the same address again is no error; a failed check writes nothing, keeps a host saved before, and is miner_read_failed or not_a_miner with exit code 1"},
 			{Name: "show", Value: "host show; prints saved_host and path; with no file prints saved_host: null and a state line; sends no request"},
 			{Name: "forget", Value: "host forget; removes the file and prints removed: true; with no file prints removed: false and a state line, exit code 0; sends no request"},
 		}},

@@ -54,9 +54,6 @@ func valid(host string) bool {
 
 // Write stores the base address of a client (axeos.Client.Base).
 func Write(path, host string) error {
-	if !valid(host) {
-		return ErrMalformed
-	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err

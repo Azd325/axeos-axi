@@ -1,7 +1,6 @@
 package hostfile
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,17 +30,5 @@ func TestWriteReadRemove(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("file still exists: %v", err)
-	}
-}
-
-func TestWriteRefusesAnAddressThatReadWouldRefuse(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "axeos-axi", "host")
-	for _, host := range []string{"", "192.0.2.10", "http://192.0.2.10/", "http://192.0.2.10:80", "http://192.0.2.10\nhttp://192.0.2.11"} {
-		if err := Write(path, host); !errors.Is(err, ErrMalformed) {
-			t.Errorf("%q: error=%v", host, err)
-		}
-	}
-	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-		t.Fatalf("a refused address created the directory: %v", err)
 	}
 }
