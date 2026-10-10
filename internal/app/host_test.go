@@ -351,11 +351,11 @@ func TestSavedHostIsStatedOnAFailedRead(t *testing.T) {
 	if code != 1 || !strings.HasPrefix(out, "saved_host: \""+host+"\"\nerror:\n  code: miner_read_failed\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	if !strings.Contains(out, "help: "+savedConnectivityHelp+"\n") || strings.Contains(out, "AXEOS_HOST") {
+	if !strings.Contains(out, "help: "+savedReadHelp+"\n") || strings.Contains(out, "AXEOS_HOST") {
 		t.Fatalf("help names a source that was not used:\n%s", out)
 	}
 	code, out = execute(t, New(noHost), "info", "--host", host)
-	if code != 1 || !strings.Contains(out, "help: "+connectivityHelp+"\n") || strings.Contains(out, "saved_host") {
+	if code != 1 || !strings.Contains(out, "help: "+readConnectivityHelp+"\n") || strings.Contains(out, "saved_host") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }

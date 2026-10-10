@@ -183,7 +183,7 @@ func verdict(rules []ruleResult) (string, int) {
 func health(ctx context.Context, client *axeos.Client, opts options, stdout io.Writer) int {
 	info, err := client.Get(ctx, "info")
 	if err != nil {
-		return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
+		return failure(stdout, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 	}
 	rules := healthRules(info)
 	state, exit := verdict(rules)

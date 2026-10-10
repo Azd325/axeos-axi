@@ -43,7 +43,7 @@ func restartSeveral() severalWrite {
 		check: func(ctx context.Context, client *axeos.Client, _ string) minerWrite {
 			info, err := client.Get(ctx, "info")
 			if err != nil {
-				return minerWrite{refused: readFailed(err, connectivityHelp)}
+				return minerWrite{refused: readFailed(err, minerReadHelp(err))}
 			}
 			return minerWrite{
 				values:  []any{info["uptimeSeconds"]},
@@ -110,7 +110,7 @@ func poolSeveral(opts options) severalWrite {
 		check: func(ctx context.Context, client *axeos.Client, host string) minerWrite {
 			info, err := client.Get(ctx, "info")
 			if err != nil {
-				return minerWrite{refused: readFailed(err, connectivityHelp)}
+				return minerWrite{refused: readFailed(err, minerReadHelp(err))}
 			}
 			plan, refused := planPool(info, opts, host)
 			if refused != nil {

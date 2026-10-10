@@ -40,6 +40,15 @@ var (
 	errNotText      = errors.New("miner returned a response that is not plain text; check AxeOS API compatibility")
 )
 
+type StatusError struct {
+	Code     int
+	Endpoint string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("miner returned HTTP %d for %s", e.Code, e.Endpoint)
+}
+
 type Client struct {
 	base string
 	http *http.Client
@@ -249,7 +258,7 @@ func (c *Client) fetch(ctx context.Context, client *http.Client, endpoint string
 		return nil, "", fmt.Errorf("%w for %s", ErrRootRedirect, endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("miner returned HTTP %d for %s", resp.StatusCode, endpoint)
+		return nil, "", &StatusError{Code: resp.StatusCode, Endpoint: endpoint}
 	}
 	const maxBytes = 4 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))

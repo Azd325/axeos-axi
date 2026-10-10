@@ -72,7 +72,7 @@ func (a *App) discover(ctx context.Context, opts options, stdout io.Writer) int 
 	}
 	services, err := a.Browser.Browse(ctx, discoverService, time.Duration(opts.timeout)*time.Second)
 	if err != nil {
-		return failure(stdout, 1, "discovery_failed", err.Error(), "check the local network connection and the local-network permission of this terminal, then run axeos-axi discover")
+		return failure(stdout, 1, "discovery_failed", err.Error(), "check the local network connection and the local-network permission of this terminal, then run "+discoverRetry(opts))
 	}
 	rows := make([]map[string]any, len(services))
 	for i, s := range services {
@@ -128,4 +128,15 @@ func discoverHelp() output.Object {
 		{Name: "private_fields", Value: "instance carries a MAC suffix and is an explicit opt-in"},
 		{Name: "examples", Value: []any{"axeos-axi discover", "axeos-axi discover --timeout 10", "axeos-axi discover --fields address,hostname,board,asic"}},
 	}
+}
+
+func discoverRetry(opts options) string {
+	command := "axeos-axi discover"
+	if opts.timeout != defaultDiscoverTimeout {
+		command += " --timeout " + strconv.Itoa(opts.timeout)
+	}
+	if len(opts.fields) != 0 {
+		command += " --fields " + strings.Join(opts.fields, ",")
+	}
+	return command
 }

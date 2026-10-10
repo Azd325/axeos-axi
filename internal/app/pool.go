@@ -242,7 +242,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	command := "axeos-axi pool --host " + hostArg
 	info, err := client.Get(ctx, "info")
 	if err != nil {
-		return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
+		return failure(stdout, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 	}
 	plan, refused := planPool(info, opts, opts.host)
 	if refused != nil {
