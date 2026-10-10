@@ -140,6 +140,9 @@ func parse(args []string) (options, error) {
 			hostSet = hostSet || flag == "--host"
 			pathSet = pathSet || flag == "--path"
 			seen = append(seen, flag)
+			if (flag == "--timeout" && timeoutSet) || (flag == "--fields" && fieldsSet) || (flag == "--lines" && linesSet) {
+				fail("%s was given more than once", flag)
+			}
 			timeoutSet = timeoutSet || flag == "--timeout"
 			fieldsSet = fieldsSet || flag == "--fields"
 			linesSet = linesSet || flag == "--lines"

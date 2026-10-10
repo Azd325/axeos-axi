@@ -53,6 +53,7 @@ A command takes its miner from `--host <address>`, then from `AXEOS_HOST`, then 
 The saved host is the only file the tool keeps, and only `host save` writes it.
 A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see [Several miners](#several-miners)), and `restart`, `tuning` and `pool`, which accept it to change several miners in one call (see [Writes to several miners](#writes-to-several-miners)).
 `--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` and the saved host each name one miner.
+Every other flag that takes a value, such as `--fields`, `--lines` and `--timeout`, given more than once is a usage error with exit code 2.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
@@ -84,7 +85,7 @@ sends that request one time for each miner.
 | `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
 | `setup` | One row per agent: the agent, the state (`installed`, `missing`, `stale` or `removed`) and the path of the hook file; for `codex`, also `codex_hooks_feature` (see Session hook) |
-| `session` | `session dashboard` only: hashrate, temperature, power and firmware version of the miner, then command hints; `miner not reachable` and the hints when the miner does not answer; the hints only without a host. Always exit code 0 |
+| `session` | `session dashboard` only: hashrate, temperature, power and firmware version of the miner, then command hints; `miner: not reachable` and the hints when the miner does not answer; the hints only without a host. Always exit code 0 |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error, **3** an unhealthy miner (`health` only).
@@ -172,7 +173,7 @@ The hook runs `axeos-axi session dashboard`:
 
 - It prints hashrate, temperature, power and firmware version, then command hints. It prints no pool user, payout address, hostname, IP or MAC address and no Wi-Fi name.
 - With a host saved by `host save` it sends one `GET /api/system/info` with a timeout of 1 second. Without a host it sends no request, runs no discovery and prints the hints only.
-- When the miner does not answer in time, answers with an error or answers with a malformed body, it prints the line `miner not reachable` and the hints. The line names no host.
+- When the miner does not answer in time, answers with an error or answers with a malformed body, it prints the line `miner: not reachable` and the hints. The line names no host.
 - It always exits with code 0, so the hook never fails or delays the session start by more than the timeout.
 
 ## Discovery
