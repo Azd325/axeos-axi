@@ -694,6 +694,10 @@ func TestSetupCodexRefusesUnsafeConfigWithoutWriting(t *testing.T) {
 		"array of tables":    "[[features]]\nhooks = true\n",
 		"duplicate table":    "[features]\na = 1\n[features]\nb = 1\n",
 		"hooks sub table":    "[features]\nhooks.x = 1\n",
+		"hooks table header": "[features]\nother = true\n[features.hooks]\nx = 1\n",
+		"hooks table only":   "[features.hooks]\nx = 1\n",
+		"hooks nested table": "[features.hooks.x]\ny = 1\n",
+		"byte order mark":    "\uFEFF[features]\nhooks = false\n",
 		"unparseable header": "[features\nhooks = true\n",
 	} {
 		t.Run(name, func(t *testing.T) {

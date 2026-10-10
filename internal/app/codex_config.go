@@ -176,6 +176,9 @@ func lexTOMLLine(text, open string) (string, int) {
 
 func scanCodexConfig(content string) (codexConfigScan, error) {
 	scan := codexConfigScan{lines: splitTOMLLines(content), hooksLine: -1, featuresLast: -1}
+	if strings.HasPrefix(content, "\uFEFF") {
+		return scan, errCodexConfigUnsafe
+	}
 	inFeatures, inTable := false, false
 	open, arrayDepth := "", 0
 	for i, line := range scan.lines {
@@ -196,6 +199,9 @@ func scanCodexConfig(content string) (codexConfigScan, error) {
 		if strings.HasPrefix(trimmed, "[") {
 			keys, array, ok := parseTOMLTableHeader(text)
 			if !ok {
+				return scan, errCodexConfigUnsafe
+			}
+			if len(keys) >= 2 && keys[0] == "features" && keys[1] == "hooks" {
 				return scan, errCodexConfigUnsafe
 			}
 			inTable = true
