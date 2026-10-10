@@ -138,23 +138,6 @@ func TestSetupLeavesTheHooksOfOtherToolsUnchanged(t *testing.T) {
 	}
 }
 
-func TestSetupUninstallKeepsAHookItDidNotWrite(t *testing.T) {
-	home := t.TempDir()
-	foreign := `{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"'/x/axeos-axi' session dashboard 2>/dev/null || true # axeos-axi-session-hook"}]}]}}`
-	saveFile(t, claudeSettings(home), foreign)
-	a := setupApp(t, home)
-	code, out := execute(t, a, "setup", "uninstall", "--agent", "claude")
-	if code != 1 || !strings.Contains(out, "setup_failed") {
-		t.Fatalf("code=%d out=%q", code, out)
-	}
-	if code, out := execute(t, a, "setup", "install", "--agent", "claude"); code != 1 || !strings.Contains(out, "setup_failed") {
-		t.Fatalf("install over a hook with no owner record: code=%d out=%q", code, out)
-	}
-	if data, _ := os.ReadFile(claudeSettings(home)); !strings.Contains(string(data), "/x/axeos-axi") {
-		t.Fatalf("foreign hook lost: %s", data)
-	}
-}
-
 func TestSetupRefusesUnmanagedOpenCodePlugin(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts")
@@ -481,32 +464,114 @@ func TestSetupErrorNamesNoResolvedHomeDirectory(t *testing.T) {
 	}
 }
 
-func TestSetupRefusesAHookChangedByHand(t *testing.T) {
-	for _, file := range []struct{ agent, rel string }{{"claude", ".claude/settings.json"}, {"codex", ".codex/hooks.json"}} {
-		for _, action := range []string{"install", "check", "uninstall"} {
-			for _, withMarker := range []bool{true, false} {
-				t.Run(file.agent+"/"+action, func(t *testing.T) {
+func TestSetupOwnEntryStates(t *testing.T) {
+	const tail = " session dashboard 2>/dev/null || true # axeos-axi-session-hook"
+	other := `{"matcher":"startup","hooks":[{"type":"command","command":"other-tool start"}]}`
+	own := func(program string, extra string) string {
+		return `{"matcher":"","hooks":[{"type":"command","command":"'` + program + `'` + tail + `"` + extra + `}]}`
+	}
+	hookFile := func(entries ...string) string {
+		return `{"hooks":{"SessionStart":[` + strings.Join(entries, ",") + `]}}`
+	}
+	type want struct{ check, install, uninstall string }
+	for _, agent := range []string{"claude", "codex"} {
+		for _, tc := range []struct {
+			name    string
+			content func(exe string) string
+			want    want
+			others  int
+			ownLeft int
+		}{
+			{"no entry", func(string) string { return hookFile(other) }, want{"missing", "installed", "missing"}, 1, 0},
+			{"own exact entry", func(exe string) string { return hookFile(own(exe, "")) }, want{"installed", "installed", "removed"}, 0, 0},
+			{"own hand-edited entry", func(exe string) string { return hookFile(own(exe, `,"timeout":5`)) }, want{"installed", "installed", "removed"}, 0, 0},
+			{"two own entries", func(exe string) string { return hookFile(own(exe, ""), own(exe, `,"timeout":5`)) }, want{"installed", "installed", "removed"}, 0, 0},
+			{"own entry beside another tool", func(exe string) string { return hookFile(other, own(exe, "")) }, want{"installed", "installed", "removed"}, 1, 0},
+			{"stored program missing", func(string) string { return hookFile(own("/nonexistent/axeos-axi", "")) }, want{"stale", "installed", "removed"}, 0, 0},
+		} {
+			for _, action := range []string{"check", "install", "uninstall"} {
+				t.Run(agent+"/"+tc.name+"/"+action, func(t *testing.T) {
 					home := t.TempDir()
 					a := setupApp(t, home)
-					if withMarker {
-						execute(t, a, "setup", "install", "--agent", file.agent)
+					exe, _ := a.executable()
+					path := filepath.Join(home, ".claude", "settings.json")
+					if agent == "codex" {
+						path = filepath.Join(home, ".codex", "hooks.json")
 					}
-					path := filepath.Join(home, file.rel)
-					edited := `{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"'/x/axeos-axi' session dashboard 2>/dev/null || true # axeos-axi-session-hook","timeout":5}]}]}}`
-					saveFile(t, path, edited)
-					marker := filepath.Join(filepath.Dir(path), ".axeos-axi-session-hook")
-					code, out := execute(t, a, "setup", action, "--agent", file.agent)
-					if code != 1 || !strings.Contains(out, "setup_failed") || !strings.Contains(out, "changed by hand") || !strings.Contains(out, file.rel) || strings.Contains(out, home) {
+					saveFile(t, path, tc.content(exe))
+					code, out := execute(t, a, "setup", action, "--agent", agent)
+					expected := map[string]string{"check": tc.want.check, "install": tc.want.install, "uninstall": tc.want.uninstall}[action]
+					if code != 0 || !strings.Contains(out, agent+","+expected+",") {
 						t.Fatalf("code=%d out=%q", code, out)
 					}
-					if data, _ := os.ReadFile(path); string(data) != edited {
-						t.Fatalf("file changed: %s", data)
+					hooksMap, _ := readJSONFile(t, path)["hooks"].(map[string]any)
+					entries, _ := hooksMap["SessionStart"].([]any)
+					ownCount, otherCount := 0, 0
+					for _, entry := range entries {
+						data, _ := json.Marshal(entry)
+						if strings.Contains(string(data), "axeos-axi-session-hook") {
+							ownCount++
+						} else {
+							otherCount++
+						}
 					}
-					if _, err := os.Stat(marker); withMarker && err != nil {
-						t.Fatalf("marker lost: %v", err)
+					wantOwn := map[string]int{"check": strings.Count(tc.content(exe), "axeos-axi-session-hook"), "install": 1, "uninstall": 0}[action]
+					if ownCount != wantOwn || otherCount != tc.others {
+						t.Fatalf("own=%d other=%d entries=%v", ownCount, otherCount, entries)
+					}
+					if entries := files(t, filepath.Dir(path)); len(entries) != 1 {
+						t.Fatalf("extra files: %v", entries)
 					}
 				})
 			}
 		}
+	}
+}
+
+func files(t *testing.T, dir string) []string {
+	t.Helper()
+	list, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{}
+	for _, entry := range list {
+		names = append(names, entry.Name())
+	}
+	return names
+}
+
+func TestSetupOpenCodeOwnStates(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content func(exe string) string
+		check   string
+	}{
+		{"no file", nil, "missing"},
+		{"own hand-edited plugin", func(string) string { return "// axeos-axi-session-hook\nexport default {};\n" }, "installed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			a := setupApp(t, home)
+			path := filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts")
+			if tc.content != nil {
+				saveFile(t, path, tc.content(""))
+			}
+			if code, out := execute(t, a, "setup", "check", "--agent", "opencode"); code != 0 || !strings.Contains(out, "opencode,"+tc.check+",") {
+				t.Fatalf("check: code=%d out=%q", code, out)
+			}
+			if code, out := execute(t, a, "setup", "install", "--agent", "opencode"); code != 0 || !strings.Contains(out, "opencode,installed,") {
+				t.Fatalf("install: code=%d out=%q", code, out)
+			}
+			if got := files(t, filepath.Dir(path)); len(got) != 1 {
+				t.Fatalf("files=%v", got)
+			}
+			if code, out := execute(t, a, "setup", "uninstall", "--agent", "opencode"); code != 0 || !strings.Contains(out, "opencode,removed,") {
+				t.Fatalf("uninstall: code=%d out=%q", code, out)
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Fatalf("plugin remains: %v", err)
+			}
+		})
 	}
 }

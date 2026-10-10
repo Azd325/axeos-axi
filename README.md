@@ -166,7 +166,7 @@ axeos-axi setup uninstall --agent opencode
 | `codex` | `SessionStart` entry in `~/.codex/hooks.json` |
 | `opencode` | plugin `~/.config/opencode/plugins/axeos-axi.ts` |
 
-Each install records an owner marker next to the hook. `uninstall` removes only what `install` wrote, then removes the `SessionStart` key and the `hooks` key when they are empty, and leaves the hooks of other tools and every file in place. A repeated install from the same executable path changes nothing; an install from another path repairs the path. The hook stores the full path of the executable. `check` reports `stale` when that program no longer exists, and `install` replaces a stale hook. A file that is not valid JSON, or a plugin path with other content, is an error and nothing is written.
+The tool writes no file besides the hook. A hook entry is the tool's own when it carries the text `axeos-axi-session-hook`, whatever its other fields. `install` replaces every own entry with one current entry and never adds a second one, also after a hand edit. `uninstall` removes every own entry, then removes the `SessionStart` key and the `hooks` key when they are empty; entries without that text stay unchanged, and a settings file stays in place. A repeated install from the same executable path changes nothing; an install from another path repairs the path. The hook stores the full path of the executable. `check` reports `stale` when that program no longer exists, and `install` replaces a stale hook. A file that is not valid JSON, or a plugin path with other content, is an error and nothing is written.
 
 The hook runs `axeos-axi session dashboard`:
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,9 +40,8 @@ type setupResult struct {
 }
 
 type hookLocation struct {
-	agent      string
-	path       string
-	markerPath string
+	agent string
+	path  string
 }
 
 func (a *App) session(ctx context.Context, opts options, stdout io.Writer) int {
@@ -136,17 +136,10 @@ func (a *App) setupAgent(action, agent string) (setupResult, error) {
 	switch agent {
 	case "claude":
 		location.path = filepath.Join(home, ".claude", "settings.json")
-		location.markerPath = filepath.Join(home, ".claude", "."+sessionHookMarker)
 	case "codex":
 		location.path = filepath.Join(home, ".codex", "hooks.json")
-		location.markerPath = filepath.Join(home, ".codex", "."+sessionHookMarker)
 	case "opencode":
 		location.path = filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts")
-		location.markerPath = filepath.Join(home, ".config", "opencode", "plugins", "."+sessionHookMarker)
-	}
-	owned, err := readOwner(location.markerPath)
-	if err != nil {
-		return setupResult{}, err
 	}
 	command := ""
 	if action == "install" {
@@ -157,9 +150,9 @@ func (a *App) setupAgent(action, agent string) (setupResult, error) {
 	}
 	var result setupResult
 	if agent == "opencode" {
-		result, err = manageOpenCodePlugin(action, location, command, owned)
+		result, err = manageOpenCodePlugin(action, location, command)
 	} else {
-		result, err = manageHookJSON(action, location, command, owned)
+		result, err = manageHookJSON(action, location, command)
 	}
 	result.path = "~" + strings.TrimPrefix(location.path, home)
 	return result, err
@@ -173,7 +166,7 @@ func (a *App) sessionCommand() (string, error) {
 	return shellQuote(path) + sessionCommandTail, nil
 }
 
-func manageHookJSON(action string, location hookLocation, command string, owned bool) (setupResult, error) {
+func manageHookJSON(action string, location hookLocation, command string) (setupResult, error) {
 	root := map[string]any{}
 	data, err := os.ReadFile(location.path)
 	if err != nil && !os.IsNotExist(err) {
@@ -204,22 +197,18 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 			return setupResult{}, errors.New("managed hook configuration has incompatible SessionStart value")
 		}
 	}
-	managed := make([]int, 0, 1)
+	own := make([]int, 0, 1)
 	staleHook := false
 	for i, entry := range entries {
-		if program, ok := managedHookProgram(entry, owned); ok {
-			managed = append(managed, i)
-			staleHook = !fileExists(program)
+		if program, ok := ownHookProgram(entry); ok {
+			own = append(own, i)
+			if program != "" && !fileExists(program) {
+				staleHook = true
+			}
 		}
 	}
-	if len(managed) > 1 {
-		return setupResult{}, errors.New("multiple managed axeos-axi session hooks found; refuse ambiguous configuration")
-	}
-	if countSessionMarkers(entries) != len(managed) {
-		return setupResult{}, errors.New("managed session hook in " + location.path + " was changed by hand; restore it or remove it by hand")
-	}
 	state := "missing"
-	if len(managed) == 1 {
+	if len(own) > 0 {
 		state = "installed"
 		if staleHook {
 			state = "stale"
@@ -230,18 +219,32 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 		return setupResult{agent: location.agent, state: state}, nil
 	case "install":
 		entry := map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": command}}}
-		if len(managed) == 1 {
-			entries[managed[0]] = entry
-		} else {
-			entries = append(entries, entry)
+		kept := make([]any, 0, len(entries)+1)
+		placed := false
+		for i, existing := range entries {
+			if !slices.Contains(own, i) {
+				kept = append(kept, existing)
+			} else if !placed {
+				kept = append(kept, entry)
+				placed = true
+			}
 		}
+		if !placed {
+			kept = append(kept, entry)
+		}
+		entries = kept
 		state = "installed"
 	case "uninstall":
-		if len(managed) == 0 {
-			removeMarker(location.markerPath)
+		if len(own) == 0 {
 			return setupResult{agent: location.agent, state: "missing"}, nil
 		}
-		entries = append(entries[:managed[0]], entries[managed[0]+1:]...)
+		kept := make([]any, 0, len(entries))
+		for i, existing := range entries {
+			if !slices.Contains(own, i) {
+				kept = append(kept, existing)
+			}
+		}
+		entries = kept
 		state = "removed"
 	}
 	if action == "uninstall" && len(entries) == 0 {
@@ -262,41 +265,30 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 	if err := atomicWrite(location.path, encoded.Bytes(), 0o600); err != nil {
 		return setupResult{}, err
 	}
-	switch action {
-	case "uninstall":
-		removeMarker(location.markerPath)
-	case "install":
-		if err := writeOwner(location.markerPath); err != nil {
-			if restoreErr := restoreFile(location.path, data, len(data) > 0); restoreErr != nil {
-				return setupResult{}, fmt.Errorf("write managed session owner: %w; rollback configuration: %v", err, restoreErr)
-			}
-			return setupResult{}, err
-		}
-	}
 	return setupResult{agent: location.agent, state: state}, nil
 }
 
-func managedHookProgram(value any, owned bool) (string, bool) {
-	if !owned {
-		return "", false
-	}
+func ownHookProgram(value any) (string, bool) {
 	entry, ok := value.(map[string]any)
-	if !ok || len(entry) != 2 || entry["matcher"] != "" {
-		return "", false
-	}
-	hooks, ok := entry["hooks"].([]any)
-	if !ok || len(hooks) != 1 {
-		return "", false
-	}
-	hook, ok := hooks[0].(map[string]any)
-	if !ok || len(hook) != 2 || hook["type"] != "command" {
-		return "", false
-	}
-	command, ok := hook["command"].(string)
 	if !ok {
 		return "", false
 	}
-	return sessionProgram(command)
+	hooks, ok := entry["hooks"].([]any)
+	if !ok {
+		return "", false
+	}
+	for _, hook := range hooks {
+		item, ok := hook.(map[string]any)
+		if !ok {
+			continue
+		}
+		command, ok := item["command"].(string)
+		if ok && strings.Contains(command, "# "+sessionHookMarker) {
+			program, _ := sessionProgram(command)
+			return program, true
+		}
+	}
+	return "", false
 }
 
 func sessionProgram(command string) (string, bool) {
@@ -313,85 +305,53 @@ func fileExists(path string) bool {
 	return err == nil || !os.IsNotExist(err)
 }
 
-func countSessionMarkers(entries []any) int {
-	count := 0
-	for _, entry := range entries {
-		value, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		hooks, ok := value["hooks"].([]any)
-		if !ok {
-			continue
-		}
-		for _, hook := range hooks {
-			item, ok := hook.(map[string]any)
-			if !ok {
-				continue
-			}
-			command, ok := item["command"].(string)
-			if ok && strings.Contains(command, "# "+sessionHookMarker) {
-				count++
-				break
-			}
-		}
-	}
-	return count
-}
-
-func manageOpenCodePlugin(action string, location hookLocation, command string, owned bool) (setupResult, error) {
+func manageOpenCodePlugin(action string, location hookLocation, command string) (setupResult, error) {
 	data, err := os.ReadFile(location.path)
 	if err != nil && !os.IsNotExist(err) {
 		return setupResult{}, err
 	}
-	program, managed := openCodePluginProgram(data, owned)
-	if len(data) > 0 && !managed {
+	own := strings.Contains(string(data), sessionHookMarker)
+	if len(data) > 0 && !own {
 		return setupResult{}, errors.New("OpenCode plugin path is occupied by unmanaged content")
 	}
 	switch action {
 	case "check":
 		state := "missing"
-		if managed {
+		if own {
 			state = "installed"
-			if !fileExists(program) {
+			if program := openCodePluginProgram(data); program != "" && !fileExists(program) {
 				state = "stale"
 			}
 		}
 		return setupResult{agent: location.agent, state: state}, nil
 	case "uninstall":
-		if !managed {
+		if !own {
 			return setupResult{agent: location.agent, state: "missing"}, nil
 		}
 		if err := os.Remove(location.path); err != nil {
 			return setupResult{}, err
 		}
-		removeMarker(location.markerPath)
 		return setupResult{agent: location.agent, state: "removed"}, nil
 	}
 	plugin := openCodePluginPrefix + jsonStringCommand(command) + openCodePluginSuffix
 	if err := atomicWrite(location.path, []byte(plugin), 0o600); err != nil {
 		return setupResult{}, err
 	}
-	if err := writeOwner(location.markerPath); err != nil {
-		if restoreErr := restoreFile(location.path, data, len(data) > 0); restoreErr != nil {
-			return setupResult{}, fmt.Errorf("write managed session owner: %w; rollback plugin: %v", err, restoreErr)
-		}
-		return setupResult{}, err
-	}
 	return setupResult{agent: location.agent, state: "installed"}, nil
 }
 
-func openCodePluginProgram(data []byte, owned bool) (string, bool) {
+func openCodePluginProgram(data []byte) string {
 	content := string(data)
-	if !owned || !strings.HasPrefix(content, openCodePluginPrefix) || !strings.HasSuffix(content, openCodePluginSuffix) {
-		return "", false
+	if !strings.HasPrefix(content, openCodePluginPrefix) || !strings.HasSuffix(content, openCodePluginSuffix) {
+		return ""
 	}
 	encodedCommand := strings.TrimSuffix(strings.TrimPrefix(content, openCodePluginPrefix), openCodePluginSuffix)
 	var command string
 	if json.Unmarshal([]byte(encodedCommand), &command) != nil {
-		return "", false
+		return ""
 	}
-	return sessionProgram(command)
+	program, _ := sessionProgram(command)
+	return program
 }
 
 func jsonStringCommand(value string) string {
@@ -429,43 +389,14 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	return os.Rename(tmpPath, path)
 }
 
-func readOwner(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func writeOwner(path string) error {
-	return atomicWrite(path, []byte(sessionHookMarker+"\n"), 0o600)
-}
-
-func removeMarker(path string) {
-	_ = os.Remove(path)
-}
-
-func restoreFile(path string, data []byte, existed bool) error {
-	if !existed {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	return atomicWrite(path, data, 0o600)
-}
-
 func setupHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "setup"},
-		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; uninstall removes only the hook that install wrote, recorded by an owner marker next to it, and leaves the hooks of other tools unchanged"},
+		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is the entry that carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such entry with one current entry, and uninstall removes every such entry and leaves the entries without that text unchanged; it writes no other file"},
 		{Name: "actions", Value: output.Object{
 			{Name: "install", Value: "writes the hook; state installed"},
 			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook"},
-			{Name: "uninstall", Value: "removes the owned hook; state removed, or missing when it was not installed"},
+			{Name: "uninstall", Value: "removes every entry that carries the session marker text; state removed, or missing when there is none"},
 		}},
 		{Name: "agents", Value: "claude: ~/.claude/settings.json; codex: ~/.codex/hooks.json; opencode: ~/.config/opencode/plugins/axeos-axi.ts; all: the three"},
 		{Name: "flags", Value: output.Object{
