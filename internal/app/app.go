@@ -503,17 +503,9 @@ func invalidHostHelp(opts options, refused int) string {
 			}
 		}
 	}
-	if len(opts.hosts) == 0 {
-		call += " --host " + placeholder
-	}
 	call += tuningArguments(opts)
-	for _, s := range namedPoolSettings(opts) {
-		argument := poolArgument(opts.pool[s.flag])
-		if s.field == "stratumUser" && !opts.showUser {
-			argument = "<user>"
-		}
-		call += " " + s.flag + "=" + argument
-	}
+	poolSettings, _ := poolSettingArguments(opts)
+	call += poolSettings
 	switch {
 	case opts.lines == allLogLines:
 		call += " --lines all"
@@ -546,9 +538,13 @@ func invalidHostHelp(opts options, refused int) string {
 	return call
 }
 
-func minerReadHelp(err error) string {
+func answeredWithStatus(err error) bool {
 	var status *axeos.StatusError
-	if errors.As(err, &status) {
+	return errors.As(err, &status) || errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect)
+}
+
+func minerReadHelp(err error) string {
+	if answeredWithStatus(err) {
 		return readStatusHelp
 	}
 	return readConnectivityHelp

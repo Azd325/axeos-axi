@@ -161,7 +161,7 @@ func namedPoolSettings(opts options) []poolSetting {
 	return named
 }
 
-func poolArguments(opts options) (arguments string, hiddenUser bool) {
+func poolSettingArguments(opts options) (arguments string, hiddenUser bool) {
 	for _, s := range namedPoolSettings(opts) {
 		argument := poolArgument(opts.pool[s.flag])
 		if s.field == "stratumUser" && !opts.showUser {
@@ -169,6 +169,11 @@ func poolArguments(opts options) (arguments string, hiddenUser bool) {
 		}
 		arguments += " " + s.flag + "=" + argument
 	}
+	return arguments, hiddenUser
+}
+
+func poolArguments(opts options) (arguments string, hiddenUser bool) {
+	arguments, hiddenUser = poolSettingArguments(opts)
 	if opts.showUser || hiddenUser {
 		arguments += " --show-user"
 	}

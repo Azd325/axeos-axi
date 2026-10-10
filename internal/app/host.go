@@ -89,8 +89,7 @@ func saveHost(ctx context.Context, address, path string, location output.Field, 
 	info, err := client.Get(ctx, "info")
 	if err != nil {
 		help := "check the address and local network connectivity; " + hostSaveHelp
-		var status *axeos.StatusError
-		if errors.As(err, &status) {
+		if answeredWithStatus(err) {
 			help = "the address answered with an HTTP error status; check that it is an AxeOS miner; " + hostSaveHelp
 		}
 		return failure(stdout, 1, "miner_read_failed", err.Error()+"; nothing was saved", help)

@@ -117,3 +117,22 @@ func TestSavedHostHintHasASeparateTextForAnHTTPStatus(t *testing.T) {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
+
+func TestHTTP404And302AnswersUseTheStatusHint(t *testing.T) {
+	for name, handler := range map[string]http.HandlerFunc{
+		"404": func(w http.ResponseWriter, r *http.Request) { http.NotFound(w, r) },
+		"302": func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/", http.StatusFound) },
+	} {
+		server := httptest.NewServer(handler)
+		code, out := execute(t, New(noHost), "info", "--host", server.URL)
+		if code != 1 || !strings.Contains(out, "code: miner_read_failed\n") || !strings.Contains(out, "help: "+readStatusHelp+"\n") {
+			t.Fatalf("info %s: code=%d\n%s", name, code, out)
+		}
+		configHome(t)
+		code, out = execute(t, New(noHost), "host", "save", server.URL)
+		if code != 1 || !strings.Contains(out, "answered with an HTTP error status") || strings.Contains(out, "network connectivity") {
+			t.Fatalf("host save %s: code=%d\n%s", name, code, out)
+		}
+		server.Close()
+	}
+}
