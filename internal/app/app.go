@@ -487,11 +487,63 @@ func failureAfter(w io.Writer, lead output.Object, exit int, code, message, help
 	return exit
 }
 
-func invalidHostHelp(command string) string {
-	if command == "" {
-		return "axeos-axi --host 192.0.2.10"
+func invalidHostHelp(opts options, refused int) string {
+	const placeholder = "192.0.2.10"
+	call := "axeos-axi"
+	if opts.command != "" {
+		call += " " + opts.command
 	}
-	return "axeos-axi " + command + " --host 192.0.2.10"
+	for i, host := range opts.hosts {
+		switch {
+		case i == refused:
+			call += " --host " + placeholder
+		default:
+			if _, err := axeos.New(host); err == nil {
+				call += " --host " + shellQuote(host)
+			}
+		}
+	}
+	if len(opts.hosts) == 0 {
+		call += " --host " + placeholder
+	}
+	call += tuningArguments(opts)
+	for _, s := range namedPoolSettings(opts) {
+		argument := poolArgument(opts.pool[s.flag])
+		if s.field == "stratumUser" && !opts.showUser {
+			argument = "<user>"
+		}
+		call += " " + s.flag + "=" + argument
+	}
+	switch {
+	case opts.lines == allLogLines:
+		call += " --lines all"
+	case opts.lines != 0:
+		call += " --lines " + strconv.Itoa(opts.lines)
+	}
+	if opts.follow != 0 {
+		call += " --follow " + strconv.Itoa(opts.follow)
+	}
+	switch {
+	case opts.samples == allSamples:
+		call += " --samples all"
+	case opts.samples != 0:
+		call += " --samples " + strconv.Itoa(opts.samples)
+	}
+	if len(opts.columns) != 0 {
+		call += " --columns " + strings.Join(opts.columns, ",")
+	}
+	if len(opts.fields) != 0 {
+		call += " --fields " + strings.Join(opts.fields, ",")
+	}
+	for _, flag := range []struct {
+		set  bool
+		name string
+	}{{opts.checkRelease, "--check-release"}, {opts.showPrivate, "--show-private"}, {opts.showUser, "--show-user"}, {opts.confirm, "--confirm"}} {
+		if flag.set {
+			call += " " + flag.name
+		}
+	}
+	return call
 }
 
 func minerReadHelp(err error) string {
@@ -570,7 +622,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	for i, host := range opts.hosts {
 		client, err := axeos.New(host)
 		if err != nil {
-			return failure(stdout, 2, "invalid_host", err.Error(), invalidHostHelp(opts.command))
+			return failure(stdout, 2, "invalid_host", err.Error(), invalidHostHelp(opts, i))
 		}
 		for j := range i {
 			if clients[j].Base() == client.Base() {

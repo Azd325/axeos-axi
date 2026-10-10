@@ -135,6 +135,7 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 		agents = []string{opts.agent}
 	}
 	results := make([]any, 0, len(agents))
+	var hints []any
 	codexHooks := ""
 	for _, agent := range agents {
 		result, err := a.setupAgent(opts.action, agent)
@@ -146,6 +147,14 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 			{Name: "state", Value: result.state},
 			{Name: "path", Value: result.path},
 		})
+		if opts.action == "check" {
+			switch result.state {
+			case "missing":
+				hints = append(hints, "axeos-axi setup install --agent "+agent+" to install the hook")
+			case "stale":
+				hints = append(hints, "axeos-axi setup install --agent "+agent+" to replace the stale hook")
+			}
+		}
 		if result.codexHooks != "" {
 			codexHooks = result.codexHooks
 		}
@@ -154,28 +163,10 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 	if codexHooks != "" {
 		view = append(view, output.Field{Name: "codex_hooks_feature", Value: codexHooks})
 	}
-	if hints := setupCheckHints(opts.action, results); len(hints) > 0 {
+	if len(hints) > 0 {
 		view = append(view, output.Field{Name: "help", Value: hints})
 	}
 	return write(stdout, view)
-}
-
-func setupCheckHints(action string, results []any) []any {
-	if action != "check" {
-		return nil
-	}
-	var hints []any
-	for _, value := range results {
-		row := value.(output.Object)
-		agent, state := row[0].Value.(string), row[1].Value.(string)
-		switch state {
-		case "missing":
-			hints = append(hints, "axeos-axi setup install --agent "+agent+" to install the hook")
-		case "stale":
-			hints = append(hints, "axeos-axi setup install --agent "+agent+" to replace the stale hook")
-		}
-	}
-	return hints
 }
 
 func (a *App) tildeHome(message string) string {

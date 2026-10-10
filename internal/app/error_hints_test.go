@@ -75,3 +75,45 @@ func TestInvalidHostHintKeepsTheCommandOfTheCall(t *testing.T) {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
+
+func TestInvalidHostHintKeepsTheFlagsOfTheCall(t *testing.T) {
+	bad := "http://user:pw@192.0.2.1"
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"tuning", "--host", bad, "--frequency", "525", "--core-voltage", "default"}, "help: axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage default\n"},
+		{[]string{"tuning", "--frequency", "525", "--host", bad, "--confirm"}, "help: axeos-axi tuning --host 192.0.2.10 --frequency 525 --confirm\n"},
+		{[]string{"pool", "--host", bad, "--url", "pool.example.org", "--port", "3333", "--user", "wallet.worker"}, "help: axeos-axi pool --host 192.0.2.10 --url='pool.example.org' --port=3333 --user=<user>\n"},
+		{[]string{"logs", "--host", bad, "--follow", "5", "--show-private"}, "help: axeos-axi logs --host 192.0.2.10 --follow 5 --show-private\n"},
+		{[]string{"stats", "--host", bad, "--samples", "3", "--columns", "hashrate,power"}, "help: \"axeos-axi stats --host 192.0.2.10 --samples 3 --columns hashrate,power\"\n"},
+		{[]string{"firmware", "--host", bad, "--check-release"}, "help: axeos-axi firmware --host 192.0.2.10 --check-release\n"},
+		{[]string{"info", "--host", "192.0.2.5", "--host", bad, "--fields", "version"}, "help: axeos-axi info --host '192.0.2.5' --host 192.0.2.10 --fields version\n"},
+	} {
+		code, out := execute(t, New(noHost), tc.args...)
+		if code != 2 || !strings.Contains(out, "code: invalid_host\n") || !strings.HasSuffix(out, tc.want) || strings.Contains(out, "wallet.worker") || strings.Contains(out, "user:pw") {
+			t.Fatalf("%v: code=%d\n%s", tc.args, code, out)
+		}
+	}
+}
+
+func TestHostSaveHintHasASeparateTextForAnHTTPStatus(t *testing.T) {
+	configHome(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusInternalServerError) }))
+	t.Cleanup(server.Close)
+	code, out := execute(t, New(noHost), "host", "save", server.URL)
+	if code != 1 || !strings.Contains(out, "code: miner_read_failed\n") || !strings.Contains(out, "answered with an HTTP error status") || strings.Contains(out, "network connectivity") || !strings.Contains(out, "axeos-axi discover") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+}
+
+func TestSavedHostHintHasASeparateTextForAnHTTPStatus(t *testing.T) {
+	path := configHome(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusInternalServerError) }))
+	t.Cleanup(server.Close)
+	saveFile(t, path, server.URL+"\n")
+	code, out := execute(t, New(noHost), "info")
+	if code != 1 || !strings.Contains(out, "help: "+savedReadStatusHelp+"\n") || strings.Contains(out, "AXEOS_HOST") {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+}
