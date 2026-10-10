@@ -552,3 +552,21 @@ func TestVersionFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestRepeatedFieldsLinesAndTimeoutAreUsageErrors(t *testing.T) {
+	host, calls := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return host })
+	for flag, args := range map[string][]string{
+		"--fields":  {"info", "--fields", "hostname", "--fields", "version"},
+		"--lines":   {"logs", "--lines", "5", "--lines", "6"},
+		"--timeout": {"discover", "--timeout", "1", "--timeout", "2"},
+	} {
+		code, out := execute(t, a, args...)
+		if code != 2 || !strings.Contains(out, "code: usage") || !strings.Contains(out, flag+" was given more than once") {
+			t.Errorf("args=%v code=%d out=%s", args, code, out)
+		}
+	}
+	if len(calls()) != 0 {
+		t.Fatalf("requests after a repeated flag: %v", calls())
+	}
+}

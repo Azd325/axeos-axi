@@ -264,7 +264,7 @@ func TestSessionWithoutAHostSendsNoRequest(t *testing.T) {
 	a := sessionApp(t, "")
 	a.Browser = &fakeBrowser{services: advertisedMiners()}
 	code, out := execute(t, a, "session", "dashboard")
-	if code != 0 || strings.Contains(out, "miner not reachable") || strings.Contains(out, "hashrate") || !strings.Contains(out, "host save <address>") {
+	if code != 0 || strings.Contains(out, "not reachable") || strings.Contains(out, "hashrate") || !strings.Contains(out, "host save <address>") {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 	if calls := a.Browser.(*fakeBrowser).calls; len(calls) != 0 {
@@ -307,7 +307,7 @@ func TestSessionMinerNotReachable(t *testing.T) {
 			code := a.Run(context.Background(), []string{"session", "dashboard"}, &buf)
 			elapsed := time.Since(start)
 			out := buf.String()
-			if code != 0 || !strings.HasPrefix(out, "miner not reachable\n") || strings.Contains(out, "hashrate") {
+			if code != 0 || !strings.HasPrefix(out, "miner: not reachable\n") || strings.Contains(out, "hashrate") {
 				t.Fatalf("code=%d out=%q", code, out)
 			}
 			for _, value := range []string{host, "127.0.0.1", "boom"} {
@@ -775,5 +775,31 @@ func TestSetupOtherAgentsNeverTouchCodexConfigOrPrintFeature(t *testing.T) {
 	}
 	if _, err := os.Stat(codexConfig(home)); !os.IsNotExist(err) {
 		t.Fatalf("config.toml created: %v", err)
+	}
+}
+
+func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
+	for _, tc := range []struct {
+		name, agent, action, want string
+		prepare                   func(t *testing.T, home string)
+	}{
+		{"invalid JSON", "claude", "check", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup install --agent claude", func(t *testing.T, home string) {
+			saveFile(t, filepath.Join(home, ".claude", "settings.json"), "{not json")
+		}},
+		{"occupied plugin path", "opencode", "install", "move ~/.config/opencode/plugins/axeos-axi.ts away, then run axeos-axi setup install --agent opencode", func(t *testing.T, home string) {
+			saveFile(t, filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"), "export default {}\n")
+		}},
+		{"refused codex config", "codex", "install", "set [features].hooks = true in ~/.codex/config.toml manually, then run axeos-axi setup install --agent codex", func(t *testing.T, home string) {
+			saveFile(t, codexConfig(home), "features = { hooks = false }\n")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			tc.prepare(t, home)
+			code, out := execute(t, setupApp(t, home), "setup", tc.action, "--agent", tc.agent)
+			if code != 1 || !strings.Contains(out, "help: \""+tc.want+"\"") || strings.Contains(out, "setup check --agent") {
+				t.Fatalf("code=%d out=%q", code, out)
+			}
+		})
 	}
 }

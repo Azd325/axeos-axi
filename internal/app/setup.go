@@ -39,6 +39,27 @@ type setupResult struct {
 	codexHooks         string
 }
 
+var (
+	errHookConfigNotJSON      = errors.New("managed hook configuration is not valid JSON")
+	errHookConfigNotObject    = errors.New("managed hook configuration must be a JSON object")
+	errHookConfigHooks        = errors.New("managed hook configuration has incompatible hooks value")
+	errHookConfigSessionStart = errors.New("managed hook configuration has incompatible SessionStart value")
+	errOpenCodePathOccupied   = errors.New("OpenCode plugin path is occupied by unmanaged content")
+)
+
+func setupFailureHint(result setupResult, err error, agent string) string {
+	install := "axeos-axi setup install --agent " + agent
+	switch {
+	case errors.Is(err, errHookConfigNotJSON), errors.Is(err, errHookConfigNotObject), errors.Is(err, errHookConfigHooks), errors.Is(err, errHookConfigSessionStart):
+		return "correct " + result.path + " so that it is a JSON object with compatible hooks, then run " + install
+	case errors.Is(err, errOpenCodePathOccupied):
+		return "move " + result.path + " away, then run " + install
+	case errors.Is(err, errCodexConfigUnsafe):
+		return "set [features].hooks = true in " + codexConfigDisplayPath + " manually, then run " + install
+	}
+	return "axeos-axi setup --help"
+}
+
 type hookLocation struct {
 	agent      string
 	path       string
@@ -56,12 +77,7 @@ func (a *App) session(ctx context.Context, opts options, stdout io.Writer) int {
 	info, ok := a.sessionRead(ctx, host)
 	if !ok {
 		hints = []any{"axeos-axi for the home view of the miner", "axeos-axi discover to find miners on the local network", "axeos-axi host show for the saved host"}
-		if opts.json {
-			_ = write(stdout, output.Object{{Name: "miner", Value: "not reachable"}, {Name: "help", Value: hints}})
-			return 0
-		}
-		_, _ = fmt.Fprintln(stdout, "miner not reachable")
-		_ = write(stdout, output.Object{{Name: "help", Value: hints}})
+		_ = write(stdout, output.Object{{Name: "miner", Value: "not reachable"}, {Name: "help", Value: hints}})
 		return 0
 	}
 	_ = write(stdout, output.Object{
@@ -122,7 +138,7 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 	for _, agent := range agents {
 		result, err := a.setupAgent(opts.action, agent)
 		if err != nil {
-			return failure(stdout, 1, "setup_failed", agent+": "+a.tildeHome(err.Error()), "axeos-axi setup check --agent "+agent)
+			return failure(stdout, 1, "setup_failed", agent+": "+a.tildeHome(err.Error()), setupFailureHint(result, err, agent))
 		}
 		results = append(results, output.Object{
 			{Name: "agent", Value: result.agent},
@@ -235,15 +251,15 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 		return setupResult{}, err
 	}
 	if len(data) > 0 && json.Unmarshal(data, &root) != nil {
-		return setupResult{}, errors.New("managed hook configuration is not valid JSON")
+		return setupResult{}, errHookConfigNotJSON
 	}
 	if root == nil {
-		return setupResult{}, errors.New("managed hook configuration must be a JSON object")
+		return setupResult{}, errHookConfigNotObject
 	}
 	hooksValue, hooksPresent := root["hooks"]
 	if hooksPresent {
 		if _, ok := hooksValue.(map[string]any); !ok {
-			return setupResult{}, errors.New("managed hook configuration has incompatible hooks value")
+			return setupResult{}, errHookConfigHooks
 		}
 	} else {
 		hooksValue = map[string]any{}
@@ -256,7 +272,7 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 		var ok bool
 		entries, ok = entriesValue.([]any)
 		if !ok {
-			return setupResult{}, errors.New("managed hook configuration has incompatible SessionStart value")
+			return setupResult{}, errHookConfigSessionStart
 		}
 	}
 	hook := map[string]any{"type": "command", "command": command}
@@ -378,7 +394,7 @@ func manageOpenCodePlugin(action string, location hookLocation, command string) 
 	}
 	own := strings.Contains(string(data), sessionHookMarker)
 	if len(data) > 0 && !own {
-		return setupResult{}, errors.New("OpenCode plugin path is occupied by unmanaged content")
+		return setupResult{}, errOpenCodePathOccupied
 	}
 	switch action {
 	case "check":
@@ -478,7 +494,7 @@ func setupHelp() output.Object {
 func sessionHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "session"},
-		{Name: "description", Value: "Prints the short view that the session hook shows at the start of an agent session: hashrate, temperature, power and firmware version, then command hints; it prints no pool user, payout address, hostname, address, MAC address or Wi-Fi name; with a host saved by `host save` it sends one GET /api/system/info and no other request; without a host it sends no request and prints the hints only; when the miner does not answer, or answers with an error or a malformed answer, it prints the line `miner not reachable`, without a host or address, and the hints; it always exits with code 0"},
+		{Name: "description", Value: "Prints the short view that the session hook shows at the start of an agent session: hashrate, temperature, power and firmware version, then command hints; it prints no pool user, payout address, hostname, address, MAC address or Wi-Fi name; with a host saved by `host save` it sends one GET /api/system/info and no other request; without a host it sends no request and prints the hints only; when the miner does not answer, or answers with an error or a malformed answer, it prints the line `miner: not reachable`, without a host or address, and the hints; it always exits with code 0"},
 		{Name: "actions", Value: "dashboard"},
 		{Name: "flags", Value: output.Object{
 			{Name: "json", Value: jsonFlagHelp},
