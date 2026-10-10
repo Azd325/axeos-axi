@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -116,7 +117,7 @@ func TestRecordedViews(t *testing.T) {
 						t.Errorf("missing %s", field)
 					}
 				}
-				if !strings.Contains(out, "axeos-axi firmware --host '"+host+"'") {
+				if !strings.Contains(out, "axeos-axi health --host '"+host+"'") {
 					t.Fatal("home help lost explicit target")
 				}
 			}
@@ -128,8 +129,18 @@ func TestHomeHelpLines(t *testing.T) {
 	host, _ := miner(t, fixture(t, "info"))
 	a := New(func(string) string { return host })
 	code, out := execute(t, a)
-	if code != 0 || !strings.Contains(out, "\nhelp[11]:") {
+	if code != 0 || !strings.Contains(out, "\nhelp[4]:") {
 		t.Fatalf("code=%d output=%s", code, out)
+	}
+	want := fmt.Sprintf("help[4]: \"axeos-axi health --host '%s' for a verdict on the miner state\",\"axeos-axi info --host '%s' for system and network detail\",axeos-axi discover to find AxeOS miners on the local network,axeos-axi --help for all commands\n", host, host)
+	if !strings.HasSuffix(out, want) {
+		t.Fatalf("unexpected hints: %s", out)
+	}
+	_, allHelp := execute(t, a, "--help")
+	for _, command := range append(slices.Clone(commandNames), "skill install") {
+		if !strings.Contains(allHelp, command) {
+			t.Errorf("help lacks %s", command)
+		}
 	}
 	code, out = execute(t, a, "--fields", "hostname")
 	if code != 0 || strings.Contains(out, "\nhelp") {

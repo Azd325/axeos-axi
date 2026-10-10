@@ -403,14 +403,24 @@ bin/axeos-axi firmware --host 192.0.2.10 --host 192.0.2.11 --fields version
 ```
 
 The result starts with `count` and `failed`, then `miners`: a table with one row per miner in the order of the flags.
-The columns are `host`, the fields of the default view of the command (or the fields of `--fields`), and `error`.
+Default tables have four columns, with `host` first and `error` last:
+
+| Command | Data columns |
+| --- | --- |
+| Home view | `hashrate`, `temperature` |
+| `info` | `firmware`, `uptime_s` |
+| `asic` | `frequency_actual_mhz`, `core_voltage_actual_mv` |
+| `stats` | `sample_count`, `hashrate_ghs` |
+| `firmware` | `version`, `sha256` |
+
+`--fields` replaces the data columns and accepts every field of the single-miner view or exact API field names. Default JSON uses the same four columns.
 `host` prints the address as typed. A value the miner does not send is `null`.
 A miner that fails keeps its row: `error` carries the error code (`miner_read_failed`, `not_supported`, `invalid_statistics`) and the value columns are `null`. The other miners still print.
 The exit code is 0 when each miner answered, 1 when any miner failed and 2 for a usage error.
 The miners are read at the same time, each with the four-second timeout, and each miner gets the same requests as a call with one `--host`.
 A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
-The home view adds one line for `info` on the same miners.
+Each default table adds one hint with the same command and hosts and `--fields` to request all view fields.
 
 `AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs` or `health` is a usage error with exit code 2, and no request is sent.
 
@@ -477,7 +487,7 @@ listed in command help or exact top-level JSON field names from the
 For `info`, `asic` and the home view, firmware v2.15.3 sends some fields only on a condition,
 for example `power_fault` during a fault. `--help` lists them as `conditional_fields`.
 With `--fields`, such a name that the miner omits prints `null`.
-The home view prints one `help` line for each command; with `--fields` it prints no `help` field.
+The single-miner home view prints four hints: `health` for a verdict, `info` for detail, `discover` for other miners and `--help` for all commands. `health` and `info` carry the selected host, including a saved host. With `--fields` it prints no `help` field. The write commands and `skill install` are listed in `--help`.
 Raw API field values retain their API units; normalized view names/values state units.
 Missing view values are `null` or `unknown`, never an inferred healthy state.
 

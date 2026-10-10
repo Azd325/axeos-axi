@@ -175,7 +175,7 @@ func TestOnlyHealthPrintsAVerdict(t *testing.T) {
 			args = append(args, command)
 		}
 		_, out := execute(t, New(func(string) string { return host }), args...)
-		if strings.Contains(out, "verdict") {
+		if strings.HasPrefix(out, "verdict:") || strings.Contains(out, "\nverdict:") {
 			t.Errorf("%q prints a verdict:\n%s", command, out)
 		}
 	}

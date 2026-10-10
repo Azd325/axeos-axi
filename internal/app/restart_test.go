@@ -184,10 +184,10 @@ func TestRestartHelpAndVersionSendNothing(t *testing.T) {
 	}
 }
 
-func TestHomeNamesRestart(t *testing.T) {
+func TestHomeLeavesRestartInHelp(t *testing.T) {
 	host, calls := miner(t, fixture(t, "info"))
 	code, out := execute(t, New(func(string) string { return host }))
-	if code != 0 || !strings.Contains(out, "\"axeos-axi restart --host '"+host+"' for a preview of a miner restart; it sends no request without --confirm\"") {
+	if code != 0 || strings.Contains(out, "axeos-axi restart") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if strings.Join(calls(), ",") != "GET /api/system/info" {

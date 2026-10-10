@@ -522,10 +522,10 @@ func TestPoolHelpAndVersionSendNothing(t *testing.T) {
 	}
 }
 
-func TestHomeNamesPool(t *testing.T) {
+func TestHomeLeavesPoolInHelp(t *testing.T) {
 	host, calls := miner(t, fixture(t, "info"))
 	code, out := execute(t, New(func(string) string { return host }))
-	if code != 0 || !strings.Contains(out, "\"axeos-axi pool --host '"+host+"' --url <host> --port <port> --user <user> for a preview of a pool change; it sends no write request without --confirm\"") {
+	if code != 0 || strings.Contains(out, "axeos-axi pool") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if !slices.Equal(calls(), []string{"GET /api/system/info"}) {
