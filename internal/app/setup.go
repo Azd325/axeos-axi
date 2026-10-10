@@ -19,6 +19,7 @@ import (
 
 const (
 	sessionHookMarker     = "axeos-axi-session-hook"
+	sessionProgramName    = "axeos-axi"
 	defaultSessionTimeout = time.Second
 	sessionCommandTail    = " session dashboard 2>/dev/null || true # " + sessionHookMarker
 
@@ -134,6 +135,7 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 		agents = []string{opts.agent}
 	}
 	results := make([]any, 0, len(agents))
+	var hints []any
 	codexHooks := ""
 	for _, agent := range agents {
 		result, err := a.setupAgent(opts.action, agent)
@@ -145,6 +147,14 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 			{Name: "state", Value: result.state},
 			{Name: "path", Value: result.path},
 		})
+		if opts.action == "check" {
+			switch result.state {
+			case "missing":
+				hints = append(hints, "axeos-axi setup install --agent "+agent+" to install the hook")
+			case "stale":
+				hints = append(hints, "axeos-axi setup install --agent "+agent+" to replace the stale hook")
+			}
+		}
 		if result.codexHooks != "" {
 			codexHooks = result.codexHooks
 		}
@@ -152,6 +162,9 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 	view := output.Object{{Name: "setup", Value: results}}
 	if codexHooks != "" {
 		view = append(view, output.Field{Name: "codex_hooks_feature", Value: codexHooks})
+	}
+	if len(hints) > 0 {
+		view = append(view, output.Field{Name: "help", Value: hints})
 	}
 	return write(stdout, view)
 }
@@ -192,11 +205,11 @@ func (a *App) setupAgent(action, agent string) (setupResult, error) {
 	var result setupResult
 	switch agent {
 	case "opencode":
-		result, err = manageOpenCodePlugin(action, location, command)
+		result, err = manageOpenCodePlugin(action, location, command, a.commandStale)
 	case "codex":
-		result, err = manageCodexHook(action, location, command)
+		result, err = manageCodexHook(action, location, command, a.commandStale)
 	default:
-		result, err = manageHookJSON(action, location, command)
+		result, err = manageHookJSON(action, location, command, a.commandStale)
 	}
 	result.path = "~" + strings.TrimPrefix(location.path, home)
 	return result, err
@@ -207,10 +220,39 @@ func (a *App) sessionCommand() (string, error) {
 	if err != nil || path == "" {
 		return "", errors.New("resolve axeos-axi executable")
 	}
-	return shellQuote(path) + sessionCommandTail, nil
+	program := shellQuote(path)
+	if a.pathResolvesTo(path) {
+		program = sessionProgramName
+	}
+	return program + sessionCommandTail, nil
 }
 
-func manageCodexHook(action string, location hookLocation, command string) (setupResult, error) {
+func (a *App) pathResolvesTo(path string) bool {
+	found, err := a.lookPath(sessionProgramName)
+	if err != nil {
+		return false
+	}
+	foundInfo, err := os.Stat(found)
+	if err != nil {
+		return false
+	}
+	pathInfo, err := os.Stat(path)
+	return err == nil && os.SameFile(foundInfo, pathInfo)
+}
+
+func (a *App) commandStale(command string) bool {
+	program, _ := sessionProgram(command)
+	if program == "" {
+		return false
+	}
+	if program == sessionProgramName {
+		_, err := a.lookPath(program)
+		return err != nil
+	}
+	return !fileExists(program)
+}
+
+func manageCodexHook(action string, location hookLocation, command string, stale func(string) bool) (setupResult, error) {
 	var config []byte
 	var feature codexHooksUpdate
 	if action == "install" {
@@ -222,7 +264,7 @@ func manageCodexHook(action string, location hookLocation, command string) (setu
 			return setupResult{}, err
 		}
 	}
-	result, err := manageHookJSON(action, location, command)
+	result, err := manageHookJSON(action, location, command, stale)
 	if err != nil {
 		return setupResult{}, err
 	}
@@ -232,6 +274,7 @@ func manageCodexHook(action string, location hookLocation, command string) (setu
 			if err := atomicWrite(location.configPath, []byte(feature.Content), 0o600); err != nil {
 				return setupResult{}, codexConfigFileError("write", err)
 			}
+			result.state = "installed"
 		}
 		result.codexHooks = feature.State
 	case "check":
@@ -244,7 +287,7 @@ func manageCodexHook(action string, location hookLocation, command string) (setu
 	return result, nil
 }
 
-func manageHookJSON(action string, location hookLocation, command string) (setupResult, error) {
+func manageHookJSON(action string, location hookLocation, command string, stale func(string) bool) (setupResult, error) {
 	root := map[string]any{}
 	data, err := os.ReadFile(location.path)
 	if err != nil && !os.IsNotExist(err) {
@@ -276,7 +319,7 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 		}
 	}
 	hook := map[string]any{"type": "command", "command": command}
-	rewritten, found, staleHook := rewriteOwnHooks(entries, hook, action == "install")
+	rewritten, found, staleHook := rewriteOwnHooks(entries, hook, action == "install", stale)
 	state := "missing"
 	if found > 0 {
 		state = "installed"
@@ -315,13 +358,16 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 	if err := encoder.Encode(root); err != nil {
 		return setupResult{}, err
 	}
+	if action == "install" && bytes.Equal(data, encoded.Bytes()) {
+		return setupResult{agent: location.agent, state: "unchanged"}, nil
+	}
 	if err := atomicWrite(location.path, encoded.Bytes(), 0o600); err != nil {
 		return setupResult{}, err
 	}
 	return setupResult{agent: location.agent, state: state}, nil
 }
 
-func rewriteOwnHooks(entries []any, hook map[string]any, replace bool) ([]any, int, bool) {
+func rewriteOwnHooks(entries []any, hook map[string]any, replace bool, commandStale func(string) bool) ([]any, int, bool) {
 	out := make([]any, 0, len(entries)+1)
 	found, stale, placed := 0, false, false
 	for _, value := range entries {
@@ -340,7 +386,7 @@ func rewriteOwnHooks(entries []any, hook map[string]any, replace bool) ([]any, i
 				continue
 			}
 			own++
-			if program, _ := sessionProgram(command); program != "" && !fileExists(program) {
+			if commandStale(command) {
 				stale = true
 			}
 			if replace && !placed {
@@ -374,6 +420,9 @@ func ownHookCommand(item any) string {
 }
 
 func sessionProgram(command string) (string, bool) {
+	if command == sessionProgramName+sessionCommandTail {
+		return sessionProgramName, true
+	}
 	suffix := "'" + sessionCommandTail
 	if !strings.HasPrefix(command, "'") || !strings.HasSuffix(command, suffix) {
 		return "", false
@@ -387,7 +436,7 @@ func fileExists(path string) bool {
 	return err == nil || !os.IsNotExist(err)
 }
 
-func manageOpenCodePlugin(action string, location hookLocation, command string) (setupResult, error) {
+func manageOpenCodePlugin(action string, location hookLocation, command string, stale func(string) bool) (setupResult, error) {
 	data, err := os.ReadFile(location.path)
 	if err != nil && !os.IsNotExist(err) {
 		return setupResult{}, err
@@ -401,7 +450,7 @@ func manageOpenCodePlugin(action string, location hookLocation, command string) 
 		state := "missing"
 		if own {
 			state = "installed"
-			if program := openCodePluginProgram(data); program != "" && !fileExists(program) {
+			if command := openCodePluginCommand(data); command != "" && stale(command) {
 				state = "stale"
 			}
 		}
@@ -415,14 +464,17 @@ func manageOpenCodePlugin(action string, location hookLocation, command string) 
 		}
 		return setupResult{agent: location.agent, state: "removed"}, nil
 	}
-	plugin := openCodePluginPrefix + jsonStringCommand(command) + openCodePluginSuffix
-	if err := atomicWrite(location.path, []byte(plugin), 0o600); err != nil {
+	plugin := []byte(openCodePluginPrefix + jsonStringCommand(command) + openCodePluginSuffix)
+	if bytes.Equal(data, plugin) {
+		return setupResult{agent: location.agent, state: "unchanged"}, nil
+	}
+	if err := atomicWrite(location.path, plugin, 0o600); err != nil {
 		return setupResult{}, err
 	}
 	return setupResult{agent: location.agent, state: "installed"}, nil
 }
 
-func openCodePluginProgram(data []byte) string {
+func openCodePluginCommand(data []byte) string {
 	content := string(data)
 	if !strings.HasPrefix(content, openCodePluginPrefix) || !strings.HasSuffix(content, openCodePluginSuffix) {
 		return ""
@@ -432,8 +484,7 @@ func openCodePluginProgram(data []byte) string {
 	if json.Unmarshal([]byte(encodedCommand), &command) != nil {
 		return ""
 	}
-	program, _ := sessionProgram(command)
-	return program
+	return command
 }
 
 func jsonStringCommand(value string) string {
@@ -474,10 +525,10 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 func setupHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "setup"},
-		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is each hook whose command carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such hook with one current hook, and uninstall removes every such hook and leaves the hooks of other tools, also in the same entry, unchanged; it writes no other file, except that install for codex also ensures `[features].hooks = true` in ~/.codex/config.toml, which Codex needs to run hooks: it changes only that setting, creates the file when it is missing, states `changed_from_false` when it changed a false value, refuses a file that it cannot edit safely without writing anything, and uninstall leaves the setting"},
+		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; the hook command names the program `axeos-axi` when PATH resolves that name to the running executable, and the absolute path of the executable otherwise; a repeated install that would write the same content writes nothing and reports the state `unchanged`, and an install from another path or form repairs the command or a stale hook; the hook that install writes is each hook whose command carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such hook with one current hook, and uninstall removes every such hook and leaves the hooks of other tools, also in the same entry, unchanged; it writes no other file, except that install for codex also ensures `[features].hooks = true` in ~/.codex/config.toml, which Codex needs to run hooks: it changes only that setting, creates the file when it is missing, states `changed_from_false` when it changed a false value, refuses a file that it cannot edit safely without writing anything, and uninstall leaves the setting"},
 		{Name: "actions", Value: output.Object{
-			{Name: "install", Value: "writes the hook; state installed; for codex it also prints codex_hooks_feature: added, enabled or changed_from_false"},
-			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook; for codex it also prints codex_hooks_feature: enabled, disabled, missing or unverifiable"},
+			{Name: "install", Value: "writes the hook; state installed, or unchanged when no file needs a change; for codex it also prints codex_hooks_feature: added, enabled or changed_from_false"},
+			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook; a state missing or stale also prints a help line for each such agent with axeos-axi setup install --agent <agent>; for codex it also prints codex_hooks_feature: enabled, disabled, missing or unverifiable"},
 			{Name: "uninstall", Value: "removes every hook that carries the session marker text; state removed, or missing when there is none"},
 		}},
 		{Name: "agents", Value: "claude: ~/.claude/settings.json; codex: ~/.codex/hooks.json and ~/.codex/config.toml; opencode: ~/.config/opencode/plugins/axeos-axi.ts; all: the three"},

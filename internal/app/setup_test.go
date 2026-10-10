@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,6 +23,7 @@ func setupApp(t *testing.T, home string) *App {
 		t.Fatal(err)
 	}
 	a.executable = func() (string, error) { return exe, nil }
+	a.lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
 	return a
 }
 
@@ -47,7 +49,7 @@ func TestSetupInstallCheckAndUninstallEachAgent(t *testing.T) {
 			a := setupApp(t, home)
 			for _, step := range []struct{ action, state string }{
 				{"check", "missing"}, {"install", "installed"}, {"check", "installed"},
-				{"install", "installed"}, {"uninstall", "removed"}, {"check", "missing"}, {"uninstall", "missing"},
+				{"install", "unchanged"}, {"uninstall", "removed"}, {"check", "missing"}, {"uninstall", "missing"},
 			} {
 				code, out := execute(t, a, "setup", step.action, "--agent", agent)
 				if code != 0 || !strings.Contains(out, agent+","+step.state+",") {
@@ -443,7 +445,7 @@ func TestSetupRecognizesAnExecutablePathWithAnApostrophe(t *testing.T) {
 			saveFile(t, exe, "x")
 			a.executable = func() (string, error) { return exe, nil }
 			for _, step := range []struct{ action, state string }{
-				{"install", "installed"}, {"check", "installed"}, {"install", "installed"}, {"uninstall", "removed"}, {"check", "missing"},
+				{"install", "installed"}, {"check", "installed"}, {"install", "unchanged"}, {"uninstall", "removed"}, {"check", "missing"},
 			} {
 				code, out := execute(t, a, "setup", step.action, "--agent", agent)
 				if code != 0 || !strings.Contains(out, agent+","+step.state+",") {
@@ -807,5 +809,120 @@ func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
 				t.Fatalf("code=%d out=%q", code, out)
 			}
 		})
+	}
+}
+
+func TestSetupWritesTheBareNameWhenPathResolvesToTheExecutable(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	exe, _ := a.executable()
+	a.lookPath = func(name string) (string, error) {
+		if name != "axeos-axi" {
+			t.Fatalf("looked up %q", name)
+		}
+		return exe, nil
+	}
+	if code, out := execute(t, a, "setup", "install", "--agent", "all"); code != 0 {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	want := "axeos-axi session dashboard 2>/dev/null || true # axeos-axi-session-hook"
+	for _, path := range []string{claudeSettings(home), filepath.Join(home, ".codex", "hooks.json")} {
+		entries := readJSONFile(t, path)["hooks"].(map[string]any)["SessionStart"].([]any)
+		if command := entries[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"]; len(entries) != 1 || command != want {
+			t.Fatalf("%s: %v", path, entries)
+		}
+	}
+	plugin, err := os.ReadFile(filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"))
+	if err != nil || !strings.Contains(string(plugin), jsonStringCommand(want)) {
+		t.Fatalf("plugin=%q err=%v", plugin, err)
+	}
+	if code, out := execute(t, a, "setup", "check", "--agent", "all"); code != 0 || strings.Count(out, ",installed,") != 3 {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
+
+func TestSetupBareNameFallsBackToTheAbsolutePathWhenPathResolvesElsewhere(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	other := filepath.Join(t.TempDir(), "axeos-axi")
+	saveFile(t, other, "other")
+	a.lookPath = func(string) (string, error) { return other, nil }
+	execute(t, a, "setup", "install", "--agent", "claude")
+	exe, _ := a.executable()
+	entries := readJSONFile(t, claudeSettings(home))["hooks"].(map[string]any)["SessionStart"].([]any)
+	if command := entries[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"].(string); !strings.HasPrefix(command, "'"+exe+"' session dashboard") {
+		t.Fatalf("command=%q", command)
+	}
+}
+
+func TestSetupInstallReplacesTheBareNameWithOneAbsolutePathHook(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	exe, _ := a.executable()
+	a.lookPath = func(string) (string, error) { return exe, nil }
+	execute(t, a, "setup", "install", "--agent", "claude")
+	a.lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	if _, out := execute(t, a, "setup", "check", "--agent", "claude"); !strings.Contains(out, "claude,stale,") {
+		t.Fatalf("out=%q", out)
+	}
+	if code, out := execute(t, a, "setup", "install", "--agent", "claude"); code != 0 || !strings.Contains(out, "claude,installed,") {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	entries := readJSONFile(t, claudeSettings(home))["hooks"].(map[string]any)["SessionStart"].([]any)
+	command := entries[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"].(string)
+	if len(entries) != 1 || !strings.HasPrefix(command, "'"+exe+"' session dashboard") {
+		t.Fatalf("entries=%v", entries)
+	}
+}
+
+func TestSetupRepeatedInstallWritesNothing(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	paths := []string{claudeSettings(home), filepath.Join(home, ".codex", "hooks.json"), codexConfig(home), filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts")}
+	execute(t, a, "setup", "install", "--agent", "all")
+	old := time.Now().Add(-time.Hour).Round(time.Second)
+	before := map[string]os.FileInfo{}
+	for _, path := range paths {
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[path] = info
+	}
+	code, out := execute(t, a, "setup", "install", "--agent", "all")
+	if code != 0 || strings.Count(out, ",unchanged,") != 3 || strings.Contains(out, ",installed,") || !strings.Contains(out, "codex_hooks_feature: enabled\n") {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	for _, path := range paths {
+		info, err := os.Stat(path)
+		if err != nil || !os.SameFile(before[path], info) || !info.ModTime().Equal(old) {
+			t.Fatalf("%s was written: %v", path, err)
+		}
+	}
+}
+
+func TestSetupCheckHintsAnInstallForEachMissingOrStaleAgent(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	code, out := execute(t, a, "setup", "check", "--agent", "claude")
+	if code != 0 || !strings.Contains(out, "help[1]: axeos-axi setup install --agent claude to install the hook\n") {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	execute(t, a, "setup", "install", "--agent", "claude")
+	if _, out = execute(t, a, "setup", "check", "--agent", "claude"); strings.Contains(out, "help") {
+		t.Fatalf("installed hook has a hint: %q", out)
+	}
+	exe, _ := a.executable()
+	if err := os.Remove(exe); err != nil {
+		t.Fatal(err)
+	}
+	code, out = execute(t, a, "setup", "check", "--agent", "all")
+	for _, want := range []string{"claude,stale,", "axeos-axi setup install --agent claude to replace the stale hook", "axeos-axi setup install --agent codex to install the hook", "axeos-axi setup install --agent opencode to install the hook"} {
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("missing %q: code=%d out=%q", want, code, out)
+		}
 	}
 }

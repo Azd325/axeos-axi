@@ -168,7 +168,7 @@ func TestFollowBrokenConnectionPrintsLinesThenError(t *testing.T) {
 		_ = s.Conn.Close()
 	})
 	code, out := execute(t, New(func(string) string { return m.url }), "logs", "--follow", "5", "--show-private")
-	if code != 1 || !strings.Contains(out, "line_1: one\nline_2: two\nlines: 2\n") || !strings.Contains(out, "code: connection_lost") || !strings.Contains(out, "help: ") || strings.Contains(out, "ended:") {
+	if code != 1 || !strings.Contains(out, "line_1: one\nline_2: two\nlines: 2\n") || !strings.Contains(out, "code: connection_lost\n  message: the connection to the miner ended without a close frame\n") || strings.Contains(out, "EOF") || !strings.Contains(out, "help: ") || strings.Contains(out, "ended:") {
 		t.Fatalf("%d\n%s", code, out)
 	}
 }

@@ -83,7 +83,7 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	if !opts.showPrivate {
 		info, err := client.Get(ctx, "info")
 		if err != nil {
-			return failure(stdout, 1, "miner_read_failed", err.Error(), connectivityHelp)
+			return failure(stdout, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 		}
 		redact = newRedactor(info)
 	}
@@ -134,11 +134,13 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	prefix := "axeos-axi logs --host " + shellQuote(opts.host)
 	summary := output.Object{{Name: "lines", Value: stream.count}, {Name: "seconds_followed", Value: followed}}
 	if readErr != nil {
+		message := "the connection to the miner ended without a close frame"
 		code, help := "connection_lost", "the miner closed the connection without a close frame, for example after a restart; "+prefix+" --follow "+fmt.Sprint(opts.follow)+" starts a new follow"
 		if errors.Is(readErr, ws.ErrProtocol) || errors.Is(readErr, ws.ErrFrameTooLarge) {
+			message = readErr.Error()
 			code, help = "protocol_error", "the miner sent data that is not a valid log stream; "+prefix+" --lines <n> reads the log buffer instead"
 		}
-		return failureAfter(stdout, summary, 1, code, readErr.Error(), help)
+		return failureAfter(stdout, summary, 1, code, message, help)
 	}
 	summary = append(summary, output.Field{Name: "ended", Value: ended})
 	if stream.count == 0 {
@@ -164,5 +166,5 @@ func followOpenFailure(w io.Writer, err error, host string) int {
 	case errors.Is(err, axeos.ErrHandshake):
 		return failure(w, 1, "handshake_failed", err.Error(), prefix+" --lines <n> reads the log buffer instead")
 	}
-	return failure(w, 1, "miner_read_failed", err.Error(), connectivityHelp)
+	return failure(w, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 }

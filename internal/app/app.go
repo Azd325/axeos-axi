@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,6 +22,11 @@ import (
 const (
 	connectivityHelp      = "check --host or AXEOS_HOST and local network connectivity"
 	savedConnectivityHelp = "check local network connectivity; axeos-axi host show prints the saved host; axeos-axi host save <address> replaces it; axeos-axi host forget removes it"
+	discoverHint          = "axeos-axi discover finds miners on the local network"
+	readConnectivityHelp  = connectivityHelp + "; " + discoverHint
+	readStatusHelp        = "the miner answered with an HTTP error status; check that --host or AXEOS_HOST names an AxeOS miner; " + discoverHint
+	savedReadHelp         = savedConnectivityHelp + "; " + discoverHint
+	savedReadStatusHelp   = "the miner answered with an HTTP error status; check that the saved host is an AxeOS miner; axeos-axi host show prints the saved host; axeos-axi host save <address> replaces it; axeos-axi host forget removes it; " + discoverHint
 	universalFlags        = "--json, --help, -v, -V, --version"
 	jsonFlagHelp          = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	versionFlagHelp       = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
@@ -75,13 +81,14 @@ type App struct {
 
 	homeDir        func() (string, error)
 	executable     func() (string, error)
+	lookPath       func(string) (string, error)
 	sessionTimeout time.Duration
 
 	releaseURL string
 }
 
 func New(getenv func(string) string) *App {
-	return &App{getenv: getenv, Version: "dev", Browser: mdns.Multicast{}, homeDir: os.UserHomeDir, executable: os.Executable, sessionTimeout: defaultSessionTimeout}
+	return &App{getenv: getenv, Version: "dev", Browser: mdns.Multicast{}, homeDir: os.UserHomeDir, executable: os.Executable, lookPath: exec.LookPath, sessionTimeout: defaultSessionTimeout}
 }
 
 type options struct {
@@ -464,8 +471,15 @@ func failure(w io.Writer, exit int, code, message, help string) int {
 }
 
 func failureAfter(w io.Writer, lead output.Object, exit int, code, message, help string) int {
-	if _, ok := w.(*savedHostWriter); ok && help == connectivityHelp {
-		help = savedConnectivityHelp
+	if _, ok := w.(*savedHostWriter); ok {
+		switch help {
+		case connectivityHelp:
+			help = savedConnectivityHelp
+		case readConnectivityHelp:
+			help = savedReadHelp
+		case readStatusHelp:
+			help = savedReadStatusHelp
+		}
 	}
 	if write(w, append(lead, output.Object{{Name: "error", Value: output.Object{{Name: "code", Value: code}, {Name: "message", Value: message}}}, {Name: "help", Value: help}}...)) != 0 {
 		return 1
@@ -473,11 +487,74 @@ func failureAfter(w io.Writer, lead output.Object, exit int, code, message, help
 	return exit
 }
 
+func invalidHostHelp(opts options, refused int) string {
+	const placeholder = "192.0.2.10"
+	call := "axeos-axi"
+	if opts.command != "" {
+		call += " " + opts.command
+	}
+	for i, host := range opts.hosts {
+		switch i {
+		case refused:
+			call += " --host " + placeholder
+		default:
+			if _, err := axeos.New(host); err == nil {
+				call += " --host " + shellQuote(host)
+			}
+		}
+	}
+	call += tuningArguments(opts)
+	poolSettings, _ := poolSettingArguments(opts)
+	call += poolSettings
+	switch {
+	case opts.lines == allLogLines:
+		call += " --lines all"
+	case opts.lines != 0:
+		call += " --lines " + strconv.Itoa(opts.lines)
+	}
+	if opts.follow != 0 {
+		call += " --follow " + strconv.Itoa(opts.follow)
+	}
+	switch {
+	case opts.samples == allSamples:
+		call += " --samples all"
+	case opts.samples != 0:
+		call += " --samples " + strconv.Itoa(opts.samples)
+	}
+	if len(opts.columns) != 0 {
+		call += " --columns " + strings.Join(opts.columns, ",")
+	}
+	if len(opts.fields) != 0 {
+		call += " --fields " + strings.Join(opts.fields, ",")
+	}
+	for _, flag := range []struct {
+		set  bool
+		name string
+	}{{opts.checkRelease, "--check-release"}, {opts.showPrivate, "--show-private"}, {opts.showUser, "--show-user"}, {opts.confirm, "--confirm"}} {
+		if flag.set {
+			call += " " + flag.name
+		}
+	}
+	return call
+}
+
+func answeredWithStatus(err error) bool {
+	var status *axeos.StatusError
+	return errors.As(err, &status) || errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect)
+}
+
+func minerReadHelp(err error) string {
+	if answeredWithStatus(err) {
+		return readStatusHelp
+	}
+	return readConnectivityHelp
+}
+
 func optionalReadFailure(w io.Writer, err error, subject, host string) int {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
 		return failure(w, 1, "not_supported", subject+" is not supported by this firmware", "axeos-axi info --host "+shellQuote(host)+" shows the firmware version")
 	}
-	return failure(w, 1, "miner_read_failed", err.Error(), connectivityHelp)
+	return failure(w, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 }
 
 func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
@@ -541,7 +618,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	for i, host := range opts.hosts {
 		client, err := axeos.New(host)
 		if err != nil {
-			return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi --host 192.0.2.10")
+			return failure(stdout, 2, "invalid_host", err.Error(), invalidHostHelp(opts, i))
 		}
 		for j := range i {
 			if clients[j].Base() == client.Base() {

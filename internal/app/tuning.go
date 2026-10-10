@@ -101,7 +101,7 @@ func planTuning(ctx context.Context, client *axeos.Client, opts options, host st
 	}
 	info, err := client.Get(ctx, "info")
 	if err != nil {
-		return nil, readFailed(err, connectivityHelp)
+		return nil, readFailed(err, minerReadHelp(err))
 	}
 	asic, err := client.Get(ctx, "asic")
 	if err != nil {
