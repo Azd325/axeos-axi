@@ -83,6 +83,8 @@ sends that request one time for each miner.
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user`. With `--host` more than once: one row per miner |
 | `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
+| `setup` | One row per agent: the agent, the state (`installed`, `missing`, `stale` or `removed`) and the path of the hook file |
+| `session` | `session dashboard` only: hashrate, temperature, power and firmware version of the miner, then command hints; `miner not reachable` and the hints when the miner does not answer; the hints only without a host. Always exit code 0 |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
 on stdout. Exit codes: **0** success, **1** request/protocol/output error, **2** usage error, **3** an unhealthy miner (`health` only).
@@ -145,6 +147,33 @@ axeos-axi skill install --path ~/.claude/skills
 The default target is `~/.agents/skills/axeos-axi/SKILL.md`. `--path <directory>` selects another parent directory.
 The command prints the absolute path, shown with `~` when it is under the home directory, and whether it wrote the file. The command does not expand a `~` inside `--path`. A repeated install with the same content writes nothing.
 A test fails when the help block inside the skill differs from `axeos-axi --help`.
+
+### Session hook
+
+`setup` installs an opt-in hook that prints a short view of the miner at the start of each agent session. The hook and the skill are two ways to give an agent the same knowledge; one of them is enough.
+
+```sh
+axeos-axi setup install --agent all
+axeos-axi setup check --agent claude
+axeos-axi setup uninstall --agent opencode
+```
+
+`--agent` takes `claude`, `codex`, `opencode` or `all`, and is required. No other command writes a hook.
+
+| Agent | Hook |
+| --- | --- |
+| `claude` | `SessionStart` entry in `~/.claude/settings.json` |
+| `codex` | `SessionStart` entry in `~/.codex/hooks.json` |
+| `opencode` | plugin `~/.config/opencode/plugins/axeos-axi.ts` |
+
+The tool writes no file besides the hook. A hook is the tool's own when its command carries the text `axeos-axi-session-hook`, whatever its other fields. `install` replaces every own hook with one current hook and never adds a second one, also after a hand edit. `uninstall` removes every own hook, drops an entry whose hooks become empty, then removes the `SessionStart` key and the `hooks` key when they are empty; hooks without that text stay unchanged, also in the same entry, and a settings file stays in place. A repeated install from the same executable path changes nothing; an install from another path repairs the path. The hook stores the full path of the executable. `check` reports `stale` when that program no longer exists, and `install` replaces a stale hook. A file that is not valid JSON, or a plugin path with other content, is an error and nothing is written.
+
+The hook runs `axeos-axi session dashboard`:
+
+- It prints hashrate, temperature, power and firmware version, then command hints. It prints no pool user, payout address, hostname, IP or MAC address and no Wi-Fi name.
+- With a host saved by `host save` it sends one `GET /api/system/info` with a timeout of 1 second. Without a host it sends no request, runs no discovery and prints the hints only.
+- When the miner does not answer in time, answers with an error or answers with a malformed body, it prints the line `miner not reachable` and the hints. The line names no host.
+- It always exits with code 0, so the hook never fails or delays the session start by more than the timeout.
 
 ## Discovery
 

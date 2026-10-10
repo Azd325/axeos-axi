@@ -30,12 +30,16 @@ const (
 	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs and health take one miner; restart, tuning and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi tuning --help, axeos-axi pool --help)"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill", "setup", "session"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
 func validFlags(command string) string {
 	switch command {
+	case "setup":
+		return "--agent, " + universalFlags
+	case "session":
+		return universalFlags
 	case "skill":
 		return "--path, " + universalFlags
 	case "host":
@@ -69,15 +73,20 @@ type App struct {
 	Version string
 	Browser Browser
 
+	homeDir        func() (string, error)
+	executable     func() (string, error)
+	sessionTimeout time.Duration
+
 	releaseURL string
 }
 
 func New(getenv func(string) string) *App {
-	return &App{getenv: getenv, Version: "dev", Browser: mdns.Multicast{}}
+	return &App{getenv: getenv, Version: "dev", Browser: mdns.Multicast{}, homeDir: os.UserHomeDir, executable: os.Executable, sessionTimeout: defaultSessionTimeout}
 }
 
 type options struct {
 	command, host, action  string
+	agent                  string
 	address                string
 	hosts                  []string
 	path                   string
@@ -103,14 +112,14 @@ func parse(args []string) (options, error) {
 			first = fmt.Errorf(format, a...)
 		}
 	}
-	hostSet, timeoutSet, fieldsSet, linesSet, followSet, pathSet, samplesSet, columnsSet := false, false, false, false, false, false, false, false
+	hostSet, timeoutSet, fieldsSet, linesSet, followSet, pathSet, samplesSet, columnsSet, agentSet := false, false, false, false, false, false, false, false, false
 	var seen []string
 	var tuningFlags, poolFlags []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		flag, value, assigned := strings.Cut(arg, "=")
 		switch flag {
-		case "--host", "--fields", "--timeout", "--lines", "--follow", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path":
+		case "--host", "--fields", "--timeout", "--lines", "--follow", "--samples", "--columns", "--frequency", "--core-voltage", "--url", "--port", "--user", "--fallback-url", "--fallback-port", "--fallback-user", "--path", "--agent":
 			if slices.Contains(tuningFlags, flag) || slices.Contains(poolFlags, flag) {
 				fail("%s was given more than once", flag)
 			}
@@ -124,6 +133,10 @@ func parse(args []string) (options, error) {
 			if flag == "--path" && pathSet {
 				fail("--path was given more than once")
 			}
+			if flag == "--agent" && agentSet {
+				fail("--agent was given more than once")
+			}
+			agentSet = agentSet || flag == "--agent"
 			hostSet = hostSet || flag == "--host"
 			pathSet = pathSet || flag == "--path"
 			seen = append(seen, flag)
@@ -158,6 +171,12 @@ func parse(args []string) (options, error) {
 				continue
 			}
 			switch flag {
+			case "--agent":
+				if value != "all" && !slices.Contains(setupAgentIDs, value) {
+					fail("--agent requires claude, codex, opencode, or all")
+					continue
+				}
+				opts.agent = value
 			case "--path":
 				opts.path = value
 			case "--host":
@@ -262,6 +281,22 @@ func parse(args []string) (options, error) {
 				fail("unknown flag %s", flag)
 				continue
 			}
+			if opts.command == "setup" && opts.action == "" && slices.Contains(setupActions, arg) {
+				opts.action = arg
+				continue
+			}
+			if opts.command == "session" && opts.action == "" && arg == "dashboard" {
+				opts.action = arg
+				continue
+			}
+			if opts.command == "setup" && opts.action == "" && !slices.Contains(commandNames, arg) {
+				fail("unknown action %s for `setup`; valid actions: install, check, uninstall", arg)
+				continue
+			}
+			if opts.command == "session" && opts.action == "" && !slices.Contains(commandNames, arg) {
+				fail("unknown action %s for `session`; valid action: dashboard", arg)
+				continue
+			}
 			if opts.command == "skill" && opts.action == "" && arg == "install" {
 				opts.action = arg
 				continue
@@ -316,6 +351,25 @@ func parse(args []string) (options, error) {
 			return opts, errors.New(skillUsage)
 		}
 		return opts, first
+	}
+	if opts.command == "setup" || opts.command == "session" {
+		for _, flag := range seen {
+			if flag != "--agent" || opts.command == "session" {
+				return opts, errors.New("unknown flag " + flag + " for `" + opts.command + "`; " + map[string]string{"setup": "it takes --agent only", "session": "it takes no flag"}[opts.command])
+			}
+		}
+		if first == nil && !opts.help && !opts.version {
+			if opts.command == "session" && opts.action == "" {
+				return opts, errors.New(sessionUsage)
+			}
+			if opts.command == "setup" && (opts.action == "" || opts.agent == "") {
+				return opts, errors.New(setupUsage)
+			}
+		}
+		return opts, first
+	}
+	if agentSet {
+		return opts, errors.New("unknown flag --agent; it is a flag of `setup` only")
 	}
 	if pathSet {
 		return opts, errors.New("unknown flag --path; it is a flag of `skill install` only")
@@ -446,6 +500,12 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "skill" {
 		return installSkill(opts, stdout)
 	}
+	if opts.command == "setup" {
+		return a.setup(opts, stdout)
+	}
+	if opts.command == "session" {
+		return a.session(ctx, opts, stdout)
+	}
 	if opts.command == "discover" {
 		return a.discover(ctx, opts, stdout)
 	}
@@ -572,6 +632,12 @@ func help(command string) output.Object {
 	if command == "skill" {
 		return skillHelp()
 	}
+	if command == "setup" {
+		return setupHelp()
+	}
+	if command == "session" {
+		return sessionHelp()
+	}
 	if command == "discover" {
 		return discoverHelp()
 	}
@@ -606,7 +672,7 @@ func help(command string) output.Object {
 	prefix := strings.TrimSpace("axeos-axi " + command)
 	fields := output.Object{{Name: "command", Value: label}, {Name: "description", Value: descriptions[label]}}
 	if command == "" {
-		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; host save stores a default host in one file, and no other command writes that file; skill install writes the agent skill file and needs no host"})
+		fields = append(fields, output.Field{Name: "commands", Value: commands() + "; axeos-axi <command> --help; discover finds miners without --host; restart, tuning and pool change the miner and send no write request without --confirm; host save stores a default host in one file, and no other command writes that file; skill install writes the agent skill file and needs no host; setup install writes the opt-in session hook of an agent"})
 	}
 	flags := output.Object{
 		{Name: "flags", Value: output.Object{
