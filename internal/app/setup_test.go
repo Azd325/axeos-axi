@@ -487,6 +487,9 @@ func TestSetupOwnEntryStates(t *testing.T) {
 			{"own hand-edited entry", func(exe string) string { return hookFile(own(exe, `,"timeout":5`)) }, want{"installed", "installed", "removed"}, 0, 0},
 			{"two own entries", func(exe string) string { return hookFile(own(exe, ""), own(exe, `,"timeout":5`)) }, want{"installed", "installed", "removed"}, 0, 0},
 			{"own entry beside another tool", func(exe string) string { return hookFile(other, own(exe, "")) }, want{"installed", "installed", "removed"}, 1, 0},
+			{"own item beside another tool in one entry", func(exe string) string {
+				return hookFile(`{"matcher":"","hooks":[{"type":"command","command":"other-tool start"},{"type":"command","command":"'` + exe + `'` + tail + `"}]}`)
+			}, want{"installed", "installed", "removed"}, 1, 0},
 			{"stored program missing", func(string) string { return hookFile(own("/nonexistent/axeos-axi", "")) }, want{"stale", "installed", "removed"}, 0, 0},
 		} {
 			for _, action := range []string{"check", "install", "uninstall"} {
@@ -508,11 +511,17 @@ func TestSetupOwnEntryStates(t *testing.T) {
 					entries, _ := hooksMap["SessionStart"].([]any)
 					ownCount, otherCount := 0, 0
 					for _, entry := range entries {
-						data, _ := json.Marshal(entry)
-						if strings.Contains(string(data), "axeos-axi-session-hook") {
-							ownCount++
-						} else {
-							otherCount++
+						items, _ := entry.(map[string]any)["hooks"].([]any)
+						if len(items) == 0 {
+							t.Fatalf("empty entry kept: %v", entry)
+						}
+						for _, item := range items {
+							data, _ := json.Marshal(item)
+							if strings.Contains(string(data), "axeos-axi-session-hook") {
+								ownCount++
+							} else {
+								otherCount++
+							}
 						}
 					}
 					wantOwn := map[string]int{"check": strings.Count(tc.content(exe), "axeos-axi-session-hook"), "install": 1, "uninstall": 0}[action]

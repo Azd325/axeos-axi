@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -197,18 +196,10 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 			return setupResult{}, errors.New("managed hook configuration has incompatible SessionStart value")
 		}
 	}
-	own := make([]int, 0, 1)
-	staleHook := false
-	for i, entry := range entries {
-		if program, ok := ownHookProgram(entry); ok {
-			own = append(own, i)
-			if program != "" && !fileExists(program) {
-				staleHook = true
-			}
-		}
-	}
+	hook := map[string]any{"type": "command", "command": command}
+	rewritten, found, staleHook := rewriteOwnHooks(entries, hook, action == "install")
 	state := "missing"
-	if len(own) > 0 {
+	if found > 0 {
 		state = "installed"
 		if staleHook {
 			state = "stale"
@@ -218,33 +209,16 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 	case "check":
 		return setupResult{agent: location.agent, state: state}, nil
 	case "install":
-		entry := map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": command}}}
-		kept := make([]any, 0, len(entries)+1)
-		placed := false
-		for i, existing := range entries {
-			if !slices.Contains(own, i) {
-				kept = append(kept, existing)
-			} else if !placed {
-				kept = append(kept, entry)
-				placed = true
-			}
+		if found == 0 {
+			rewritten = append(rewritten, map[string]any{"matcher": "", "hooks": []any{hook}})
 		}
-		if !placed {
-			kept = append(kept, entry)
-		}
-		entries = kept
+		entries = rewritten
 		state = "installed"
 	case "uninstall":
-		if len(own) == 0 {
+		if found == 0 {
 			return setupResult{agent: location.agent, state: "missing"}, nil
 		}
-		kept := make([]any, 0, len(entries))
-		for i, existing := range entries {
-			if !slices.Contains(own, i) {
-				kept = append(kept, existing)
-			}
-		}
-		entries = kept
+		entries = rewritten
 		state = "removed"
 	}
 	if action == "uninstall" && len(entries) == 0 {
@@ -268,27 +242,56 @@ func manageHookJSON(action string, location hookLocation, command string) (setup
 	return setupResult{agent: location.agent, state: state}, nil
 }
 
-func ownHookProgram(value any) (string, bool) {
-	entry, ok := value.(map[string]any)
-	if !ok {
-		return "", false
-	}
-	hooks, ok := entry["hooks"].([]any)
-	if !ok {
-		return "", false
-	}
-	for _, hook := range hooks {
-		item, ok := hook.(map[string]any)
-		if !ok {
+func rewriteOwnHooks(entries []any, hook map[string]any, replace bool) ([]any, int, bool) {
+	out := make([]any, 0, len(entries)+1)
+	found, stale, placed := 0, false, false
+	for _, value := range entries {
+		entry, ok := value.(map[string]any)
+		items, itemsOK := entry["hooks"].([]any)
+		if !ok || !itemsOK {
+			out = append(out, value)
 			continue
 		}
-		command, ok := item["command"].(string)
-		if ok && strings.Contains(command, "# "+sessionHookMarker) {
-			program, _ := sessionProgram(command)
-			return program, true
+		kept := make([]any, 0, len(items))
+		own := 0
+		for _, item := range items {
+			command := ownHookCommand(item)
+			if command == "" {
+				kept = append(kept, item)
+				continue
+			}
+			own++
+			if program, _ := sessionProgram(command); program != "" && !fileExists(program) {
+				stale = true
+			}
+			if replace && !placed {
+				kept = append(kept, hook)
+				placed = true
+			}
+		}
+		found += own
+		if own == 0 {
+			out = append(out, value)
+			continue
+		}
+		if len(kept) > 0 {
+			entry["hooks"] = kept
+			out = append(out, entry)
 		}
 	}
-	return "", false
+	return out, found, stale
+}
+
+func ownHookCommand(item any) string {
+	hook, ok := item.(map[string]any)
+	if !ok {
+		return ""
+	}
+	command, _ := hook["command"].(string)
+	if !strings.Contains(command, "# "+sessionHookMarker) {
+		return ""
+	}
+	return command
 }
 
 func sessionProgram(command string) (string, bool) {
@@ -392,11 +395,11 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 func setupHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "setup"},
-		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is the entry that carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such entry with one current entry, and uninstall removes every such entry and leaves the entries without that text unchanged; it writes no other file"},
+		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is each hook whose command carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such hook with one current hook, and uninstall removes every such hook and leaves the hooks of other tools, also in the same entry, unchanged; it writes no other file"},
 		{Name: "actions", Value: output.Object{
 			{Name: "install", Value: "writes the hook; state installed"},
 			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook"},
-			{Name: "uninstall", Value: "removes every entry that carries the session marker text; state removed, or missing when there is none"},
+			{Name: "uninstall", Value: "removes every hook that carries the session marker text; state removed, or missing when there is none"},
 		}},
 		{Name: "agents", Value: "claude: ~/.claude/settings.json; codex: ~/.codex/hooks.json; opencode: ~/.config/opencode/plugins/axeos-axi.ts; all: the three"},
 		{Name: "flags", Value: output.Object{
