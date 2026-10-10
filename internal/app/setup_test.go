@@ -17,7 +17,11 @@ func setupApp(t *testing.T, home string) *App {
 	t.Helper()
 	a := New(noHost)
 	a.homeDir = func() (string, error) { return home, nil }
-	a.executable = func() (string, error) { return "/opt/axeos-axi/axeos-axi", nil }
+	exe := filepath.Join(t.TempDir(), "axeos-axi")
+	if err := os.WriteFile(exe, []byte("x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	a.executable = func() (string, error) { return exe, nil }
 	return a
 }
 
@@ -63,7 +67,8 @@ func TestSetupInstallWritesTheSessionCommand(t *testing.T) {
 	if code, out := execute(t, a, "setup", "install", "--agent", "all"); code != 0 {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
-	want := "'/opt/axeos-axi/axeos-axi' session dashboard 2>/dev/null || true # axeos-axi-session-hook"
+	exe, _ := a.executable()
+	want := "'" + exe + "' session dashboard 2>/dev/null || true # axeos-axi-session-hook"
 	for _, path := range []string{claudeSettings(home), filepath.Join(home, ".codex", "hooks.json")} {
 		entries := readJSONFile(t, path)["hooks"].(map[string]any)["SessionStart"].([]any)
 		command := entries[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"]
@@ -75,9 +80,8 @@ func TestSetupInstallWritesTheSessionCommand(t *testing.T) {
 	if err != nil || !strings.Contains(string(plugin), jsonStringCommand(want)) || !strings.Contains(string(plugin), "catch") {
 		t.Fatalf("plugin=%q err=%v", plugin, err)
 	}
-	manifest := readJSONFile(t, filepath.Join(home, ".config", "opencode", "package.json"))
-	if manifest["dependencies"].(map[string]any)["@opencode-ai/plugin"] == "" {
-		t.Fatalf("manifest=%v", manifest)
+	if _, err := os.Stat(filepath.Join(home, ".config", "opencode", "package.json")); !os.IsNotExist(err) {
+		t.Fatalf("package.json written: %v", err)
 	}
 }
 
@@ -187,17 +191,14 @@ func TestSetupUsageErrors(t *testing.T) {
 
 func sessionApp(t *testing.T, host string) *App {
 	t.Helper()
-	a := New(func(name string) string {
-		if name == "AXEOS_HOST" {
-			return host
-		}
-		return ""
-	})
-	return a
+	path := configHome(t)
+	if host != "" {
+		saveFile(t, path, host+"\n")
+	}
+	return New(noHost)
 }
 
 func TestSessionPrintsSummaryWithoutPrivateValues(t *testing.T) {
-	configHome(t)
 	info := fixture(t, "info")
 	host, requests := miner(t, info)
 	a := sessionApp(t, host)
@@ -229,10 +230,8 @@ func TestSessionPrintsSummaryWithoutPrivateValues(t *testing.T) {
 }
 
 func TestSessionReadsTheSavedHost(t *testing.T) {
-	path := configHome(t)
 	host, requests := miner(t, fixture(t, "info"))
-	saveFile(t, path, host+"\n")
-	code, out := execute(t, sessionApp(t, ""), "session", "dashboard")
+	code, out := execute(t, sessionApp(t, host), "session", "dashboard")
 	if code != 0 || !strings.Contains(out, "hashrate:") || strings.Contains(out, "saved_host") || strings.Contains(out, host) {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
@@ -241,8 +240,22 @@ func TestSessionReadsTheSavedHost(t *testing.T) {
 	}
 }
 
-func TestSessionWithoutAHostSendsNoRequest(t *testing.T) {
+func TestSessionIgnoresAXEOSHostWithoutASavedHost(t *testing.T) {
 	configHome(t)
+	host, requests := miner(t, fixture(t, "info"))
+	a := New(func(name string) string {
+		if name == "AXEOS_HOST" {
+			return host
+		}
+		return ""
+	})
+	code, out := execute(t, a, "session", "dashboard")
+	if code != 0 || strings.Contains(out, "hashrate") || len(requests()) != 0 {
+		t.Fatalf("code=%d out=%q requests=%v", code, out, requests())
+	}
+}
+
+func TestSessionWithoutAHostSendsNoRequest(t *testing.T) {
 	a := sessionApp(t, "")
 	a.Browser = &fakeBrowser{services: advertisedMiners()}
 	code, out := execute(t, a, "session", "dashboard")
@@ -257,14 +270,13 @@ func TestSessionWithoutAHostSendsNoRequest(t *testing.T) {
 func TestSessionInvalidSavedHostIsNotAnError(t *testing.T) {
 	path := configHome(t)
 	saveFile(t, path, "not a host\n")
-	code, out := execute(t, sessionApp(t, ""), "session", "dashboard")
+	code, out := execute(t, New(noHost), "session", "dashboard")
 	if code != 0 || strings.Contains(out, "error") || !strings.Contains(out, "host save") {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 }
 
 func TestSessionMinerNotReachable(t *testing.T) {
-	configHome(t)
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
@@ -280,7 +292,6 @@ func TestSessionMinerNotReachable(t *testing.T) {
 		{"server error", func(t *testing.T) string { host, _ := answering(t, 500, "text/plain", "boom"); return host }},
 		{"malformed answer", func(t *testing.T) string { host, _ := answering(t, 200, "application/json", "{not json"); return host }},
 		{"not found", func(t *testing.T) string { host, _ := answering(t, 404, "text/plain", "no"); return host }},
-		{"invalid host", func(*testing.T) string { return "http://user@x/path" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			host := tc.host(t)
@@ -309,5 +320,109 @@ func TestSessionMinerNotReachable(t *testing.T) {
 func TestSessionTimeoutIsOneSecond(t *testing.T) {
 	if got := New(noHost).sessionTimeout; got != time.Second {
 		t.Fatalf("timeout=%s", got)
+	}
+}
+
+func TestSetupCheckReportsAStaleHookAndInstallReplacesIt(t *testing.T) {
+	for _, agent := range []string{"claude", "codex", "opencode"} {
+		t.Run(agent, func(t *testing.T) {
+			home := t.TempDir()
+			a := setupApp(t, home)
+			exe := filepath.Join(t.TempDir(), "axeos-axi")
+			saveFile(t, exe, "x")
+			a.executable = func() (string, error) { return exe, nil }
+			execute(t, a, "setup", "install", "--agent", agent)
+			if _, out := execute(t, a, "setup", "check", "--agent", agent); !strings.Contains(out, agent+",installed,") {
+				t.Fatalf("out=%q", out)
+			}
+			if err := os.Remove(exe); err != nil {
+				t.Fatal(err)
+			}
+			if _, out := execute(t, a, "setup", "check", "--agent", agent); !strings.Contains(out, agent+",stale,") {
+				t.Fatalf("out=%q", out)
+			}
+			saveFile(t, exe, "x")
+			if _, out := execute(t, a, "setup", "check", "--agent", agent); !strings.Contains(out, agent+",installed,") {
+				t.Fatalf("out=%q", out)
+			}
+			os.Remove(exe)
+			exe2 := filepath.Join(t.TempDir(), "axeos-axi")
+			saveFile(t, exe2, "x")
+			a.executable = func() (string, error) { return exe2, nil }
+			if code, out := execute(t, a, "setup", "install", "--agent", agent); code != 0 || !strings.Contains(out, agent+",installed,") {
+				t.Fatalf("code=%d out=%q", code, out)
+			}
+			if _, out := execute(t, a, "setup", "check", "--agent", agent); !strings.Contains(out, agent+",installed,") {
+				t.Fatalf("out=%q", out)
+			}
+		})
+	}
+}
+
+func TestSetupInstallOverOwnHookAddsNoSecondHook(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	for i := 0; i < 3; i++ {
+		execute(t, a, "setup", "install", "--agent", "claude")
+	}
+	entries := readJSONFile(t, claudeSettings(home))["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(entries) != 1 {
+		t.Fatalf("entries=%v", entries)
+	}
+}
+
+func TestSetupUninstallRemovesEmptyKeysAndKeepsTheFile(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	execute(t, a, "setup", "install", "--agent", "claude")
+	execute(t, a, "setup", "uninstall", "--agent", "claude")
+	root := readJSONFile(t, claudeSettings(home))
+	if _, ok := root["hooks"]; ok {
+		t.Fatalf("root=%v", root)
+	}
+}
+
+func TestSetupWritesThroughASymlinkAndKeepsTheMode(t *testing.T) {
+	home := t.TempDir()
+	target := filepath.Join(t.TempDir(), "settings.json")
+	saveFile(t, target, "{}\n")
+	if err := os.Chmod(target, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := claudeSettings(home)
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	a := setupApp(t, home)
+	if code, out := execute(t, a, "setup", "install", "--agent", "claude"); code != 0 {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+	info, err := os.Lstat(link)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("link replaced: %v %v", info, err)
+	}
+	stat, err := os.Stat(target)
+	if err != nil || stat.Mode().Perm() != 0o644 {
+		t.Fatalf("mode=%v err=%v", stat.Mode(), err)
+	}
+	if _, ok := readJSONFile(t, target)["hooks"]; !ok {
+		t.Fatal("hook not written through the link")
+	}
+}
+
+func TestSetupErrorNamesNoHomeDirectory(t *testing.T) {
+	home := t.TempDir()
+	saveFile(t, claudeSettings(home), "{not json")
+	a := setupApp(t, home)
+	if err := os.Chmod(claudeSettings(home), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(claudeSettings(home), 0o600) })
+	code, out := execute(t, a, "setup", "check", "--agent", "claude")
+	if code != 1 || strings.Contains(out, home) {
+		t.Fatalf("code=%d out=%q", code, out)
 	}
 }

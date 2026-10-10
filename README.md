@@ -83,7 +83,7 @@ sends that request one time for each miner.
 | `pool` | Without `--confirm`: the host, the request and its body, the present and the new value of each named setting, the effect and the command that performs the change; no write request is sent. With `--confirm`: the result of the one write request. A pool user prints only with `--show-user`. With `--host` more than once: one row per miner |
 | `host` | `host save <address>`: the saved host and the path of its file. `host show`: the saved host and the path. `host forget`: whether the command removed the file. `host` alone is a usage error with exit code 2 |
 | `skill` | `skill install` only: the path of the skill file and whether the command wrote it |
-| `setup` | One row per agent: the agent, the state (`installed`, `missing` or `removed`) and the path of the hook file |
+| `setup` | One row per agent: the agent, the state (`installed`, `missing`, `stale` or `removed`) and the path of the hook file |
 | `session` | `session dashboard` only: hashrate, temperature, power and firmware version of the miner, then command hints; `miner not reachable` and the hints when the miner does not answer; the hints only without a host. Always exit code 0 |
 
 By default, results, errors and help use [TOON](https://toonformat.dev/reference/spec.html)
@@ -164,14 +164,14 @@ axeos-axi setup uninstall --agent opencode
 | --- | --- |
 | `claude` | `SessionStart` entry in `~/.claude/settings.json` |
 | `codex` | `SessionStart` entry in `~/.codex/hooks.json` |
-| `opencode` | plugin `~/.config/opencode/plugins/axeos-axi.ts` and the `@opencode-ai/plugin` entry of `~/.config/opencode/package.json` |
+| `opencode` | plugin `~/.config/opencode/plugins/axeos-axi.ts` |
 
-Each install records an owner marker next to the hook. `uninstall` removes only what `install` wrote and leaves the hooks of other tools unchanged. A repeated install from the same executable path changes nothing; an install from another path repairs the path. A file that is not valid JSON, or a plugin path with other content, is an error and nothing is written.
+Each install records an owner marker next to the hook. `uninstall` removes only what `install` wrote, then removes the `SessionStart` key and the `hooks` key when they are empty, and leaves the hooks of other tools and every file in place. A repeated install from the same executable path changes nothing; an install from another path repairs the path. The hook stores the full path of the executable. `check` reports `stale` when that program no longer exists, and `install` replaces a stale hook. A file that is not valid JSON, or a plugin path with other content, is an error and nothing is written.
 
 The hook runs `axeos-axi session dashboard`:
 
 - It prints hashrate, temperature, power and firmware version, then command hints. It prints no pool user, payout address, hostname, IP or MAC address and no Wi-Fi name.
-- With `AXEOS_HOST` or a saved host it sends one `GET /api/system/info` with a timeout of 1 second. Without a host it sends no request, runs no discovery and prints the hints only.
+- With a host saved by `host save` it sends one `GET /api/system/info` with a timeout of 1 second. Without a host it sends no request, runs no discovery and prints the hints only.
 - When the miner does not answer in time, answers with an error or answers with a malformed body, it prints the line `miner not reachable` and the hints. The line names no host.
 - It always exits with code 0, so the hook never fails or delays the session start by more than the timeout.
 
