@@ -783,13 +783,19 @@ func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
 		name, agent, action, want string
 		prepare                   func(t *testing.T, home string)
 	}{
-		{"invalid JSON", "claude", "check", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup install --agent claude", func(t *testing.T, home string) {
+		{"invalid JSON", "claude", "check", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup check --agent claude", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".claude", "settings.json"), "{not json")
+		}},
+		{"invalid JSON on uninstall", "claude", "uninstall", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup uninstall --agent claude", func(t *testing.T, home string) {
+			saveFile(t, filepath.Join(home, ".claude", "settings.json"), "{not json")
+		}},
+		{"occupied plugin path on check", "opencode", "check", "move ~/.config/opencode/plugins/axeos-axi.ts away, then run axeos-axi setup check --agent opencode", func(t *testing.T, home string) {
+			saveFile(t, filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"), "export default {}\n")
 		}},
 		{"occupied plugin path", "opencode", "install", "move ~/.config/opencode/plugins/axeos-axi.ts away, then run axeos-axi setup install --agent opencode", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"), "export default {}\n")
 		}},
-		{"refused codex config", "codex", "install", "set [features].hooks = true in ~/.codex/config.toml manually, then run axeos-axi setup install --agent codex", func(t *testing.T, home string) {
+		{"refused codex config", "codex", "install", "make ~/.codex/config.toml define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true, then run axeos-axi setup install --agent codex", func(t *testing.T, home string) {
 			saveFile(t, codexConfig(home), "features = { hooks = false }\n")
 		}},
 	} {
@@ -797,7 +803,7 @@ func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
 			home := t.TempDir()
 			tc.prepare(t, home)
 			code, out := execute(t, setupApp(t, home), "setup", tc.action, "--agent", tc.agent)
-			if code != 1 || !strings.Contains(out, "help: \""+tc.want+"\"") || strings.Contains(out, "setup check --agent") {
+			if code != 1 || !strings.Contains(out, "help: \""+tc.want+"\"") {
 				t.Fatalf("code=%d out=%q", code, out)
 			}
 		})

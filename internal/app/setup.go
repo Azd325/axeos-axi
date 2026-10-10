@@ -47,15 +47,15 @@ var (
 	errOpenCodePathOccupied   = errors.New("OpenCode plugin path is occupied by unmanaged content")
 )
 
-func setupFailureHint(result setupResult, err error, agent string) string {
-	install := "axeos-axi setup install --agent " + agent
+func setupFailureHint(result setupResult, err error, action, agent string) string {
+	retry := "axeos-axi setup " + action + " --agent " + agent
 	switch {
 	case errors.Is(err, errHookConfigNotJSON), errors.Is(err, errHookConfigNotObject), errors.Is(err, errHookConfigHooks), errors.Is(err, errHookConfigSessionStart):
-		return "correct " + result.path + " so that it is a JSON object with compatible hooks, then run " + install
+		return "correct " + result.path + " so that it is a JSON object with compatible hooks, then run " + retry
 	case errors.Is(err, errOpenCodePathOccupied):
-		return "move " + result.path + " away, then run " + install
+		return "move " + result.path + " away, then run " + retry
 	case errors.Is(err, errCodexConfigUnsafe):
-		return "set [features].hooks = true in " + codexConfigDisplayPath + " manually, then run " + install
+		return "make " + codexConfigDisplayPath + " define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true, then run " + retry
 	}
 	return "axeos-axi setup --help"
 }
@@ -138,7 +138,7 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 	for _, agent := range agents {
 		result, err := a.setupAgent(opts.action, agent)
 		if err != nil {
-			return failure(stdout, 1, "setup_failed", agent+": "+a.tildeHome(err.Error()), setupFailureHint(result, err, agent))
+			return failure(stdout, 1, "setup_failed", agent+": "+a.tildeHome(err.Error()), setupFailureHint(result, err, opts.action, agent))
 		}
 		results = append(results, output.Object{
 			{Name: "agent", Value: result.agent},
