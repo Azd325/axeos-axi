@@ -552,7 +552,11 @@ func TestSetupOwnEntryStates(t *testing.T) {
 					if ownCount != wantOwn || otherCount != tc.others {
 						t.Fatalf("own=%d other=%d entries=%v", ownCount, otherCount, entries)
 					}
-					if entries := files(t, filepath.Dir(path)); len(entries) != 1 {
+					wantFiles := 1
+					if agent == "codex" && action == "install" {
+						wantFiles = 2
+					}
+					if entries := files(t, filepath.Dir(path)); len(entries) != wantFiles {
 						t.Fatalf("extra files: %v", entries)
 					}
 				})
@@ -606,5 +610,166 @@ func TestSetupOpenCodeOwnStates(t *testing.T) {
 				t.Fatalf("plugin remains: %v", err)
 			}
 		})
+	}
+}
+
+func codexConfig(home string) string { return filepath.Join(home, ".codex", "config.toml") }
+
+func TestSetupCodexInstallEnablesHooksFeature(t *testing.T) {
+	for _, test := range []struct {
+		name, before, after, state string
+	}{
+		{"missing file", "", "[features]\nhooks = true\n", "added"},
+		{"blank file", "\n\n", "[features]\nhooks = true\n", "added"},
+		{"no features table", "model = \"x\" # keep\n\n[tools]\nweb = true", "model = \"x\" # keep\n\n[tools]\nweb = true\n\n[features]\nhooks = true\n", "added"},
+		{"CRLF file", "model = \"x\"\r\n", "model = \"x\"\r\n\r\n[features]\r\nhooks = true\r\n", "added"},
+		{"features without hooks", "# top\n[features]\nother = true\n\n# next\n[tools]\nweb = true\n", "# top\n[features]\nother = true\nhooks = true\n\n# next\n[tools]\nweb = true\n", "added"},
+		{"features at end without newline", "[features]\nother = true", "[features]\nother = true\nhooks = true\n", "added"},
+		{"false", "[features]\nhooks = false # off\nother = 1\n", "[features]\nhooks = true # off\nother = 1\n", "changed_from_false"},
+		{"true", "[features]\nhooks = true\n", "[features]\nhooks = true\n", "enabled"},
+		{"dotted true", "features.hooks = true\n", "features.hooks = true\n", "enabled"},
+		{"dotted false", "features.hooks = false\n", "features.hooks = true\n", "changed_from_false"},
+		{"path-keyed table after features", "[features]\nother = true\n\n[projects.\"/Users/x/code~@+\"]\ntrust_level = \"trusted\"\n", "[features]\nother = true\nhooks = true\n\n[projects.\"/Users/x/code~@+\"]\ntrust_level = \"trusted\"\n", "added"},
+		{"hooks key in path-keyed table", "[projects.\"/a/b\"]\nhooks = false\n", "[projects.\"/a/b\"]\nhooks = false\n\n[features]\nhooks = true\n", "added"},
+		{"quoted features table", "[\"features\"]\nother = 1\n", "[\"features\"]\nother = 1\nhooks = true\n", "added"},
+		{"triple quote inside comment", "# use \"\"\" here\n[features]\nother = 1\n", "# use \"\"\" here\n[features]\nother = 1\nhooks = true\n", "added"},
+		{"array element looks like header", "list = [\n  [features],\n  [\"a\"]\n]\n[features]\nother = 1\n", "list = [\n  [features],\n  [\"a\"]\n]\n[features]\nother = 1\nhooks = true\n", "added"},
+		{"multiline string", "text = \"\"\"\n[features]\nhooks = false\n\"\"\"\n", "text = \"\"\"\n[features]\nhooks = false\n\"\"\"\n\n[features]\nhooks = true\n", "added"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			home := t.TempDir()
+			if test.before != "" {
+				saveFile(t, codexConfig(home), test.before)
+				if err := os.Chmod(codexConfig(home), 0o640); err != nil {
+					t.Fatal(err)
+				}
+			}
+			code, out := execute(t, setupApp(t, home), "setup", "install", "--agent", "codex")
+			if code != 0 || !strings.Contains(out, "codex_hooks_feature: "+test.state) {
+				t.Fatalf("code=%d out=%q", code, out)
+			}
+			data, err := os.ReadFile(codexConfig(home))
+			if err != nil || string(data) != test.after {
+				t.Fatalf("config=%q err=%v want %q", data, err, test.after)
+			}
+			if test.before != "" {
+				if info, _ := os.Stat(codexConfig(home)); info.Mode().Perm() != 0o640 {
+					t.Fatalf("mode=%v", info.Mode().Perm())
+				}
+			}
+		})
+	}
+}
+
+func TestSetupCodexCheckReportsFeatureAndUninstallLeavesIt(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	if code, out := execute(t, a, "setup", "check", "--agent", "codex", "--json"); code != 0 || !strings.Contains(out, `"codex_hooks_feature":"missing"`) {
+		t.Fatalf("missing: code=%d out=%q", code, out)
+	}
+	saveFile(t, codexConfig(home), "[features]\nhooks = false\n")
+	if _, out := execute(t, a, "setup", "check", "--agent", "codex"); !strings.Contains(out, "codex_hooks_feature: disabled") {
+		t.Fatalf("disabled: %q", out)
+	}
+	if code, out := execute(t, a, "setup", "install", "--agent", "codex"); code != 0 || !strings.Contains(out, "codex_hooks_feature: changed_from_false") {
+		t.Fatalf("install: code=%d out=%q", code, out)
+	}
+	if _, out := execute(t, a, "setup", "check", "--agent", "codex"); !strings.Contains(out, "codex,installed,") || !strings.Contains(out, "codex_hooks_feature: enabled") {
+		t.Fatalf("enabled: %q", out)
+	}
+	if code, out := execute(t, a, "setup", "uninstall", "--agent", "codex"); code != 0 || strings.Contains(out, "codex_hooks_feature") {
+		t.Fatalf("uninstall: code=%d out=%q", code, out)
+	}
+	if data, _ := os.ReadFile(codexConfig(home)); string(data) != "[features]\nhooks = true\n" {
+		t.Fatalf("uninstall changed config: %q", data)
+	}
+}
+
+func TestSetupCodexRefusesUnsafeConfigWithoutWriting(t *testing.T) {
+	for name, content := range map[string]string{
+		"inline table":       "features = { hooks = false }\n",
+		"other dotted key":   "features.other = true\n",
+		"string value":       "[features]\nhooks = \"yes\"\n",
+		"duplicate hooks":    "[features]\nhooks = true\nhooks = false\n",
+		"array of tables":    "[[features]]\nhooks = true\n",
+		"duplicate table":    "[features]\na = 1\n[features]\nb = 1\n",
+		"hooks sub table":    "[features]\nhooks.x = 1\n",
+		"unparseable header": "[features\nhooks = true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			saveFile(t, codexConfig(home), content)
+			code, out := execute(t, setupApp(t, home), "setup", "install", "--agent", "codex")
+			if code != 1 || !strings.Contains(out, "set [features].hooks = true there manually") || strings.Contains(out, home) {
+				t.Fatalf("code=%d out=%q", code, out)
+			}
+			if data, _ := os.ReadFile(codexConfig(home)); string(data) != content {
+				t.Fatalf("config changed: %q", data)
+			}
+			if _, err := os.Stat(filepath.Join(home, ".codex", "hooks.json")); !os.IsNotExist(err) {
+				t.Fatalf("hook written despite refusal: %v", err)
+			}
+			if _, out = execute(t, setupApp(t, home), "setup", "check", "--agent", "codex"); !strings.Contains(out, "codex_hooks_feature: unverifiable") {
+				t.Fatalf("check: %q", out)
+			}
+		})
+	}
+}
+
+func TestSetupCodexConfigFailuresPrintNoRawErrorOrHome(t *testing.T) {
+	home := t.TempDir()
+	saveFile(t, codexConfig(home), "[features]\nother = 1\n")
+	if err := os.Chmod(codexConfig(home), 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(codexConfig(home), 0o600) })
+	if f, err := os.Open(codexConfig(home)); err == nil {
+		_ = f.Close()
+		t.Skip("file permissions are not enforced")
+	}
+	for _, action := range []string{"install", "check"} {
+		code, out := execute(t, setupApp(t, home), "setup", action, "--agent", "codex")
+		if code != 1 || !strings.Contains(out, "permission denied for ~/.codex/config.toml") ||
+			strings.Contains(out, home) || strings.Contains(out, "open ") || strings.Contains(out, "operation not permitted") {
+			t.Fatalf("%s: code=%d out=%q", action, code, out)
+		}
+	}
+}
+
+func TestSetupCodexWriteFailurePrintsNoRawErrorOrPath(t *testing.T) {
+	home := t.TempDir()
+	locked := filepath.Join(t.TempDir(), "locked")
+	saveFile(t, filepath.Join(locked, "config.toml"), "[features]\nother = 1\n")
+	if err := os.Chmod(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	if f, err := os.CreateTemp(locked, "probe-*"); err == nil {
+		_ = f.Close()
+		t.Skip("directory permissions are not enforced")
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(locked, "config.toml"), codexConfig(home)); err != nil {
+		t.Fatal(err)
+	}
+	code, out := execute(t, setupApp(t, home), "setup", "install", "--agent", "codex")
+	if code != 1 || !strings.Contains(out, "permission denied for ~/.codex/config.toml") ||
+		strings.Contains(out, home) || strings.Contains(out, locked) || strings.Contains(out, "open ") {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
+
+func TestSetupOtherAgentsNeverTouchCodexConfigOrPrintFeature(t *testing.T) {
+	home := t.TempDir()
+	a := setupApp(t, home)
+	for _, agent := range []string{"claude", "opencode"} {
+		if code, out := execute(t, a, "setup", "install", "--agent", agent); code != 0 || strings.Contains(out, "codex_hooks_feature") {
+			t.Fatalf("%s: code=%d out=%q", agent, code, out)
+		}
+	}
+	if _, err := os.Stat(codexConfig(home)); !os.IsNotExist(err) {
+		t.Fatalf("config.toml created: %v", err)
 	}
 }

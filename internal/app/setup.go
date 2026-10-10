@@ -36,11 +36,13 @@ var (
 
 type setupResult struct {
 	agent, state, path string
+	codexHooks         string
 }
 
 type hookLocation struct {
-	agent string
-	path  string
+	agent      string
+	path       string
+	configPath string
 }
 
 func (a *App) session(ctx context.Context, opts options, stdout io.Writer) int {
@@ -116,6 +118,7 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 		agents = []string{opts.agent}
 	}
 	results := make([]any, 0, len(agents))
+	codexHooks := ""
 	for _, agent := range agents {
 		result, err := a.setupAgent(opts.action, agent)
 		if err != nil {
@@ -126,8 +129,15 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 			{Name: "state", Value: result.state},
 			{Name: "path", Value: result.path},
 		})
+		if result.codexHooks != "" {
+			codexHooks = result.codexHooks
+		}
 	}
-	return write(stdout, output.Object{{Name: "setup", Value: results}})
+	view := output.Object{{Name: "setup", Value: results}}
+	if codexHooks != "" {
+		view = append(view, output.Field{Name: "codex_hooks_feature", Value: codexHooks})
+	}
+	return write(stdout, view)
 }
 
 func (a *App) tildeHome(message string) string {
@@ -152,6 +162,7 @@ func (a *App) setupAgent(action, agent string) (setupResult, error) {
 		location.path = filepath.Join(home, ".claude", "settings.json")
 	case "codex":
 		location.path = filepath.Join(home, ".codex", "hooks.json")
+		location.configPath = filepath.Join(home, ".codex", "config.toml")
 	case "opencode":
 		location.path = filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts")
 	}
@@ -163,9 +174,12 @@ func (a *App) setupAgent(action, agent string) (setupResult, error) {
 		}
 	}
 	var result setupResult
-	if agent == "opencode" {
+	switch agent {
+	case "opencode":
 		result, err = manageOpenCodePlugin(action, location, command)
-	} else {
+	case "codex":
+		result, err = manageCodexHook(action, location, command)
+	default:
 		result, err = manageHookJSON(action, location, command)
 	}
 	result.path = "~" + strings.TrimPrefix(location.path, home)
@@ -178,6 +192,40 @@ func (a *App) sessionCommand() (string, error) {
 		return "", errors.New("resolve axeos-axi executable")
 	}
 	return shellQuote(path) + sessionCommandTail, nil
+}
+
+func manageCodexHook(action string, location hookLocation, command string) (setupResult, error) {
+	var config []byte
+	var feature codexHooksUpdate
+	if action == "install" {
+		var err error
+		if config, err = readCodexConfig(location.configPath); err != nil {
+			return setupResult{}, err
+		}
+		if feature, err = enableCodexHooks(string(config)); err != nil {
+			return setupResult{}, err
+		}
+	}
+	result, err := manageHookJSON(action, location, command)
+	if err != nil {
+		return setupResult{}, err
+	}
+	switch action {
+	case "install":
+		if feature.Content != string(config) {
+			if err := atomicWrite(location.configPath, []byte(feature.Content), 0o600); err != nil {
+				return setupResult{}, codexConfigFileError("write", err)
+			}
+		}
+		result.codexHooks = feature.State
+	case "check":
+		data, err := readCodexConfig(location.configPath)
+		if err != nil {
+			return setupResult{}, err
+		}
+		result.codexHooks = codexHooksState(string(data))
+	}
+	return result, nil
 }
 
 func manageHookJSON(action string, location hookLocation, command string) (setupResult, error) {
@@ -410,13 +458,13 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 func setupHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "setup"},
-		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is each hook whose command carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such hook with one current hook, and uninstall removes every such hook and leaves the hooks of other tools, also in the same entry, unchanged; it writes no other file"},
+		{Name: "description", Value: "Installs, checks or removes an opt-in SessionStart hook that runs `axeos-axi session dashboard` at the start of each agent session; nothing else writes the hook; it needs no host, sends no request and reads no miner; a repeated install with the same executable path changes nothing, and an install from another path repairs the path or a stale hook; the hook that install writes is each hook whose command carries the text `axeos-axi-session-hook`, whatever its other fields; install replaces every such hook with one current hook, and uninstall removes every such hook and leaves the hooks of other tools, also in the same entry, unchanged; it writes no other file, except that install for codex also ensures `[features].hooks = true` in ~/.codex/config.toml, which Codex needs to run hooks: it changes only that setting, creates the file when it is missing, states `changed_from_false` when it changed a false value, refuses a file that it cannot edit safely without writing anything, and uninstall leaves the setting"},
 		{Name: "actions", Value: output.Object{
-			{Name: "install", Value: "writes the hook; state installed"},
-			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook"},
+			{Name: "install", Value: "writes the hook; state installed; for codex it also prints codex_hooks_feature: added, enabled or changed_from_false"},
+			{Name: "check", Value: "reads the hook; state installed, missing, or stale when the program that the hook names no longer exists; install replaces a stale hook; for codex it also prints codex_hooks_feature: enabled, disabled, missing or unverifiable"},
 			{Name: "uninstall", Value: "removes every hook that carries the session marker text; state removed, or missing when there is none"},
 		}},
-		{Name: "agents", Value: "claude: ~/.claude/settings.json; codex: ~/.codex/hooks.json; opencode: ~/.config/opencode/plugins/axeos-axi.ts; all: the three"},
+		{Name: "agents", Value: "claude: ~/.claude/settings.json; codex: ~/.codex/hooks.json and ~/.codex/config.toml; opencode: ~/.config/opencode/plugins/axeos-axi.ts; all: the three"},
 		{Name: "flags", Value: output.Object{
 			{Name: "agent", Value: "--agent claude|codex|opencode|all; required"},
 			{Name: "json", Value: jsonFlagHelp},
