@@ -494,8 +494,8 @@ func invalidHostHelp(opts options, refused int) string {
 		call += " " + opts.command
 	}
 	for i, host := range opts.hosts {
-		switch {
-		case i == refused:
+		switch i {
+		case refused:
 			call += " --host " + placeholder
 		default:
 			if _, err := axeos.New(host); err == nil {
