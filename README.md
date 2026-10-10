@@ -122,7 +122,7 @@ The same address again is no error; the command makes the check again and writes
 A failed check writes nothing and keeps a host saved before: an address that does not answer, or answers without JSON or with another HTTP status, is `miner_read_failed`, and a JSON answer that is no `info` answer is `not_a_miner`, both with exit code 1.
 An invalid address is `invalid_host` with exit code 2, and no request is sent.
 
-A `miner_read_failed` hint names `axeos-axi discover`; an HTTP status answer has its own text, also for `host save`. A `discovery_failed` hint repeats the `--timeout` and `--fields` of the call, and an `invalid_host` hint repeats the command and the flags of the call, with the placeholder `192.0.2.10` for the refused `--host` and `<user>` for a pool user.
+A `miner_read_failed` hint for the `info` read names `axeos-axi discover`; an HTTP status answer to that read has its own text, also for `host save`. A `discovery_failed` hint repeats the `--timeout` and `--fields` of the call, and an `invalid_host` hint repeats the command and the flags of the call, with the placeholder `192.0.2.10` for the refused `--host` and `<user>` for a pool user without `--show-user`.
 
 `host show` prints `saved_host` and `path`; with no file it prints `saved_host: null` and a `state` line.
 `host forget` removes the file and prints `removed: true`; with no file it prints `removed: false` and a `state` line, with exit code 0.
