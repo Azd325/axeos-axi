@@ -144,7 +144,7 @@ func TestSetupUninstallKeepsAHookItDidNotWrite(t *testing.T) {
 	saveFile(t, claudeSettings(home), foreign)
 	a := setupApp(t, home)
 	code, out := execute(t, a, "setup", "uninstall", "--agent", "claude")
-	if code != 0 || !strings.Contains(out, "claude,missing,") {
+	if code != 1 || !strings.Contains(out, "setup_failed") {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 	if code, out := execute(t, a, "setup", "install", "--agent", "claude"); code != 1 || !strings.Contains(out, "setup_failed") {
@@ -469,9 +469,7 @@ func TestSetupErrorNamesNoResolvedHomeDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(real, ".claude")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
+	saveFile(t, filepath.Join(dir, "settings.json"), "{}\n")
 	if err := os.Chmod(dir, 0o500); err != nil {
 		t.Fatal(err)
 	}
@@ -480,5 +478,35 @@ func TestSetupErrorNamesNoResolvedHomeDirectory(t *testing.T) {
 	code, out := execute(t, a, "setup", "install", "--agent", "claude")
 	if code != 1 || strings.Contains(out, real) || strings.Contains(out, link) {
 		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
+
+func TestSetupRefusesAHookChangedByHand(t *testing.T) {
+	for _, file := range []struct{ agent, rel string }{{"claude", ".claude/settings.json"}, {"codex", ".codex/hooks.json"}} {
+		for _, action := range []string{"install", "check", "uninstall"} {
+			for _, withMarker := range []bool{true, false} {
+				t.Run(file.agent+"/"+action, func(t *testing.T) {
+					home := t.TempDir()
+					a := setupApp(t, home)
+					if withMarker {
+						execute(t, a, "setup", "install", "--agent", file.agent)
+					}
+					path := filepath.Join(home, file.rel)
+					edited := `{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"'/x/axeos-axi' session dashboard 2>/dev/null || true # axeos-axi-session-hook","timeout":5}]}]}}`
+					saveFile(t, path, edited)
+					marker := filepath.Join(filepath.Dir(path), ".axeos-axi-session-hook")
+					code, out := execute(t, a, "setup", action, "--agent", file.agent)
+					if code != 1 || !strings.Contains(out, "setup_failed") || !strings.Contains(out, "changed by hand") || !strings.Contains(out, file.rel) || strings.Contains(out, home) {
+						t.Fatalf("code=%d out=%q", code, out)
+					}
+					if data, _ := os.ReadFile(path); string(data) != edited {
+						t.Fatalf("file changed: %s", data)
+					}
+					if _, err := os.Stat(marker); withMarker && err != nil {
+						t.Fatalf("marker lost: %v", err)
+					}
+				})
+			}
+		}
 	}
 }

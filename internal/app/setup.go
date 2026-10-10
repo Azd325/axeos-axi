@@ -215,6 +215,9 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 	if len(managed) > 1 {
 		return setupResult{}, errors.New("multiple managed axeos-axi session hooks found; refuse ambiguous configuration")
 	}
+	if countSessionMarkers(entries) != len(managed) {
+		return setupResult{}, errors.New("managed session hook in " + location.path + " was changed by hand; restore it or remove it by hand")
+	}
 	state := "missing"
 	if len(managed) == 1 {
 		state = "installed"
@@ -226,9 +229,6 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 	case "check":
 		return setupResult{agent: location.agent, state: state}, nil
 	case "install":
-		if !owned && hasSessionMarker(entries) {
-			return setupResult{}, errors.New("managed session hook has no owner record; refuse ambiguous configuration")
-		}
 		entry := map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": command}}}
 		if len(managed) == 1 {
 			entries[managed[0]] = entry
@@ -313,7 +313,8 @@ func fileExists(path string) bool {
 	return err == nil || !os.IsNotExist(err)
 }
 
-func hasSessionMarker(entries []any) bool {
+func countSessionMarkers(entries []any) int {
+	count := 0
 	for _, entry := range entries {
 		value, ok := entry.(map[string]any)
 		if !ok {
@@ -330,11 +331,12 @@ func hasSessionMarker(entries []any) bool {
 			}
 			command, ok := item["command"].(string)
 			if ok && strings.Contains(command, "# "+sessionHookMarker) {
-				return true
+				count++
+				break
 			}
 		}
 	}
-	return false
+	return count
 }
 
 func manageOpenCodePlugin(action string, location hookLocation, command string, owned bool) (setupResult, error) {
