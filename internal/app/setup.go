@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -119,6 +120,9 @@ func (a *App) tildeHome(message string) string {
 	home, err := a.homeDir()
 	if err != nil || home == "" {
 		return message
+	}
+	if resolved, err := filepath.EvalSymlinks(home); err == nil && resolved != home {
+		message = strings.ReplaceAll(message, resolved, "~")
 	}
 	return strings.ReplaceAll(message, home, "~")
 }
@@ -248,11 +252,14 @@ func manageHookJSON(action string, location hookLocation, command string, owned 
 	} else {
 		hooks["SessionStart"] = entries
 	}
-	encoded, err := json.MarshalIndent(root, "", "  ")
-	if err != nil {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(root); err != nil {
 		return setupResult{}, err
 	}
-	if err := atomicWrite(location.path, append(encoded, '\n'), 0o600); err != nil {
+	if err := atomicWrite(location.path, encoded.Bytes(), 0o600); err != nil {
 		return setupResult{}, err
 	}
 	switch action {

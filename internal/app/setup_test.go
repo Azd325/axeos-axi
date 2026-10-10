@@ -446,3 +446,39 @@ func TestSetupRecognizesAnExecutablePathWithAnApostrophe(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupKeepsHTMLCharactersOfOtherHooksVerbatim(t *testing.T) {
+	home := t.TempDir()
+	saveFile(t, claudeSettings(home), `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"lint && test > out.log 2>&1"}]}]}}`)
+	a := setupApp(t, home)
+	for _, action := range []string{"install", "uninstall"} {
+		if code, out := execute(t, a, "setup", action, "--agent", "claude"); code != 0 {
+			t.Fatalf("%s: code=%d out=%q", action, code, out)
+		}
+		data, _ := os.ReadFile(claudeSettings(home))
+		if !strings.Contains(string(data), "lint && test > out.log 2>&1") {
+			t.Fatalf("%s: other hook rewritten: %s", action, data)
+		}
+	}
+}
+
+func TestSetupErrorNamesNoResolvedHomeDirectory(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "home")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(real, ".claude")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	a := setupApp(t, link)
+	code, out := execute(t, a, "setup", "install", "--agent", "claude")
+	if code != 1 || strings.Contains(out, real) || strings.Contains(out, link) {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
