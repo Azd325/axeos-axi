@@ -66,10 +66,25 @@ func (a *App) session(ctx context.Context, opts options, stdout io.Writer) int {
 		{Name: "hashrate", Value: measure(info, "hashRate", "GH/s")},
 		{Name: "temperature", Value: measure(info, "temp", "C")},
 		{Name: "power", Value: measure(info, "power", "W")},
-		{Name: "firmware", Value: text(info, "version")},
+		{Name: "firmware", Value: sessionVersion(info)},
 		{Name: "help", Value: hints},
 	})
 	return 0
+}
+
+func sessionVersion(info map[string]any) string {
+	version, _ := info["version"].(string)
+	if version == "" || len(version) > 32 {
+		return "unknown"
+	}
+	for _, r := range version {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-', r == '_', r == '+':
+		default:
+			return "unknown"
+		}
+	}
+	return version
 }
 
 func (a *App) sessionHost() string {
