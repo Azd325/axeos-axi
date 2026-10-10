@@ -142,7 +142,7 @@ func (v *minerView) selected(opts options) (output.Object, string) {
 
 func severalHostsError(opts options, tableStats bool) error {
 	switch opts.command {
-	case "", "info", "asic", "firmware", "restart", "tuning", "pool", "discover", "skill", "host":
+	case "", "info", "asic", "firmware", "restart", "tuning", "pool", "discover", "skill", "host", "setup", "session":
 		return nil
 	case "stats":
 		if !tableStats {

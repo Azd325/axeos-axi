@@ -2,4 +2,4 @@ exit: 2
 error:
   code: usage
   message: "usage: axeos-axi host save <address>; the address is an argument"
-help: "valid flags: --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill"
+help: "valid flags: --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill, setup, session"

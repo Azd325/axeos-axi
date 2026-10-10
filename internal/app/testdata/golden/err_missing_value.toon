@@ -2,4 +2,4 @@ exit: 2
 error:
   code: usage
   message: "--fields requires a value"
-help: "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill"
+help: "valid flags: --host, --fields, --json, --help, -v, -V, --version; commands: info, asic, stats, firmware, scoreboard, logs, health, discover, restart, tuning, pool, host, skill, setup, session"
