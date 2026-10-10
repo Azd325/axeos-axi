@@ -297,7 +297,7 @@ func sessionProgram(command string) (string, bool) {
 	if !strings.HasPrefix(command, "'") || !strings.HasSuffix(command, suffix) {
 		return "", false
 	}
-	path := strings.TrimSuffix(strings.TrimPrefix(command, "'"), suffix)
+	path := strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(command, "'"), suffix), "'\"'\"'", "'")
 	return path, shellQuote(path)+sessionCommandTail == command
 }
 

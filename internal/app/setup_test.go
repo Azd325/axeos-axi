@@ -426,3 +426,23 @@ func TestSetupErrorNamesNoHomeDirectory(t *testing.T) {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 }
+
+func TestSetupRecognizesAnExecutablePathWithAnApostrophe(t *testing.T) {
+	for _, agent := range []string{"claude", "codex", "opencode"} {
+		t.Run(agent, func(t *testing.T) {
+			home := t.TempDir()
+			a := setupApp(t, home)
+			exe := filepath.Join(t.TempDir(), "O'Brien", "axeos-axi")
+			saveFile(t, exe, "x")
+			a.executable = func() (string, error) { return exe, nil }
+			for _, step := range []struct{ action, state string }{
+				{"install", "installed"}, {"check", "installed"}, {"install", "installed"}, {"uninstall", "removed"}, {"check", "missing"},
+			} {
+				code, out := execute(t, a, "setup", step.action, "--agent", agent)
+				if code != 0 || !strings.Contains(out, agent+","+step.state+",") {
+					t.Fatalf("%s: code=%d out=%q", step.action, code, out)
+				}
+			}
+		})
+	}
+}
