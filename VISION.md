@@ -38,7 +38,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 - The tool talks to miners on the local network only and collects no telemetry.
 - The one request that leaves the local network is the read of the newest firmware release; it runs only on an explicit flag and sends no value from the miner.
 - Any other request to a host outside the local network needs a new decision in this file.
-- The tool stores nothing by itself; a saved default host exists only after an explicit save command, and a result that used the saved host states it. Session hook files in an agent's settings exist only after an explicit `setup install`, and `setup uninstall` removes only the tool's own hook.
+- The tool stores nothing by itself; a saved default host exists only after an explicit save command, and a result that used the saved host states it. Session hook files in an agent's settings exist only after an explicit `setup install`, and `setup uninstall` removes only the tool's own hook. For Codex, `setup install` also enables the hooks setting in `~/.codex/config.toml`; `setup uninstall` leaves it, because other tools can depend on it.
 
 ## The interface follows AXI
 
