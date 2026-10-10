@@ -328,7 +328,9 @@ func TestSetupCheckReportsAStaleHookAndInstallReplacesIt(t *testing.T) {
 			if _, out := execute(t, a, "setup", "check", "--agent", agent); !strings.Contains(out, agent+",installed,") {
 				t.Fatalf("out=%q", out)
 			}
-			os.Remove(exe)
+			if err := os.Remove(exe); err != nil {
+				t.Fatal(err)
+			}
 			exe2 := filepath.Join(t.TempDir(), "axeos-axi")
 			saveFile(t, exe2, "x")
 			a.executable = func() (string, error) { return exe2, nil }
