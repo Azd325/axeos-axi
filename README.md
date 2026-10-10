@@ -53,6 +53,7 @@ A command takes its miner from `--host <address>`, then from `AXEOS_HOST`, then 
 The saved host is the only file the tool keeps, and only `host save` writes it.
 A command takes one miner, except the home view, `info`, `asic`, `stats` (without `--samples` and `--columns`) and `firmware`, which accept `--host` more than once to read several miners in one call (see [Several miners](#several-miners)), and `restart`, `tuning` and `pool`, which accept it to change several miners in one call (see [Writes to several miners](#writes-to-several-miners)).
 `--host` given more than once on another command, or the same host twice, is a usage error with exit code 2, and no request is sent. `AXEOS_HOST` and the saved host each name one miner.
+Every other flag that takes a value, such as `--fields`, `--lines` and `--timeout`, given more than once is a usage error with exit code 2.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
 Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
