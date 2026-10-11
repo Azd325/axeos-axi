@@ -217,9 +217,9 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 				}
 			}
 		}
-		if opts.command == "stats" && hasState && !slices.Contains(columns, "state") {
-			columns = append([]string{"state"}, columns...)
-		}
+	}
+	if opts.command == "stats" && hasState && !slices.Contains(columns, "state") {
+		columns = append([]string{"state"}, columns...)
 	}
 
 	rows := make([]any, len(results))
@@ -250,12 +250,9 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 	}
 	fields = append(fields, output.Field{Name: "count", Value: len(results)}, output.Field{Name: "failed", Value: failed}, output.Field{Name: "miners", Value: rows})
 	help := failureHelp
-	if len(opts.fields) == 0 {
-		var hostArgs []string
-		for _, host := range opts.hosts {
-			hostArgs = append(hostArgs, "--host "+shellQuote(host))
-		}
-		help = append(help, strings.TrimSpace("axeos-axi "+opts.command)+" "+strings.Join(hostArgs, " ")+" --fields "+viewNames(opts.command)+" for all view fields of the same miners")
+	if len(opts.fields) == 0 && answered != 0 {
+		command := strings.TrimSpace("axeos-axi " + opts.command)
+		help = append(help, command+" --fields <names> for more fields; names in "+command+" --help")
 	}
 	if len(help) != 0 {
 		fields = append(fields, output.Field{Name: "help", Value: help})

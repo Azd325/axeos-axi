@@ -420,7 +420,7 @@ The exit code is 0 when each miner answered, 1 when any miner failed and 2 for a
 The miners are read at the same time, each with the four-second timeout, and each miner gets the same requests as a call with one `--host`.
 A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
-Each default table adds one hint with the same command and hosts and `--fields` to request all view fields.
+Each default table with an answering miner adds one hint: the command with `--fields <names>` and a pointer to its `--help` for the names. A default `stats` table adds a `state` column when a miner reports a state, such as disabled statistics logging.
 
 `AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs` or `health` is a usage error with exit code 2, and no request is sent.
 
