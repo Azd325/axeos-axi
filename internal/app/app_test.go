@@ -575,3 +575,18 @@ func TestRepeatedFieldsLinesAndTimeoutAreUsageErrors(t *testing.T) {
 		t.Fatalf("requests after a repeated flag: %v", calls())
 	}
 }
+
+func TestDefaultViewsOmitTheHostname(t *testing.T) {
+	host, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return host })
+	for _, args := range [][]string{{}, {"info"}, {"--json"}, {"info", "--json"}} {
+		code, out := execute(t, a, args...)
+		if code != 0 || strings.Contains(out, "hostname:") || strings.Contains(out, `"hostname"`) || strings.Contains(out, "example-miner") {
+			t.Errorf("%v: code=%d\n%s", args, code, out)
+		}
+		code, out = execute(t, a, append(args, "--fields", "hostname")...)
+		if code != 0 || !strings.Contains(out, "example-miner") {
+			t.Errorf("%v --fields hostname: code=%d\n%s", args, code, out)
+		}
+	}
+}

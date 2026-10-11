@@ -70,8 +70,8 @@ sends that request one time for each miner.
 
 | Command | Default view |
 | --- | --- |
-| no arguments | Hostname, ASIC model, firmware, current/1h/expected hashrate, temperatures, power, efficiency, fan, active pool URL, pool connection/fallback, shares, best difficulty, uptime, overheat and paused flags |
-| `info` | System versions, board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
+| no arguments | ASIC model, firmware, current/1h/expected hashrate, temperatures, power, efficiency, fan, active pool URL, pool connection/fallback, shares, best difficulty, uptime, overheat and paused flags; the hostname only with `--fields hostname` |
+| `info` | System versions (the hostname only with `--fields hostname`), board, heap, Wi-Fi state/signal, uptime, reset reason and active partition |
 | `asic` | ASIC model/count/domains and frequency, core voltage, fan mode and temperature target |
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power; with `--samples` or `--columns`, the newest samples as a table of named columns |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |

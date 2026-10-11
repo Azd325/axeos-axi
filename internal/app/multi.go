@@ -121,7 +121,7 @@ func (v *minerView) available(command string) map[string]any {
 // selected returns the fields to print and, when --fields names a field the miner does not know, that name.
 func (v *minerView) selected(opts options) (output.Object, string) {
 	if len(opts.fields) == 0 {
-		return v.fields, ""
+		return slices.DeleteFunc(slices.Clone(v.fields), func(f output.Field) bool { return f.Name == "hostname" }), ""
 	}
 	selected := make(output.Object, 0, len(opts.fields))
 	available := v.available(opts.command)
