@@ -759,7 +759,11 @@ func help(command string) output.Object {
 		{Name: "view_fields", Value: viewNames(command)},
 	}
 	if several {
-		flags = append(flags[:1:1], append(output.Object{{Name: "several_miners", Value: severalHelp + "; default columns: host," + strings.Join(severalViewColumns(command), ",") + ",error"}}, flags[1:]...)...)
+		defaults := "; default columns: host," + strings.Join(severalViewColumns(command), ",") + ",error"
+		if command == "stats" {
+			defaults += "; state is added when a miner reports one"
+		}
+		flags = append(flags[:1:1], append(output.Object{{Name: "several_miners", Value: severalHelp + defaults}}, flags[1:]...)...)
 	}
 	if command == "stats" {
 		flagList := flags[0].Value.(output.Object)

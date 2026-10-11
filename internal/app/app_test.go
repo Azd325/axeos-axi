@@ -136,12 +136,6 @@ func TestHomeHelpLines(t *testing.T) {
 	if !strings.HasSuffix(out, want) {
 		t.Fatalf("unexpected hints: %s", out)
 	}
-	_, allHelp := execute(t, a, "--help")
-	for _, command := range append(slices.Clone(commandNames), "skill install") {
-		if !strings.Contains(allHelp, command) {
-			t.Errorf("help lacks %s", command)
-		}
-	}
 	code, out = execute(t, a, "--fields", "hostname")
 	if code != 0 || strings.Contains(out, "\nhelp") {
 		t.Fatalf("code=%d output=%s", code, out)

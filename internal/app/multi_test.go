@@ -204,8 +204,8 @@ func TestMinerWithoutChecksumPathIsNotSupported(t *testing.T) {
 	old, oldCalls := noChecksumMiner(t)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"firmware"}, hostArgs(good, old)...)...)
-	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\n", good, old)
-	if code != 1 || !strings.HasPrefix(out, want) || !strings.Contains(out, "help[2]:") {
+	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"axeos-axi firmware --host '%s' for the error message of that miner\",axeos-axi firmware --fields <names> for more fields; names in axeos-axi firmware --help\n", good, old, old)
+	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
 	if !slices.Equal(oldCalls(), []string{"GET /api/system/firmware/checksum"}) {
@@ -218,7 +218,8 @@ func TestEveryMinerFailed(t *testing.T) {
 	second, _ := statusMiner(t, http.StatusInternalServerError)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"asic"}, hostArgs(first, second)...)...)
-	if code != 1 || !strings.Contains(out, "count: 2\nfailed: 2\nminers[2]{host,frequency_actual_mhz,") || strings.Count(out, "miner_read_failed\n") != 2 {
+	wantHelp := fmt.Sprintf("help[2]: \"axeos-axi asic --host '%s' for the error message of that miner\",\"axeos-axi asic --host '%s' for the error message of that miner\"\n", first, second)
+	if code != 1 || !strings.Contains(out, "count: 2\nfailed: 2\nminers[2]{host,frequency_actual_mhz,") || strings.Count(out, "miner_read_failed\n") != 2 || !strings.HasSuffix(out, wantHelp) || strings.Contains(out, "--fields <names>") {
 		t.Fatalf("code=%d out=%s", code, out)
 	}
 }
