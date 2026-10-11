@@ -34,10 +34,12 @@ pull request, then run this checklist from a clean checkout:
       ran. Send no write: `restart`, `tuning` and `pool` with `--confirm` are
       not part of a release check.
 
-- [ ] Create and push the SemVer tag on the checked `main` commit.
+- [ ] Create the signed SemVer tag on the checked `main` commit, verify its
+      signature, then push it.
 
   ```sh
-  git tag -a "$VERSION" -m "axeos-axi $VERSION"
+  git tag -s "$VERSION" -m "axeos-axi $VERSION"
+  git verify-tag "$VERSION"
   git push origin "$VERSION"
   ```
 
@@ -53,6 +55,8 @@ pull request, then run this checklist from a clean checkout:
 
 - [ ] Verify installation from the published tag in an isolated directory. The
       version fast path must report the released tag rather than `dev`.
+      Run it in the project's nix shell (`nix develop --no-pure-eval`): a plain
+      shell has no `go` on `PATH`, and a stale `GOROOT` breaks `go install`.
 
   ```sh
   install_dir=$(mktemp -d)
@@ -61,3 +65,17 @@ pull request, then run this checklist from a clean checkout:
   "$install_dir/axeos-axi" --help
   rm -rf "$install_dir"
   ```
+
+## Recovery
+
+The maintainer decides how a broken release is recovered. A published version
+or tag is never replaced, moved or re-created. A fault gets a new version.
+Choose one of these:
+
+- Point users to the previous working version in the release notes.
+- Publish a corrective patch release with a new SemVer tag, using the steps
+  above.
+- Withdraw or deprecate the version where the Go module ecosystem supports it.
+
+Verify the chosen recovery with the clean-install steps above. Link the
+decision from the release notes of the broken version.
