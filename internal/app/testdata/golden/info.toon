@@ -1,5 +1,4 @@
 exit: 0
-hostname: example-miner
 asic_model: BM1370
 firmware: v2.15.3
 axeos_version: Unified

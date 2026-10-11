@@ -1,7 +1,6 @@
 exit: 0
 bin: BIN
 description: Read and operate an AxeOS Bitcoin miner from a predictable command line
-hostname: example-miner
 model: BM1370
 firmware: v2.15.3
 hashrate: current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s

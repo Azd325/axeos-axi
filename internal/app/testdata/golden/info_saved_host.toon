@@ -1,6 +1,5 @@
 exit: 0
 saved_host: "HOST"
-hostname: example-miner
 asic_model: BM1370
 firmware: v2.15.3
 axeos_version: Unified

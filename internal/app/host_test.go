@@ -254,19 +254,19 @@ func TestHostResolutionOrder(t *testing.T) {
 	fromFlag, flagCalls := miner(t, renamed(t, "flag-miner"))
 	saveFile(t, path, saved+"\n")
 
-	code, out := execute(t, New(noHost), "info")
+	code, out := execute(t, New(noHost), "info", "--fields", "hostname")
 	if code != 0 || !strings.HasPrefix(out, "saved_host: \""+saved+"\"\nhostname: saved-miner\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	code, out = execute(t, New(func(string) string { return fromEnv }), "info")
+	code, out = execute(t, New(func(string) string { return fromEnv }), "info", "--fields", "hostname")
 	if code != 0 || !strings.HasPrefix(out, "hostname: environment-miner\n") || strings.Contains(out, "saved_host") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	code, out = execute(t, New(func(string) string { return fromEnv }), "info", "--host", fromFlag)
+	code, out = execute(t, New(func(string) string { return fromEnv }), "info", "--fields", "hostname", "--host", fromFlag)
 	if code != 0 || !strings.HasPrefix(out, "hostname: flag-miner\n") || strings.Contains(out, "saved_host") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	code, out = execute(t, New(noHost), "info", "--host", fromFlag)
+	code, out = execute(t, New(noHost), "info", "--fields", "hostname", "--host", fromFlag)
 	if code != 0 || !strings.HasPrefix(out, "hostname: flag-miner\n") || strings.Contains(out, "saved_host") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
@@ -324,7 +324,7 @@ func TestSavedHostIsStatedInOneLine(t *testing.T) {
 		t.Fatalf("home view:\n%s", out)
 	}
 	_, out = execute(t, New(noHost), "info", "--json")
-	if !strings.HasPrefix(out, `{"saved_host":"`+host+`","hostname":`) || strings.Count(out, "\n") != 1 {
+	if !strings.HasPrefix(out, `{"saved_host":"`+host+`","asic_model":`) || strings.Count(out, "\n") != 1 {
 		t.Fatalf("json:\n%s", out)
 	}
 }
