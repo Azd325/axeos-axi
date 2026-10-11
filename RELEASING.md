@@ -68,6 +68,9 @@ pull request, then run this checklist from a clean checkout:
 
 The maintainer decides how a broken release is recovered. A published version
 or tag is never replaced, moved or re-created. A fault gets a new version.
+GitHub enforces this for releases published in this repository after
+2026-10-11: their tags cannot be moved or deleted, and their attached files
+cannot be changed or deleted. Earlier releases are not locked.
 Choose one of these:
 
 - Point users to the previous working version in the release notes.
