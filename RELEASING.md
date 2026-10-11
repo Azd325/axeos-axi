@@ -55,8 +55,6 @@ pull request, then run this checklist from a clean checkout:
 
 - [ ] Verify installation from the published tag in an isolated directory. The
       version fast path must report the released tag rather than `dev`.
-      Run it in the project's nix shell (`nix develop --no-pure-eval`): a plain
-      shell has no `go` on `PATH`, and a stale `GOROOT` breaks `go install`.
 
   ```sh
   install_dir=$(mktemp -d)
