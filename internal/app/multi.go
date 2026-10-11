@@ -158,6 +158,21 @@ type minerResult struct {
 	failure *viewFailure
 }
 
+func severalViewColumns(command string) []string {
+	switch command {
+	case "info":
+		return []string{"firmware", "uptime_s"}
+	case "asic":
+		return []string{"frequency_actual_mhz", "core_voltage_actual_mv"}
+	case "stats":
+		return []string{"sample_count", "hashrate_ghs"}
+	case "firmware":
+		return []string{"version", "sha256"}
+	default:
+		return []string{"hashrate", "temperature"}
+	}
+}
+
 func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdout io.Writer) int {
 	results := make([]minerResult, len(clients))
 	var wg sync.WaitGroup
@@ -172,7 +187,7 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 
 	var columns []string
 	if len(opts.fields) == 0 {
-		columns = strings.Split(viewNames(opts.command), ",")
+		columns = severalViewColumns(opts.command)
 	} else {
 		columns = slices.Clone(opts.fields)
 	}
@@ -202,9 +217,9 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 				}
 			}
 		}
-		if opts.command == "stats" && hasState && !slices.Contains(columns, "state") {
-			columns = append([]string{"state"}, columns...)
-		}
+	}
+	if opts.command == "stats" && hasState && !slices.Contains(columns, "state") {
+		columns = append([]string{"state"}, columns...)
 	}
 
 	rows := make([]any, len(results))
@@ -235,12 +250,9 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 	}
 	fields = append(fields, output.Field{Name: "count", Value: len(results)}, output.Field{Name: "failed", Value: failed}, output.Field{Name: "miners", Value: rows})
 	help := failureHelp
-	if opts.command == "" && len(opts.fields) == 0 {
-		var hostArgs []string
-		for _, host := range opts.hosts {
-			hostArgs = append(hostArgs, "--host "+shellQuote(host))
-		}
-		help = append(help, "axeos-axi info "+strings.Join(hostArgs, " ")+" for system and network detail of the same miners")
+	if len(opts.fields) == 0 && answered != 0 {
+		command := strings.TrimSpace("axeos-axi " + opts.command)
+		help = append(help, command+" --fields <names> for more fields; names in "+command+" --help")
 	}
 	if len(help) != 0 {
 		fields = append(fields, output.Field{Name: "help", Value: help})

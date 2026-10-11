@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -75,6 +76,55 @@ func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 	second, _ := miner(t, renamed(t, "miner-b"))
 	a := New(func(string) string { return "" })
 	cases := []struct{ command, header, row string }{
+		{"", "hashrate,temperature", "%s,current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s,chip=65.12 C; regulator=73.00 C,null"},
+		{"info", "firmware,uptime_s", "%s,v2.15.3,612447,null"},
+		{"asic", "frequency_actual_mhz,core_voltage_actual_mv", "%s,525,1093,null"},
+		{"stats", "sample_count,hashrate_ghs", "%s,3,979.0009766,null"},
+		{"firmware", "version,sha256", "%s,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null"},
+	}
+	for _, c := range cases {
+		args := hostArgs(first, second)
+		if c.command != "" {
+			args = append([]string{c.command}, args...)
+		}
+		code, out := execute(t, a, args...)
+		row1 := fmt.Sprintf(c.row, fmt.Sprintf("%q", first))
+		row2 := fmt.Sprintf(c.row, fmt.Sprintf("%q", second))
+		want := "count: 2\nfailed: 0\nminers[2]{host," + c.header + ",error}:\n  " + row1 + "\n  " + row2 + "\n"
+		if code != 0 || !strings.Contains(out, want) {
+			t.Errorf("command=%q code=%d out=%s\nwant %s", c.command, code, out, want)
+		}
+		if c.command == "" && !strings.HasPrefix(out, "bin:") {
+			t.Errorf("home output: %s", out)
+		}
+		command := strings.TrimSpace("axeos-axi " + c.command)
+		hint := "help[1]: " + command + " --fields <names> for more fields; names in " + command + " --help\n"
+		if !strings.HasSuffix(out, hint) || strings.Contains(out, "--host '") {
+			t.Errorf("hint: %s", out)
+		}
+		code, out = execute(t, a, append(slices.Clone(args), "--json")...)
+		var result struct{ Miners []map[string]any }
+		if err := json.Unmarshal([]byte(out), &result); err != nil || code != 0 || len(result.Miners) != 2 {
+			t.Fatalf("JSON code=%d out=%s err=%v", code, out, err)
+		}
+		for _, row := range result.Miners {
+			if len(row) != 4 {
+				t.Errorf("JSON default has %d columns: %s", len(row), out)
+			}
+			for _, name := range strings.Split("host,"+c.header+",error", ",") {
+				if _, ok := row[name]; !ok {
+					t.Errorf("JSON lacks %s: %s", name, out)
+				}
+			}
+		}
+	}
+}
+
+func TestSeveralMinersPrintEveryViewFieldWithFields(t *testing.T) {
+	first, _ := miner(t, renamed(t, "miner-a"))
+	second, _ := miner(t, renamed(t, "miner-b"))
+	a := New(func(string) string { return "" })
+	cases := []struct{ command, header, row string }{
 		{"", "hostname,model,firmware,hashrate,temperature,power_w,efficiency,fan,pool,pool_connection,pool_fallback,shares,best_difficulty,uptime_s,overheat,paused",
 			"%s,miner-%s,BM1370,v2.15.3,current=1039.52 GH/s; 1h=1070.27 GH/s; expected=1071.00 GH/s,chip=65.12 C; regulator=73.00 C,20.1245117,19.36 J/TH,speed=60.74 %%; rpm=4057,pool.example.org,IPv4,false,accepted=1908; rejected=11,all_time=42896578860; session=634703787,612447,false,false,null"},
 		{"info", "hostname,asic_model,firmware,axeos_version,idf_version,board,heap_free_bytes,heap_internal_free_bytes,heap_min_free_bytes,heap_max_alloc_bytes,wifi_state,wifi_signal_dbm,uptime_s,reset_reason,partition",
@@ -91,7 +141,7 @@ func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 		if c.command != "" {
 			args = append([]string{c.command}, args...)
 		}
-		code, out := execute(t, a, args...)
+		code, out := execute(t, a, append(args, "--fields", c.header)...)
 		var row1, row2 string
 		if c.command == "" || c.command == "info" {
 			row1 = fmt.Sprintf(c.row, fmt.Sprintf("%q", first), "a")
@@ -101,15 +151,30 @@ func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 			row2 = fmt.Sprintf(c.row, fmt.Sprintf("%q", second))
 		}
 		want := "count: 2\nfailed: 0\nminers[2]{host," + c.header + ",error}:\n  " + row1 + "\n  " + row2 + "\n"
-		if code != 0 || !strings.Contains(out, want) {
+		if code != 0 || !strings.HasSuffix(out, want) {
 			t.Errorf("command=%q code=%d out=%s\nwant %s", c.command, code, out, want)
 		}
-		if c.command == "" && (!strings.HasPrefix(out, "bin:") || !strings.Contains(out, "\nhelp[1]: \"axeos-axi info --host '"+first+"' --host '"+second+"'")) {
-			t.Errorf("home output: %s", out)
-		}
-		if c.command != "" && strings.Contains(out, "help") {
-			t.Errorf("a result without a failed miner has no help line: %s", out)
-		}
+	}
+}
+
+func TestSeveralMinersStatsDefaultAddsStateOnlyWhenAMinerReportsOne(t *testing.T) {
+	disabled := fixture(t, "info")
+	disabled["statsFrequency"] = float64(0)
+	off, _ := miner(t, disabled)
+	on, _ := miner(t, fixture(t, "info"))
+	a := New(func(string) string { return "" })
+
+	code, out := execute(t, a, append([]string{"stats"}, hostArgs(on, off)...)...)
+	if code != 0 || !strings.Contains(out, "miners[2]{host,state,sample_count,hashrate_ghs,error}:\n") ||
+		!strings.Contains(out, fmt.Sprintf("  %q,null,3,979.0009766,null\n", on)) ||
+		!strings.Contains(out, fmt.Sprintf("  %q,statistics logging disabled on miner (statsFrequency=0)", off)) {
+		t.Fatalf("code=%d out=%s", code, out)
+	}
+
+	other, _ := miner(t, fixture(t, "info"))
+	code, out = execute(t, a, append([]string{"stats"}, hostArgs(on, other)...)...)
+	if code != 0 || !strings.Contains(out, "{host,sample_count,hashrate_ghs,error}:") {
+		t.Fatalf("code=%d out=%s", code, out)
 	}
 }
 
@@ -139,7 +204,7 @@ func TestMinerWithoutChecksumPathIsNotSupported(t *testing.T) {
 	old, oldCalls := noChecksumMiner(t)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"firmware"}, hostArgs(good, old)...)...)
-	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,partition,version,size_bytes,sha256,error}:\n  %q,ota_1,v2.15.3,1638400,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,null,null,not_supported\nhelp[1]: \"axeos-axi firmware --host '%s' for the error message of that miner\"\n", good, old, old)
+	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"axeos-axi firmware --host '%s' for the error message of that miner\",axeos-axi firmware --fields <names> for more fields; names in axeos-axi firmware --help\n", good, old, old)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -153,7 +218,8 @@ func TestEveryMinerFailed(t *testing.T) {
 	second, _ := statusMiner(t, http.StatusInternalServerError)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"asic"}, hostArgs(first, second)...)...)
-	if code != 1 || !strings.Contains(out, "count: 2\nfailed: 2\nminers[2]{host,model,") || strings.Count(out, "miner_read_failed\n") != 2 {
+	wantHelp := fmt.Sprintf("help[2]: \"axeos-axi asic --host '%s' for the error message of that miner\",\"axeos-axi asic --host '%s' for the error message of that miner\"\n", first, second)
+	if code != 1 || !strings.Contains(out, "count: 2\nfailed: 2\nminers[2]{host,frequency_actual_mhz,") || strings.Count(out, "miner_read_failed\n") != 2 || !strings.HasSuffix(out, wantHelp) || strings.Contains(out, "--fields <names>") {
 		t.Fatalf("code=%d out=%s", code, out)
 	}
 }

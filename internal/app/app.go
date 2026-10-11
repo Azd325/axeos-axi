@@ -33,7 +33,7 @@ const (
 	hostFlagHelp          = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
 	writeHostsFlagHelp    = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to change several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
 	hostsFlagHelp         = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
-	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the columns are host, the fields of this view or of --fields, and error; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs and health take one miner; restart, tuning and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi tuning --help, axeos-axi pool --help)"
+	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the default columns are host, two key values and error; --fields replaces the data columns; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs and health take one miner; restart, tuning and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi tuning --help, axeos-axi pool --help)"
 )
 
 var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill", "setup", "session"}
@@ -674,17 +674,10 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{
+			"axeos-axi health --host " + hostArg + " for a verdict on the miner state",
 			"axeos-axi info --host " + hostArg + " for system and network detail",
-			"axeos-axi asic --host " + hostArg + " for hardware and tuning",
-			"axeos-axi stats --host " + hostArg + " for recorded statistics",
-			"axeos-axi firmware --host " + hostArg + " for the running firmware checksum",
-			"axeos-axi scoreboard --host " + hostArg + " for the best-difficulty shares",
-			"axeos-axi logs --host " + hostArg + " for the log line count and size",
 			"axeos-axi discover to find AxeOS miners on the local network",
-			"axeos-axi restart --host " + hostArg + " for a preview of a miner restart; it sends no request without --confirm",
-			"axeos-axi tuning --host " + hostArg + " --frequency <MHz> --core-voltage <mV> for a preview of a tuning change; it sends no write request without --confirm",
-			"axeos-axi pool --host " + hostArg + " --url <host> --port <port> --user <user> for a preview of a pool change; it sends no write request without --confirm",
-			"axeos-axi skill install to install the agent skill for this tool",
+			"axeos-axi --help for all commands",
 		}})
 	}
 	return write(stdout, fields)
@@ -766,7 +759,11 @@ func help(command string) output.Object {
 		{Name: "view_fields", Value: viewNames(command)},
 	}
 	if several {
-		flags = append(flags[:1:1], append(output.Object{{Name: "several_miners", Value: severalHelp}}, flags[1:]...)...)
+		defaults := "; default columns: host," + strings.Join(severalViewColumns(command), ",") + ",error"
+		if command == "stats" {
+			defaults += "; state is added when a miner reports one"
+		}
+		flags = append(flags[:1:1], append(output.Object{{Name: "several_miners", Value: severalHelp + defaults}}, flags[1:]...)...)
 	}
 	if command == "stats" {
 		flagList := flags[0].Value.(output.Object)
