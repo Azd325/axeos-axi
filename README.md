@@ -1,6 +1,6 @@
 # axeos-axi
 
-[![CI](https://github.com/Azd325/axeos-axi/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Azd325/axeos-axi/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/Azd325/axeos-axi)](https://github.com/Azd325/axeos-axi/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Go version](https://img.shields.io/github/go-mod/go-version/Azd325/axeos-axi)](go.mod) [![Go Reference](https://pkg.go.dev/badge/github.com/Azd325/axeos-axi.svg)](https://pkg.go.dev/github.com/Azd325/axeos-axi)
+[![CI](https://img.shields.io/github/actions/workflow/status/Azd325/axeos-axi/ci.yml?branch=main)](https://github.com/Azd325/axeos-axi/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/Azd325/axeos-axi)](https://github.com/Azd325/axeos-axi/releases) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Go version](https://img.shields.io/github/go-mod/go-version/Azd325/axeos-axi)](go.mod) [![Go Reference](https://pkg.go.dev/badge/github.com/Azd325/axeos-axi.svg)](https://pkg.go.dev/github.com/Azd325/axeos-axi)
 
 An agent-ergonomic Go CLI for AxeOS Bitcoin miners, including Bitaxe.
 It reads a miner and has three commands that change it: `restart`, `tuning` and `pool`.
