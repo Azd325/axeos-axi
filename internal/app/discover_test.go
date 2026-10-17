@@ -54,7 +54,7 @@ miners[3]{address,hostname,family,firmware}:
   192.0.2.10,bitaxe-example.local,Gamma,v2.15.3
   "192.0.2.11:8080",bitaxe-other.local,null,null
   bitaxe-unresolved.local,bitaxe-unresolved.local,Supra,null
-help[2]: axeos-axi --host <address> for live mining health of one miner,"axeos-axi discover --fields address,hostname,board,asic,asic_count for hardware detail"
+help[2]: Run ` + "`" + `axeos-axi --host <address>` + "`" + ` for live mining health of one miner,"Run ` + "`" + `axeos-axi discover --fields address,hostname,board,asic,asic_count` + "`" + ` for hardware detail"
 `
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s", code, out)
@@ -79,7 +79,7 @@ miners[3]{instance,port,asic_count,board,asic}:
   Bitaxe Gamma 601 (ABCD),80,1,"601",BM1370
   Bitaxe Max 2.2 (EF01),8080,null,null,null
   Bitaxe Supra 401 (2345),80,many,null,null
-help[1]: axeos-axi --host <address> for live mining health of one miner
+help[1]: Run ` + "`" + `axeos-axi --host <address>` + "`" + ` for live mining health of one miner
 `
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s", code, out)
@@ -95,7 +95,7 @@ func TestDiscoverEmptyStateIsDefinitive(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "count: 0\n") || !strings.Contains(out, "state: 0 AxeOS miners answered mDNS service type _axeos._sub._http._tcp.local within 3 s\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
-	if strings.Contains(out, "miners[") || !strings.Contains(out, "axeos-axi discover --timeout 9 to wait longer") {
+	if strings.Contains(out, "miners[") || !strings.Contains(out, "Run `axeos-axi discover --timeout 9` to wait longer") {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "discover", "--timeout", "60")
@@ -156,12 +156,12 @@ func TestDiscoverIsNamedWhereAHostIsNeeded(t *testing.T) {
 	}
 
 	code, out = execute(t, New(func(string) string { return "" }), "info")
-	if code != 2 || !strings.Contains(out, "code: host_required") || !strings.Contains(out, "help: axeos-axi discover finds miners") {
+	if code != 2 || !strings.Contains(out, "code: host_required") || !strings.Contains(out, "help: Run `axeos-axi discover` to find miners") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	host, _ := miner(t, fixture(t, "info"))
 	code, out = execute(t, New(func(string) string { return host }))
-	if code != 0 || !strings.Contains(out, "axeos-axi discover to find AxeOS miners on the local network") {
+	if code != 0 || !strings.Contains(out, "Run `axeos-axi discover` to find AxeOS miners on the local network") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }

@@ -179,9 +179,9 @@ func TestPoolWithConfirmSendsOneWriteWithTheCompleteRecord(t *testing.T) {
 			want := "host: \"" + host + "\"\n" + tc.body + "sent: true\n" + tc.rows + tc.private +
 				"result: the miner accepted the request; " + poolEffects + "\n" +
 				"note: " + staleReadNote + "\n" +
-				"help[3]: \"axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users\"," +
-				"\"axeos-axi restart --host '" + host + "' for a preview of the restart that makes the miner use the stored values\"," +
-				"\"axeos-axi pool --host '" + host + "' " + tc.revert + " --confirm sets the previous values again\"\n"
+				"help[3]: \"Run `axeos-axi info --host '" + host + "' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` to show the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users\"," +
+				"\"Run `axeos-axi restart --host '" + host + "'` for a preview of the restart that makes the miner use the stored values\"," +
+				"\"Run `axeos-axi pool --host '" + host + "' " + tc.revert + " --confirm` to set the previous values again\"\n"
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 			}
@@ -286,7 +286,7 @@ func TestPoolPrintedCommandsAreAcceptedForAValueThatStartsWithADash(t *testing.T
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	code, out = execute(t, a, "pool", "--user=-other", "--show-user", "--confirm")
-	if code != 0 || !strings.Contains(out, "\"axeos-axi pool --host '"+host+"' --user='-worker' --show-user --confirm sets the previous values again\"") {
+	if code != 0 || !strings.Contains(out, "\"Run `axeos-axi pool --host '"+host+"' --user='-worker' --show-user --confirm` to set the previous values again\"") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	code, out = execute(t, a, "pool", "--user=-worker", "--show-user", "--confirm")
@@ -329,7 +329,7 @@ func TestPoolRefusalsSendNoWrite(t *testing.T) {
 					args = append(args, "--confirm")
 				}
 				code, out := execute(t, New(func(string) string { return host }), args...)
-				if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want) || !strings.Contains(out, "\nhelp: \"axeos-axi info --host '"+host+"' ") || strings.Contains(out, "example-worker") {
+				if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want) || !strings.Contains(out, "\nhelp: \"Run `axeos-axi info --host '"+host+"'") || strings.Contains(out, "example-worker") {
 					t.Fatalf("args=%v code=%d\n%s", args, code, out)
 				}
 				if calls() != poolRead {
@@ -346,7 +346,7 @@ func TestPoolSendsBackAnUnnamedSettingOutsideItsRuleAsRead(t *testing.T) {
 		pools[0]["stratumUser"] = ""
 	}, settingsSaved)
 	code, out := execute(t, New(func(string) string { return host }), "pool", "--port", "4444", "--confirm")
-	if code != 0 || !strings.Contains(out, "sent: true\n") || !strings.Contains(out, "--port=3333 --confirm sets the previous values again") {
+	if code != 0 || !strings.Contains(out, "sent: true\n") || !strings.Contains(out, "--port=3333 --confirm` to set the previous values again") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if calls() != poolRead+","+sentPools(sentPool(primaryPool, "stratum+tcp://pool.example.org", 4444, "")) {
@@ -410,10 +410,10 @@ func TestPoolWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := poolMiner(t, nil, tc.answer)
 			code, out := execute(t, New(func(string) string { return host }), "pool", "--url", "new.example.org", "--confirm")
-			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"axeos-axi info --host '"+host+"' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort shows") || strings.Contains(out, "private-identifier") || strings.Contains(out, "example-worker") {
+			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"Run `axeos-axi info --host '"+host+"' --fields stratumURL,stratumPort,fallbackStratumURL,fallbackStratumPort` to show") || strings.Contains(out, "private-identifier") || strings.Contains(out, "example-worker") {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
-			if !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --url='pool.example.org' --confirm sets the previous values again\"\n") {
+			if !strings.Contains(out, "; Run `axeos-axi pool --host '"+host+"' --url='pool.example.org' --confirm` to set the previous values again\"\n") {
 				t.Fatalf("no command for the previous values\n%s", out)
 			}
 			if stale := strings.Contains(out, "firmware v2.15.3") || strings.Contains(out, "read them before another"); stale != strings.Contains(tc.want, "pool_unconfirmed") {
@@ -423,7 +423,7 @@ func TestPoolWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 				t.Fatalf("requests=%s", calls())
 			}
 			code, out = execute(t, New(func(string) string { return host }), "pool", "--fallback-user", "other-worker", "--show-user", "--confirm")
-			if code != 1 || !strings.Contains(out, "; axeos-axi pool --host '"+host+"' --fallback-user='example-worker' --show-user --confirm sets the previous values again\"\n") {
+			if code != 1 || !strings.Contains(out, "; Run `axeos-axi pool --host '"+host+"' --fallback-user='example-worker' --show-user --confirm` to set the previous values again\"\n") {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
 		})

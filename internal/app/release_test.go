@@ -130,7 +130,7 @@ func TestCheckReleaseComparisons(t *testing.T) {
 			host, _ := minerWithVersion(t, tc.miner)
 			code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", host)
 			want := "miner_version: " + tc.miner + "\nrelease:\n  tag: " + tc.tag + "\n  name: Release " + tc.tag + "\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/" + tc.tag + "\"\ncomparison: " + tc.comparison + "\n" + tc.reason +
-				"help: \"axeos-axi firmware --host " + shellQuote(host) + " for the running firmware checksum\"\n"
+				"help: \"Run `axeos-axi firmware --host " + shellQuote(host) + "` for the running firmware checksum\"\n"
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 			}
@@ -151,7 +151,7 @@ func TestCheckReleaseWithoutChecksumPath(t *testing.T) {
 	g := githubFake(t, latestRelease("v2.15.3"))
 	host, calls := minerWithoutChecksum(t, "v2.15.2")
 	code, out := execute(t, releaseApp(g), "firmware", "--check-release", "--host", host)
-	want := "miner_version: v2.15.2\nrelease:\n  tag: v2.15.3\n  name: Release v2.15.3\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3\"\ncomparison: update_available\nhelp: \"axeos-axi firmware --host " + shellQuote(host) + " for the running firmware checksum\"\n"
+	want := "miner_version: v2.15.2\nrelease:\n  tag: v2.15.3\n  name: Release v2.15.3\n  date: \"2026-09-20T15:57:20Z\"\n  url: \"https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3\"\ncomparison: update_available\nhelp: \"Run `axeos-axi firmware --host " + shellQuote(host) + "` for the running firmware checksum\"\n"
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -200,10 +200,10 @@ func TestCheckReleaseReadErrors(t *testing.T) {
 		message string
 		help    string
 	}{
-		{"rate limit", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "0"), "rate limit", "wait and run"},
+		{"rate limit", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "0"), "rate limit", "wait; Run `axeos-axi firmware"},
 		{"refused", status(http.StatusForbidden), "HTTP 403", "GitHub refused the request"},
 		{"refused with requests left", withHeader(http.StatusForbidden, "X-Ratelimit-Remaining", "12"), "HTTP 403", "GitHub refused the request"},
-		{"too many requests", status(http.StatusTooManyRequests), "rate limit", "wait and run"},
+		{"too many requests", status(http.StatusTooManyRequests), "rate limit", "wait; Run `axeos-axi firmware"},
 		{"server error", status(http.StatusInternalServerError), "HTTP 500", "again later"},
 		{"bad gateway", status(http.StatusBadGateway), "HTTP 502", "again later"},
 		{"not found", status(http.StatusNotFound), "HTTP 404", "again later"},

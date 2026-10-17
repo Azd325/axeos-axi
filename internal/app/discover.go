@@ -67,12 +67,12 @@ func (a *App) discover(ctx context.Context, opts options, stdout io.Writer) int 
 	}
 	for _, name := range columns {
 		if !slices.Contains(discoverFields, name) {
-			return failure(stdout, 2, "unknown_field", "unknown field "+name, "axeos-axi discover --help; valid fields: "+strings.Join(discoverFields, ","))
+			return failure(stdout, 2, "unknown_field", "unknown field "+name, runHint("axeos-axi discover --help", "for the help page")+"; valid fields: "+strings.Join(discoverFields, ","))
 		}
 	}
 	services, err := a.Browser.Browse(ctx, discoverService, time.Duration(opts.timeout)*time.Second)
 	if err != nil {
-		return failure(stdout, 1, "discovery_failed", err.Error(), "check the local network connection and the local-network permission of this terminal, then run "+discoverRetry(opts))
+		return failure(stdout, 1, "discovery_failed", err.Error(), "check the local network connection and the local-network permission of this terminal; "+runHint(discoverRetry(opts), "to discover again"))
 	}
 	rows := make([]map[string]any, len(services))
 	for i, s := range services {
@@ -87,9 +87,9 @@ func (a *App) discover(ctx context.Context, opts options, stdout io.Writer) int 
 		{Name: "count", Value: len(rows)},
 	}
 	if len(rows) == 0 {
-		help := []any{"axeos-axi --host <address> reads a miner at a known address; mDNS stays inside one network segment and a miner must advertise this service type"}
+		help := []any{"Run `axeos-axi --host <address>` to read a miner at a known address; mDNS stays inside one network segment and a miner must advertise this service type"}
 		if opts.timeout < maxDiscoverTimeout {
-			help = append([]any{fmt.Sprintf("axeos-axi discover --timeout %d to wait longer", min(opts.timeout*3, maxDiscoverTimeout))}, help...)
+			help = append([]any{runHint(fmt.Sprintf("axeos-axi discover --timeout %d", min(opts.timeout*3, maxDiscoverTimeout)), "to wait longer")}, help...)
 		}
 		return write(stdout, append(fields,
 			output.Field{Name: "state", Value: fmt.Sprintf("0 AxeOS miners answered mDNS service type %s within %d s", discoverService, opts.timeout)},
@@ -104,9 +104,9 @@ func (a *App) discover(ctx context.Context, opts options, stdout io.Writer) int 
 		}
 		miners[i] = miner
 	}
-	help := []any{"axeos-axi --host <address> for live mining health of one miner"}
+	help := []any{runHint("axeos-axi --host <address>", "for live mining health of one miner")}
 	if len(opts.fields) == 0 {
-		help = append(help, "axeos-axi discover --fields address,hostname,board,asic,asic_count for hardware detail")
+		help = append(help, runHint("axeos-axi discover --fields address,hostname,board,asic,asic_count", "for hardware detail"))
 	}
 	return write(stdout, append(fields, output.Field{Name: "miners", Value: miners}, output.Field{Name: "help", Value: help}))
 }

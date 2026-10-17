@@ -100,7 +100,7 @@ func TestTuningWithConfirmSendsOneWriteWithTheNamedSettings(t *testing.T) {
 			code, out := execute(t, New(func(string) string { return host }), tc.args...)
 			want := "host: \"" + host + "\"\nrequest: PATCH /api/system\nbody:\n" + tc.body + "sent: true\n" + tc.rows +
 				"result: \"the miner accepted the request; the values are active at once, without a restart, and the miner keeps them across a restart\"\n" +
-				"help[2]: \"axeos-axi asic --host '" + host + "' shows frequency_mhz and core_voltage_set_mv\",\"axeos-axi tuning --host '" + host + "' " + tc.revert + " --confirm sets the previous values again\"\n"
+				"help[2]: \"Run `axeos-axi asic --host '" + host + "'` to show frequency_mhz and core_voltage_set_mv\",\"Run `axeos-axi tuning --host '" + host + "' " + tc.revert + " --confirm` to set the previous values again\"\n"
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 			}
@@ -135,7 +135,7 @@ func TestTuningRefusalsSendNoWrite(t *testing.T) {
 					args = append(args, "--confirm")
 				}
 				code, out := execute(t, New(func(string) string { return host }), args...)
-				if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want) || !strings.Contains(out, "\nhelp: \"axeos-axi ") {
+				if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want) || !strings.Contains(out, "\nhelp: \"Run `axeos-axi ") {
 					t.Fatalf("args=%v code=%d\n%s", args, code, out)
 				}
 				if calls() != tuningReads {
@@ -218,7 +218,7 @@ func TestTuningWriteFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := tuningMiner(t, nil, tc.answer)
 			code, out := execute(t, New(func(string) string { return host }), "tuning", "--frequency", "550", "--confirm")
-			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"axeos-axi asic --host '"+host+"' shows frequency_mhz and core_voltage_set_mv") || strings.Contains(out, "private-identifier") {
+			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"Run `axeos-axi asic --host '"+host+"'` to show frequency_mhz and core_voltage_set_mv") || strings.Contains(out, "private-identifier") {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
 			if calls() != tuningReads+`,PATCH /api/system {"frequency":550}` {

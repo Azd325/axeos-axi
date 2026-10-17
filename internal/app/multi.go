@@ -30,7 +30,7 @@ type minerView struct {
 
 func optionalViewFailure(err error, subject, host string) *viewFailure {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
-		return &viewFailure{exit: 1, code: "not_supported", message: subject + " is not supported by this firmware", help: "axeos-axi info --host " + shellQuote(host) + " shows the firmware version"}
+		return &viewFailure{exit: 1, code: "not_supported", message: subject + " is not supported by this firmware", help: runHint("axeos-axi info --host "+shellQuote(host), "to show the firmware version")}
 	}
 	return &viewFailure{exit: 1, code: "miner_read_failed", message: err.Error(), help: minerReadHelp(err)}
 }
@@ -63,7 +63,7 @@ func readView(ctx context.Context, client *axeos.Client, host string, opts optio
 	case "asic":
 		asic, readErr := client.Get(ctx, "asic")
 		if readErr != nil {
-			return nil, readFailed(readErr, "check the miner API with axeos-axi info")
+			return nil, readFailed(readErr, "check the miner API; "+runHint("axeos-axi info", "to read the miner"))
 		}
 		raw = make(map[string]any, len(info)+len(asic))
 		for k, v := range info {
@@ -82,7 +82,7 @@ func readView(ctx context.Context, client *axeos.Client, host string, opts optio
 			stats, readErr = client.Get(ctx, "statistics")
 		}
 		if readErr != nil {
-			return nil, readFailed(readErr, "check the miner API with axeos-axi info")
+			return nil, readFailed(readErr, "check the miner API; "+runHint("axeos-axi info", "to read the miner"))
 		}
 		raw = stats
 		if opts.samples != 0 {
@@ -213,7 +213,7 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 					return ok
 				})
 				if !known {
-					return failure(stdout, 2, "unknown_field", "unknown field "+name, strings.TrimSpace("axeos-axi "+opts.command)+" --help; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
+					return failure(stdout, 2, "unknown_field", "unknown field "+name, runHint(strings.TrimSpace("axeos-axi "+opts.command)+" --help", "for the help page")+"; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
 				}
 			}
 		}
@@ -238,7 +238,7 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 		if r.failure != nil {
 			code = r.failure.code
 			if len(failureHelp) < maxFailureHelp {
-				failureHelp = append(failureHelp, strings.TrimSpace("axeos-axi "+opts.command)+" --host "+shellQuote(opts.hosts[i])+" for the error message of that miner")
+				failureHelp = append(failureHelp, runHint(strings.TrimSpace("axeos-axi "+opts.command)+" --host "+shellQuote(opts.hosts[i]), "for the error message of that miner"))
 			}
 		}
 		rows[i] = append(row, output.Field{Name: "error", Value: code})
@@ -252,7 +252,7 @@ func readMiners(ctx context.Context, clients []*axeos.Client, opts options, stdo
 	help := failureHelp
 	if len(opts.fields) == 0 && answered != 0 {
 		command := strings.TrimSpace("axeos-axi " + opts.command)
-		help = append(help, command+" --fields <names> for more fields; names in "+command+" --help")
+		help = append(help, runHint(command+" --fields <names>", "for more fields")+"; "+runHint(command+" --help", "for the names"))
 	}
 	if len(help) != 0 {
 		fields = append(fields, output.Field{Name: "help", Value: help})

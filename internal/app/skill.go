@@ -24,13 +24,13 @@ func installSkill(opts options, stdout io.Writer) int {
 	if dir == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return failure(stdout, 1, "skill_install_failed", "could not determine the user home directory", "axeos-axi skill install --path <directory> with the agent skills parent directory")
+			return failure(stdout, 1, "skill_install_failed", "could not determine the user home directory", runHint("axeos-axi skill install --path <directory>", "with the agent skills parent directory"))
 		}
 		dir = filepath.Join(home, ".agents", "skills")
 	}
 	path, err := filepath.Abs(filepath.Join(dir, skill.Name, "SKILL.md"))
 	if err != nil {
-		return failure(stdout, 1, "skill_install_failed", "could not determine the absolute path of "+opts.path, "axeos-axi skill install --path <absolute directory>")
+		return failure(stdout, 1, "skill_install_failed", "could not determine the absolute path of "+opts.path, runHint("axeos-axi skill install --path <absolute directory>", "with an absolute path"))
 	}
 	written, err := skill.Install(path)
 	if err != nil {

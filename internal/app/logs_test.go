@@ -52,7 +52,7 @@ func TestLogsDefaultPrintsNoLogLine(t *testing.T) {
 	fixture := logsFixture(t)
 	host, calls := logsMiner(t, http.StatusOK, "text/plain", fixture)
 	code, out := execute(t, New(func(string) string { return host }), "logs")
-	want := fmt.Sprintf("total_lines: 26\nsize_bytes: %d\nhelp[2]: \"axeos-axi logs --host '%s' --lines all for all 26 lines\",\"axeos-axi logs --host '%s' --lines <n> for the newest n lines\"\n", len(fixture), host, host)
+	want := fmt.Sprintf("total_lines: 26\nsize_bytes: %d\nhelp[2]: \"Run `axeos-axi logs --host '%s' --lines all` for all 26 lines\",\"Run `axeos-axi logs --host '%s' --lines <n>` for the newest n lines\"\n", len(fixture), host, host)
 	if code != 0 || out != want {
 		t.Fatalf("%d\n%q\nwant\n%q", code, out, want)
 	}
@@ -72,7 +72,7 @@ func TestLogsBoundedTail(t *testing.T) {
 		"  \"W (3500) example_task: sample warning after restart\"\n"
 	end := "  \"I (7250) example_task: sample event 24\"\n" +
 		"  \"E (7500) example_task: sample error, newest line\"\n" +
-		"help[2]: \"axeos-axi logs --host '" + host + "' --lines all for all 26 lines\",\"axeos-axi logs --host '" + host + "' --lines <n> for the newest n lines\"\n"
+		"help[2]: \"Run `axeos-axi logs --host '" + host + "' --lines all` for all 26 lines\",\"Run `axeos-axi logs --host '" + host + "' --lines <n>` for the newest n lines\"\n"
 	if code != 0 || !strings.HasPrefix(out, want) || !strings.HasSuffix(out, end) || strings.Count(out, "\n") != 24 {
 		t.Fatalf("%d %s", code, out)
 	}
@@ -244,7 +244,7 @@ func TestLogsReplacePrivateValues(t *testing.T) {
 			t.Fatalf("%s leaked in %s", leaked, out)
 		}
 	}
-	if !strings.Contains(out, "--lines all --show-private prints the lines unchanged") {
+	if !strings.Contains(out, "--lines all --show-private` to print the lines unchanged") {
 		t.Fatal(out)
 	}
 	if strings.Join(calls(), ",") != "GET /api/system/info,GET /api/system/logs" {

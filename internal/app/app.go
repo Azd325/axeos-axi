@@ -21,12 +21,13 @@ import (
 
 const (
 	connectivityHelp      = "check --host or AXEOS_HOST and local network connectivity"
-	savedConnectivityHelp = "check local network connectivity; axeos-axi host show prints the saved host; axeos-axi host save <address> replaces it; axeos-axi host forget removes it"
-	discoverHint          = "axeos-axi discover finds miners on the local network"
+	savedConnectivityHelp = "check local network connectivity; " + savedHostHelp
+	discoverHint          = "Run `axeos-axi discover` to find miners on the local network"
+	savedHostHelp         = "Run `axeos-axi host show` to print the saved host; Run `axeos-axi host save <address>` to replace it; Run `axeos-axi host forget` to remove it"
 	readConnectivityHelp  = connectivityHelp + "; " + discoverHint
 	readStatusHelp        = "the miner answered with an HTTP error status; check that --host or AXEOS_HOST names an AxeOS miner; " + discoverHint
 	savedReadHelp         = savedConnectivityHelp + "; " + discoverHint
-	savedReadStatusHelp   = "the miner answered with an HTTP error status; check that the saved host is an AxeOS miner; axeos-axi host show prints the saved host; axeos-axi host save <address> replaces it; axeos-axi host forget removes it; " + discoverHint
+	savedReadStatusHelp   = "the miner answered with an HTTP error status; check that the saved host is an AxeOS miner; " + savedHostHelp + "; " + discoverHint
 	universalFlags        = "--json, --help, -v, -V, --version"
 	jsonFlagHelp          = "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
 	versionFlagHelp       = "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
@@ -535,7 +536,7 @@ func invalidHostHelp(opts options, refused int) string {
 			call += " " + flag.name
 		}
 	}
-	return call
+	return "Run `" + call + "`"
 }
 
 func answeredWithStatus(err error) bool {
@@ -552,7 +553,7 @@ func minerReadHelp(err error) string {
 
 func optionalReadFailure(w io.Writer, err error, subject, host string) int {
 	if errors.Is(err, axeos.ErrNotFound) || errors.Is(err, axeos.ErrRootRedirect) {
-		return failure(w, 1, "not_supported", subject+" is not supported by this firmware", "axeos-axi info --host "+shellQuote(host)+" shows the firmware version")
+		return failure(w, 1, "not_supported", subject+" is not supported by this firmware", runHint("axeos-axi info --host "+shellQuote(host), "to show the firmware version"))
 	}
 	return failure(w, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 }
@@ -609,7 +610,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 			}
 		}
 		if saved == "" {
-			return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "axeos-axi discover finds miners on the local network; then axeos-axi --host <address>; axeos-axi host save <address> saves a default host")
+			return failureAfter(stdout, lead, 2, "host_required", "set --host <address> or AXEOS_HOST", "Run `axeos-axi discover` to find miners on the local network; Run `axeos-axi --host <address>` to read one miner; Run `axeos-axi host save <address>` to save a default host")
 		}
 		opts.hosts = []string{saved}
 		stdout = &savedHostWriter{Writer: stdout, host: saved}
@@ -665,7 +666,7 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	}
 	fields, unknown := view.selected(opts)
 	if unknown != "" {
-		return failure(stdout, 2, "unknown_field", "unknown field "+unknown, strings.TrimSpace("axeos-axi "+opts.command)+" --help; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
+		return failure(stdout, 2, "unknown_field", "unknown field "+unknown, runHint(strings.TrimSpace("axeos-axi "+opts.command)+" --help", "for the help page")+"; valid fields: "+viewNames(opts.command)+" (or exact API field names)")
 	}
 	if opts.command == "" {
 		fields = append(identity(), fields...)
@@ -674,10 +675,10 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 		// Carry the selected host into commands so --host-only invocations remain actionable.
 		hostArg := shellQuote(opts.host)
 		fields = append(fields, output.Field{Name: "help", Value: []any{
-			"axeos-axi health --host " + hostArg + " for a verdict on the miner state",
-			"axeos-axi info --host " + hostArg + " for system and network detail",
-			"axeos-axi discover to find AxeOS miners on the local network",
-			"axeos-axi --help for all commands",
+			runHint("axeos-axi health --host "+hostArg, "for a verdict on the miner state"),
+			runHint("axeos-axi info --host "+hostArg, "for system and network detail"),
+			runHint("axeos-axi discover", "to find AxeOS miners on the local network"),
+			runHint("axeos-axi --help", "for all commands"),
 		}})
 	}
 	return write(stdout, fields)
@@ -698,6 +699,8 @@ func fieldsHelp(command string) string {
 	}
 	return text
 }
+
+func runHint(command, reason string) string { return "Run `" + command + "` " + reason }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 

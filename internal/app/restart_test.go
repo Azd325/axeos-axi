@@ -75,7 +75,7 @@ func TestRestartWithConfirmSendsOneRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := restartMiner(t, tc.answer)
 			code, out := execute(t, New(func(string) string { return host }), tc.args...)
-			want := "host: \"" + host + "\"\nrequest: POST /api/system/restart\nsent: true\nresult: the miner accepted the restart; it stops hashing until it is up again\nhelp[1]: \"axeos-axi info --host '" + host + "' shows uptime_s and reset_reason when the miner is up again\"\n"
+			want := "host: \"" + host + "\"\nrequest: POST /api/system/restart\nsent: true\nresult: the miner accepted the restart; it stops hashing until it is up again\nhelp[1]: \"Run `axeos-axi info --host '" + host + "'` to show uptime_s and reset_reason when the miner is up again\"\n"
 			if code != 0 || out != want {
 				t.Fatalf("code=%d\n%q\nwant\n%q", code, out, want)
 			}
@@ -115,7 +115,7 @@ func TestRestartFailuresStateWhetherTheRequestWasSent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host, calls := restartMiner(t, tc.answer)
 			code, out := execute(t, New(func(string) string { return host }), "restart", "--confirm")
-			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"axeos-axi info --host '"+host+"' shows uptime_s and reset_reason") || strings.Contains(out, "private-identifier") {
+			if code != 1 || !strings.HasPrefix(out, "error:\n  "+tc.want+"help: \"Run `axeos-axi info --host '"+host+"'` to show uptime_s and reset_reason") || strings.Contains(out, "private-identifier") {
 				t.Fatalf("code=%d\n%s", code, out)
 			}
 			if strings.Join(calls(), ",") != restartCall {

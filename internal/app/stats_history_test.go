@@ -68,7 +68,7 @@ logging_interval_s: 120
 current_timestamp_ms: 612447946
 samples[1]{timestamp,fanRpm,power}:
   612447553,4081,20.1245117
-help[1]: "axeos-axi stats --host '` + host + `' --samples all --columns fanRpm,power for all 3 samples"
+help[1]: "Run ` + "`" + `axeos-axi stats --host '` + host + `' --samples all --columns fanRpm,power` + "`" + ` for all 3 samples"
 `
 	if code != 0 || out != want {
 		t.Fatalf("code=%d output=%q", code, out)
@@ -101,7 +101,7 @@ func TestStatsSamplesUseTheDefaultRequestAndColumns(t *testing.T) {
 	if !strings.Contains(out, "  612446553,979.0009766,1070.2729492,64.75,72,20.1245117\n  612447553,979.0009766,1070.2735596,64.875,73,20.1245117\n") {
 		t.Fatalf("rows must be the newest two, oldest first: %q", out)
 	}
-	if !strings.Contains(out, "axeos-axi stats --host '"+host+"' --samples all for all 3 samples") {
+	if !strings.Contains(out, "Run `axeos-axi stats --host '"+host+"' --samples all` for all 3 samples") {
 		t.Fatalf("help: %q", out)
 	}
 }

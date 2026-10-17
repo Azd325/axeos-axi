@@ -17,4 +17,4 @@ best_difficulty: all_time=42896578860; session=634703787
 uptime_s: 612447
 overheat: false
 paused: false
-help[4]: "axeos-axi health --host 'HOST' for a verdict on the miner state","axeos-axi info --host 'HOST' for system and network detail",axeos-axi discover to find AxeOS miners on the local network,axeos-axi --help for all commands
+help[4]: "Run `axeos-axi health --host 'HOST'` for a verdict on the miner state","Run `axeos-axi info --host 'HOST'` for system and network detail",Run `axeos-axi discover` to find AxeOS miners on the local network,Run `axeos-axi --help` for all commands

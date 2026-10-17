@@ -193,8 +193,8 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 	}
 	prefix := "axeos-axi logs --host " + shellQuote(opts.host)
 	help := output.Field{Name: "help", Value: []any{
-		fmt.Sprintf("%s --lines all for all %d lines", prefix, total),
-		prefix + " --lines <n> for the newest n lines",
+		runHint(prefix+" --lines all", fmt.Sprintf("for all %d lines", total)),
+		runHint(prefix+" --lines <n>", "for the newest n lines"),
 	}}
 	if opts.lines == noLogLines {
 		return write(stdout, output.Object{{Name: "total_lines", Value: total}, {Name: "size_bytes", Value: len(text)}, help})
@@ -220,7 +220,7 @@ func logs(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		return write(stdout, fields)
 	}
 	fields = append(fields, output.Field{Name: "private", Value: logRedacted})
-	hints := []any{prefix + " --lines " + shown(opts.lines) + " --show-private prints the lines unchanged"}
+	hints := []any{runHint(prefix+" --lines "+shown(opts.lines)+" --show-private", "to print the lines unchanged")}
 	if len(lines) < total {
 		hints = append(hints, help.Value.([]any)...)
 	}

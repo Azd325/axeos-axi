@@ -74,6 +74,9 @@ func execute(t *testing.T, a *App, args ...string) (int, string) {
 	t.Helper()
 	var b bytes.Buffer
 	code := a.Run(context.Background(), args, &b)
+	if line := commandOutsideBackticks(b.String()); line != "" {
+		t.Errorf("hint names a command outside backticks:\n%s", line)
+	}
 	return code, b.String()
 }
 
@@ -132,7 +135,7 @@ func TestHomeHelpLines(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "\nhelp[4]:") {
 		t.Fatalf("code=%d output=%s", code, out)
 	}
-	want := fmt.Sprintf("help[4]: \"axeos-axi health --host '%s' for a verdict on the miner state\",\"axeos-axi info --host '%s' for system and network detail\",axeos-axi discover to find AxeOS miners on the local network,axeos-axi --help for all commands\n", host, host)
+	want := fmt.Sprintf("help[4]: \"Run `axeos-axi health --host '%s'` for a verdict on the miner state\",\"Run `axeos-axi info --host '%s'` for system and network detail\",Run `axeos-axi discover` to find AxeOS miners on the local network,Run `axeos-axi --help` for all commands\n", host, host)
 	if !strings.HasSuffix(out, want) {
 		t.Fatalf("unexpected hints: %s", out)
 	}
@@ -164,11 +167,11 @@ func TestFieldsAndHostOverride(t *testing.T) {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "info", "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "axeos-axi info --help; valid fields: ") {
+	if code != 2 || !strings.Contains(out, "unknown_field") || !strings.Contains(out, "Run `axeos-axi info --help` for the help page; valid fields: ") {
 		t.Fatal(out)
 	}
 	code, out = execute(t, a, "--host", host, "--fields", "nonexistent")
-	if code != 2 || !strings.Contains(out, "axeos-axi --help; valid fields: ") {
+	if code != 2 || !strings.Contains(out, "Run `axeos-axi --help` for the help page; valid fields: ") {
 		t.Fatal(out)
 	}
 }

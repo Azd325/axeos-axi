@@ -15,7 +15,7 @@ import (
 const (
 	hostUsage     = "usage: axeos-axi host save <address>, axeos-axi host show, or axeos-axi host forget"
 	hostSaveUsage = "usage: axeos-axi host save <address>; the address is an argument"
-	hostSaveHelp  = "axeos-axi discover finds miners on the local network; then axeos-axi host save <address>"
+	hostSaveHelp  = "Run `axeos-axi discover` to find miners on the local network; Run `axeos-axi host save <address>` to save a default host"
 	hostOrderHelp = "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required"
 )
 
@@ -44,7 +44,7 @@ func (s *savedHostWriter) state(fields output.Object) output.Object {
 
 func savedHostFailure(w io.Writer, lead output.Object, path string, err error) int {
 	return failureAfter(w, lead, 1, "saved_host_invalid", "the saved host file "+tildePath(path)+" "+err.Error()+"; no host is read from it",
-		"axeos-axi host forget removes the file; then axeos-axi host save <address>; --host <address> or AXEOS_HOST names the miner without the file")
+		"Run `axeos-axi host forget` to remove the file; Run `axeos-axi host save <address>` to save a host again; --host <address> or AXEOS_HOST names the miner without the file")
 }
 
 func hostCommand(ctx context.Context, opts options, stdout io.Writer) int {
@@ -75,7 +75,7 @@ func hostCommand(ctx context.Context, opts options, stdout io.Writer) int {
 		return write(stdout, output.Object{
 			{Name: "saved_host", Value: nil}, location,
 			{Name: "state", Value: "no host is saved"},
-			{Name: "help", Value: []any{hostSaveHelp + " to save a default host"}},
+			{Name: "help", Value: []any{hostSaveHelp}},
 		})
 	}
 	return write(stdout, output.Object{{Name: "saved_host", Value: saved}, location})
@@ -84,7 +84,7 @@ func hostCommand(ctx context.Context, opts options, stdout io.Writer) int {
 func saveHost(ctx context.Context, address, path string, location output.Field, stdout io.Writer) int {
 	client, err := axeos.New(address)
 	if err != nil {
-		return failure(stdout, 2, "invalid_host", err.Error(), "axeos-axi host save 192.0.2.10")
+		return failure(stdout, 2, "invalid_host", err.Error(), "Run `axeos-axi host save 192.0.2.10`")
 	}
 	info, err := client.Get(ctx, "info")
 	if err != nil {
@@ -104,8 +104,8 @@ func saveHost(ctx context.Context, address, path string, location output.Field, 
 	return write(stdout, output.Object{
 		{Name: "saved_host", Value: client.Base()}, location,
 		{Name: "help", Value: []any{
-			"axeos-axi for the home view of the saved host; --host and AXEOS_HOST come before it",
-			"axeos-axi host forget to remove the saved host",
+			runHint("axeos-axi", "for the home view of the saved host; --host and AXEOS_HOST come before it"),
+			runHint("axeos-axi host forget", "to remove the saved host"),
 		}},
 	})
 }
