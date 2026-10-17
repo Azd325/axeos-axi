@@ -7,7 +7,7 @@
     devenv.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { nixpkgs, devenv, ... }@inputs:
+  outputs = { self, nixpkgs, devenv, ... }@inputs:
     let
       systems = [
         "aarch64-darwin"
@@ -15,7 +15,7 @@
         "x86_64-darwin"
         "x86_64-linux"
       ];
-      version = "0.3.0";
+      version = "dev-${self.shortRev or self.dirtyShortRev or "dirty"}";
     in
     {
       packages = nixpkgs.lib.genAttrs systems (system:
@@ -27,7 +27,7 @@
             src = ./.;
             subPackages = [ "cmd/axeos-axi" ];
             vendorHash = null;
-            ldflags = [ "-X main.version=v${version}" ];
+            ldflags = [ "-X main.version=${version}" ];
             meta = {
               description = "Agent-ergonomic CLI for reading and tuning AxeOS Bitcoin miners";
               homepage = "https://github.com/Azd325/axeos-axi";
