@@ -15,7 +15,7 @@ func TestMinerReadFailedHintNamesDiscover(t *testing.T) {
 	for _, command := range [][]string{{"info"}, {"logs"}, {"health"}, {"firmware"}, {"firmware", "--check-release"}} {
 		args := append(command, "--host", host)
 		code, out := execute(t, New(noHost), args...)
-		if code != 1 || !strings.Contains(out, "code: miner_read_failed\n") || !strings.Contains(out, "help: check --host or AXEOS_HOST and local network connectivity; axeos-axi discover finds miners on the local network\n") {
+		if code != 1 || !strings.Contains(out, "code: miner_read_failed\n") || !strings.Contains(out, "help: check --host or AXEOS_HOST and local network connectivity; Run `axeos-axi discover` to find miners on the local network\n") {
 			t.Fatalf("%v: code=%d\n%s", args, code, out)
 		}
 	}
@@ -48,9 +48,9 @@ func TestDiscoveryFailedHintKeepsTheFlagsOfTheCall(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"discover"}, "then run axeos-axi discover\"\n"},
-		{[]string{"discover", "--timeout", "7"}, "then run axeos-axi discover --timeout 7\"\n"},
-		{[]string{"discover", "--fields", "hostname,address", "--timeout", "7"}, "then run axeos-axi discover --timeout 7 --fields hostname,address\"\n"},
+		{[]string{"discover"}, "; Run `axeos-axi discover` to discover again\n"},
+		{[]string{"discover", "--timeout", "7"}, "; Run `axeos-axi discover --timeout 7` to discover again\n"},
+		{[]string{"discover", "--fields", "hostname,address", "--timeout", "7"}, "; Run `axeos-axi discover --timeout 7 --fields hostname,address` to discover again\"\n"},
 	} {
 		code, out := execute(t, discoverer(t, &fakeBrowser{err: errors.New("no interface")}), tc.args...)
 		if code != 1 || !strings.Contains(out, "code: discovery_failed\n") || !strings.HasSuffix(out, tc.want) {
@@ -61,9 +61,9 @@ func TestDiscoveryFailedHintKeepsTheFlagsOfTheCall(t *testing.T) {
 
 func TestInvalidHostHintKeepsTheCommandOfTheCall(t *testing.T) {
 	for command, want := range map[string]string{
-		"info":       "help: axeos-axi info --host 192.0.2.10\n",
-		"logs":       "help: axeos-axi logs --host 192.0.2.10\n",
-		"scoreboard": "help: axeos-axi scoreboard --host 192.0.2.10\n",
+		"info":       "help: Run `axeos-axi info --host 192.0.2.10`\n",
+		"logs":       "help: Run `axeos-axi logs --host 192.0.2.10`\n",
+		"scoreboard": "help: Run `axeos-axi scoreboard --host 192.0.2.10`\n",
 	} {
 		code, out := execute(t, New(noHost), command, "--host", "http://user:pw@192.0.2.1")
 		if code != 2 || !strings.Contains(out, "code: invalid_host\n") || !strings.HasSuffix(out, want) {
@@ -71,7 +71,7 @@ func TestInvalidHostHintKeepsTheCommandOfTheCall(t *testing.T) {
 		}
 	}
 	code, out := execute(t, New(noHost), "--host", "http://user:pw@192.0.2.1")
-	if code != 2 || !strings.HasSuffix(out, "help: axeos-axi --host 192.0.2.10\n") {
+	if code != 2 || !strings.HasSuffix(out, "help: Run `axeos-axi --host 192.0.2.10`\n") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
@@ -82,13 +82,13 @@ func TestInvalidHostHintKeepsTheFlagsOfTheCall(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"tuning", "--host", bad, "--frequency", "525", "--core-voltage", "default"}, "help: axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage default\n"},
-		{[]string{"tuning", "--frequency", "525", "--host", bad, "--confirm"}, "help: axeos-axi tuning --host 192.0.2.10 --frequency 525 --confirm\n"},
-		{[]string{"pool", "--host", bad, "--url", "pool.example.org", "--port", "3333", "--user", "wallet.worker"}, "help: axeos-axi pool --host 192.0.2.10 --url='pool.example.org' --port=3333 --user=<user>\n"},
-		{[]string{"logs", "--host", bad, "--follow", "5", "--show-private"}, "help: axeos-axi logs --host 192.0.2.10 --follow 5 --show-private\n"},
-		{[]string{"stats", "--host", bad, "--samples", "3", "--columns", "hashrate,power"}, "help: \"axeos-axi stats --host 192.0.2.10 --samples 3 --columns hashrate,power\"\n"},
-		{[]string{"firmware", "--host", bad, "--check-release"}, "help: axeos-axi firmware --host 192.0.2.10 --check-release\n"},
-		{[]string{"info", "--host", "192.0.2.5", "--host", bad, "--fields", "version"}, "help: axeos-axi info --host '192.0.2.5' --host 192.0.2.10 --fields version\n"},
+		{[]string{"tuning", "--host", bad, "--frequency", "525", "--core-voltage", "default"}, "help: Run `axeos-axi tuning --host 192.0.2.10 --frequency 525 --core-voltage default`\n"},
+		{[]string{"tuning", "--frequency", "525", "--host", bad, "--confirm"}, "help: Run `axeos-axi tuning --host 192.0.2.10 --frequency 525 --confirm`\n"},
+		{[]string{"pool", "--host", bad, "--url", "pool.example.org", "--port", "3333", "--user", "wallet.worker"}, "help: Run `axeos-axi pool --host 192.0.2.10 --url='pool.example.org' --port=3333 --user=<user>`\n"},
+		{[]string{"logs", "--host", bad, "--follow", "5", "--show-private"}, "help: Run `axeos-axi logs --host 192.0.2.10 --follow 5 --show-private`\n"},
+		{[]string{"stats", "--host", bad, "--samples", "3", "--columns", "hashrate,power"}, "help: \"Run `axeos-axi stats --host 192.0.2.10 --samples 3 --columns hashrate,power`\"\n"},
+		{[]string{"firmware", "--host", bad, "--check-release"}, "help: Run `axeos-axi firmware --host 192.0.2.10 --check-release`\n"},
+		{[]string{"info", "--host", "192.0.2.5", "--host", bad, "--fields", "version"}, "help: Run `axeos-axi info --host '192.0.2.5' --host 192.0.2.10 --fields version`\n"},
 	} {
 		code, out := execute(t, New(noHost), tc.args...)
 		if code != 2 || !strings.Contains(out, "code: invalid_host\n") || !strings.HasSuffix(out, tc.want) || strings.Contains(out, "wallet.worker") || strings.Contains(out, "user:pw") {

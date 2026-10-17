@@ -195,7 +195,7 @@ func (p *poolPlan) previousArguments(opts options) string {
 
 func planPool(info map[string]any, opts options, host string) (*poolPlan, *viewFailure) {
 	hostArg := shellQuote(host)
-	configuration := "axeos-axi info --host " + hostArg + " --fields primaryPoolIndex,secondaryPoolIndex,pools shows the pool configuration, with the pool users"
+	configuration := runHint("axeos-axi info --host "+hostArg+" --fields primaryPoolIndex,secondaryPoolIndex,pools", "to show the pool configuration, with the pool users")
 	refuse := func(code, message, help string) (*poolPlan, *viewFailure) {
 		return nil, &viewFailure{exit: 1, code: code, message: message, help: help}
 	}
@@ -203,7 +203,7 @@ func planPool(info map[string]any, opts options, host string) (*poolPlan, *viewF
 	primary, primaryKnown := number(info, "primaryPoolIndex")
 	fallback, fallbackKnown := number(info, "secondaryPoolIndex")
 	if !isList || !primaryKnown || !fallbackKnown {
-		return refuse("not_supported", "the miner reports no pools list with a primary and a fallback index; a pool change is not supported for this firmware", "axeos-axi info --host "+hostArg+" shows the firmware version")
+		return refuse("not_supported", "the miner reports no pools list with a primary and a fallback index; a pool change is not supported for this firmware", runHint("axeos-axi info --host "+hostArg, "to show the firmware version"))
 	}
 	if primary == fallback {
 		return refuse("same_slot", "the primary and the fallback pool are the same slot "+formatNumber(primary)+", so a change of one changes the other; the write is refused", configuration)
@@ -276,8 +276,8 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		}
 		return write(stdout, fields)
 	}
-	verify := "axeos-axi info --host " + hostArg + poolVerify + " shows the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users"
-	previous := command + plan.previousArguments(opts) + " --confirm sets the previous values again"
+	verify := runHint("axeos-axi info --host "+hostArg+poolVerify, "to show the URL and port of each pool that the miner reports; stratumUser and fallbackStratumUser show the users")
+	previous := runHint(command+plan.previousArguments(opts)+" --confirm", "to set the previous values again")
 	err = client.PatchPools(ctx, plan.records)
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
@@ -292,7 +292,7 @@ func pool(ctx context.Context, client *axeos.Client, opts options, stdout io.Wri
 		output.Field{Name: "note", Value: poolStaleRead},
 		output.Field{Name: "help", Value: []any{
 			verify,
-			"axeos-axi restart --host " + hostArg + " for a preview of the restart that makes the miner use the stored values",
+			runHint("axeos-axi restart --host "+hostArg, "for a preview of the restart that makes the miner use the stored values"),
 			previous,
 		}},
 	))

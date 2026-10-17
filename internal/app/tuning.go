@@ -95,7 +95,7 @@ func (p *tuningPlan) previousArguments() string {
 func planTuning(ctx context.Context, client *axeos.Client, opts options, host string) (*tuningPlan, *viewFailure) {
 	hostArg := shellQuote(host)
 	command := "axeos-axi tuning --host " + hostArg
-	lists := "axeos-axi asic --host " + hostArg + " --fields frequency,frequencyOptions,coreVoltage,voltageOptions shows the present values and the lists the miner reports"
+	lists := runHint("axeos-axi asic --host "+hostArg+" --fields frequency,frequencyOptions,coreVoltage,voltageOptions", "to show the present values and the lists the miner reports")
 	refuse := func(code, message, help string) (*tuningPlan, *viewFailure) {
 		return nil, &viewFailure{exit: 1, code: code, message: message, help: help}
 	}
@@ -120,7 +120,7 @@ func planTuning(ctx context.Context, client *axeos.Client, opts options, host st
 		if value == tuningDefault {
 			factory, ok := number(asic, s.factory)
 			if !ok || factory < 1 || factory != math.Trunc(factory) {
-				return refuse("no_default_value", "the miner reports no default value for "+s.label+"; the write is refused", "axeos-axi asic --host "+hostArg+" --fields "+s.factory+","+s.options+" shows the default and the list the miner reports")
+				return refuse("no_default_value", "the miner reports no default value for "+s.label+"; the write is refused", runHint("axeos-axi asic --host "+hostArg+" --fields "+s.factory+","+s.options, "to show the default and the list the miner reports"))
 			}
 			value = int(factory)
 		}
@@ -130,7 +130,7 @@ func planTuning(ctx context.Context, client *axeos.Client, opts options, host st
 				names[i] = formatNumber(n)
 			}
 			list := strings.Join(names, ", ")
-			return nil, &viewFailure{exit: 1, code: "value_not_allowed", message: s.label + " " + strconv.Itoa(value) + " " + s.unit + " is not in the list the miner reports; allowed values in " + s.unit + ": " + list, help: command + " " + s.flag + " <value> with one allowed value", allowed: s.view + ": " + list}
+			return nil, &viewFailure{exit: 1, code: "value_not_allowed", message: s.label + " " + strconv.Itoa(value) + " " + s.unit + " is not in the list the miner reports; allowed values in " + s.unit + ": " + list, help: runHint(command+" "+s.flag+" <value>", "with one allowed value"), allowed: s.view + ": " + list}
 		}
 		present, ok := number(info, s.field)
 		if !ok {
@@ -167,7 +167,7 @@ func tuning(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 			output.Field{Name: "execute", Value: command + tuningArguments(opts) + " --confirm"},
 		))
 	}
-	verify := "axeos-axi asic --host " + hostArg + " shows frequency_mhz and core_voltage_set_mv"
+	verify := runHint("axeos-axi asic --host "+hostArg, "to show frequency_mhz and core_voltage_set_mv")
 	err := client.Patch(ctx, plan.settings)
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):
@@ -181,7 +181,7 @@ func tuning(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 		output.Field{Name: "sent", Value: true},
 		output.Field{Name: "settings", Value: rows},
 		output.Field{Name: "result", Value: "the miner accepted the request; " + tuningEffect},
-		output.Field{Name: "help", Value: []any{verify, command + plan.previousArguments() + " --confirm sets the previous values again"}},
+		output.Field{Name: "help", Value: []any{verify, runHint(command+plan.previousArguments()+" --confirm", "to set the previous values again")}},
 	))
 }
 

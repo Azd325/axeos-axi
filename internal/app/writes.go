@@ -53,7 +53,7 @@ func restartSeveral() severalWrite {
 		},
 		inspect: func(hostArg string) string { return "axeos-axi info --host " + hostArg },
 		verify: func(hosts string) string {
-			return "axeos-axi info " + hosts + " --fields uptime_s,reset_reason shows uptime_s and reset_reason of each miner"
+			return runHint("axeos-axi info "+hosts+" --fields uptime_s,reset_reason", "to show uptime_s and reset_reason of each miner")
 		},
 	}
 }
@@ -89,7 +89,7 @@ func tuningSeveral(opts options) severalWrite {
 		},
 		inspect: func(hostArg string) string { return "axeos-axi tuning --host " + hostArg + arguments },
 		verify: func(hosts string) string {
-			return "axeos-axi asic " + hosts + " shows frequency_mhz and core_voltage_set_mv of each miner"
+			return runHint("axeos-axi asic "+hosts, "to show frequency_mhz and core_voltage_set_mv of each miner")
 		},
 	}
 }
@@ -129,7 +129,7 @@ func poolSeveral(opts options) severalWrite {
 		},
 		inspect: func(hostArg string) string { return "axeos-axi pool --host " + hostArg + arguments },
 		verify: func(hosts string) string {
-			return "axeos-axi info " + hosts + poolVerify + " shows the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users"
+			return runHint("axeos-axi info "+hosts+poolVerify, "to show the URL and port of each pool of each miner that the miner reports; stratumUser and fallbackStratumUser show the users")
 		},
 	}
 }
@@ -187,7 +187,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		codes[i] = m.refused.code
 		failed++
 		if failed <= maxFailureHelp {
-			help = append(help, job.inspect(shellQuote(opts.hosts[i]))+" for the error message of that miner")
+			help = append(help, runHint(job.inspect(shellQuote(opts.hosts[i])), "for the error message of that miner"))
 		}
 	}
 	checkFailed := failed
@@ -303,7 +303,7 @@ func writeMiners(ctx context.Context, clients []*axeos.Client, opts options, std
 		help = append(help, verify+" when it is up again")
 	case isPool:
 		result = "each miner accepted the request; " + poolEffect
-		help = append(help, verify, "axeos-axi restart "+hosts+" for a preview of the restart that makes each changed miner use the stored values")
+		help = append(help, verify, runHint("axeos-axi restart "+hosts, "for a preview of the restart that makes each changed miner use the stored values"))
 	default:
 		result = "each miner accepted the request; " + tuningEffect
 		help = append(help, verify)

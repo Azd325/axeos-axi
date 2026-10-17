@@ -235,7 +235,7 @@ func statsHistoryView(info, stats map[string]any, columns []string, n int, hostA
 		if len(columns) != 0 {
 			command += " --columns " + strings.Join(columns, ",")
 		}
-		fields = append(fields, output.Field{Name: "help", Value: []any{fmt.Sprintf("%s for all %d samples", command, total)}})
+		fields = append(fields, output.Field{Name: "help", Value: []any{runHint(command, fmt.Sprintf("for all %d samples", total))}})
 	}
 	return fields, nil
 }

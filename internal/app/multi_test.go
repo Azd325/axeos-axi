@@ -98,7 +98,7 @@ func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 			t.Errorf("home output: %s", out)
 		}
 		command := strings.TrimSpace("axeos-axi " + c.command)
-		hint := "help[1]: " + command + " --fields <names> for more fields; names in " + command + " --help\n"
+		hint := "help[1]: Run `" + command + " --fields <names>` for more fields; Run `" + command + " --help` for the names\n"
 		if !strings.HasSuffix(out, hint) || strings.Contains(out, "--host '") {
 			t.Errorf("hint: %s", out)
 		}
@@ -187,7 +187,7 @@ func TestFailedMinerKeepsItsRowAndTheOthersPrint(t *testing.T) {
 	started := time.Now()
 	code, out := execute(t, a, append([]string{"info", "--fields", "hostname"}, hostArgs(slow, broken, good, slowTwo)...)...)
 	elapsed := time.Since(started)
-	want := fmt.Sprintf("count: 4\nfailed: 3\nminers[4]{host,hostname,error}:\n  %q,null,miner_read_failed\n  %q,null,miner_read_failed\n  %q,miner-a,null\n  %q,null,miner_read_failed\nhelp[3]: \"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\",\"axeos-axi info --host '%s' for the error message of that miner\"\n", slow, broken, good, slowTwo, slow, broken, slowTwo)
+	want := fmt.Sprintf("count: 4\nfailed: 3\nminers[4]{host,hostname,error}:\n  %q,null,miner_read_failed\n  %q,null,miner_read_failed\n  %q,miner-a,null\n  %q,null,miner_read_failed\nhelp[3]: \"Run `axeos-axi info --host '%s'` for the error message of that miner\",\"Run `axeos-axi info --host '%s'` for the error message of that miner\",\"Run `axeos-axi info --host '%s'` for the error message of that miner\"\n", slow, broken, good, slowTwo, slow, broken, slowTwo)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -204,7 +204,7 @@ func TestMinerWithoutChecksumPathIsNotSupported(t *testing.T) {
 	old, oldCalls := noChecksumMiner(t)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"firmware"}, hostArgs(good, old)...)...)
-	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"axeos-axi firmware --host '%s' for the error message of that miner\",axeos-axi firmware --fields <names> for more fields; names in axeos-axi firmware --help\n", good, old, old)
+	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"Run `axeos-axi firmware --host '%s'` for the error message of that miner\",Run `axeos-axi firmware --fields <names>` for more fields; Run `axeos-axi firmware --help` for the names\n", good, old, old)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -218,7 +218,7 @@ func TestEveryMinerFailed(t *testing.T) {
 	second, _ := statusMiner(t, http.StatusInternalServerError)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"asic"}, hostArgs(first, second)...)...)
-	wantHelp := fmt.Sprintf("help[2]: \"axeos-axi asic --host '%s' for the error message of that miner\",\"axeos-axi asic --host '%s' for the error message of that miner\"\n", first, second)
+	wantHelp := fmt.Sprintf("help[2]: \"Run `axeos-axi asic --host '%s'` for the error message of that miner\",\"Run `axeos-axi asic --host '%s'` for the error message of that miner\"\n", first, second)
 	if code != 1 || !strings.Contains(out, "count: 2\nfailed: 2\nminers[2]{host,frequency_actual_mhz,") || strings.Count(out, "miner_read_failed\n") != 2 || !strings.HasSuffix(out, wantHelp) || strings.Contains(out, "--fields <names>") {
 		t.Fatalf("code=%d out=%s", code, out)
 	}
@@ -271,7 +271,7 @@ func TestSeveralMinersJSON(t *testing.T) {
 	second, _ := statusMiner(t, http.StatusInternalServerError)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"info", "--json", "--fields", "hostname"}, hostArgs(first, second)...)...)
-	want := fmt.Sprintf("{\"count\":2,\"failed\":1,\"miners\":[{\"host\":%q,\"hostname\":\"miner-a\",\"error\":null},{\"host\":%q,\"hostname\":null,\"error\":\"miner_read_failed\"}],\"help\":[\"axeos-axi info --host '%s' for the error message of that miner\"]}\n", first, second, second)
+	want := fmt.Sprintf("{\"count\":2,\"failed\":1,\"miners\":[{\"host\":%q,\"hostname\":\"miner-a\",\"error\":null},{\"host\":%q,\"hostname\":null,\"error\":\"miner_read_failed\"}],\"help\":[\"Run `axeos-axi info --host '%s'` for the error message of that miner\"]}\n", first, second, second)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}

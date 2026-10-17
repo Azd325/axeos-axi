@@ -135,10 +135,10 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	summary := output.Object{{Name: "lines", Value: stream.count}, {Name: "seconds_followed", Value: followed}}
 	if readErr != nil {
 		message := "the connection to the miner ended without a close frame"
-		code, help := "connection_lost", "the miner closed the connection without a close frame, for example after a restart; "+prefix+" --follow "+fmt.Sprint(opts.follow)+" starts a new follow"
+		code, help := "connection_lost", "the miner closed the connection without a close frame, for example after a restart; "+runHint(prefix+" --follow "+fmt.Sprint(opts.follow), "to start a new follow")
 		if errors.Is(readErr, ws.ErrProtocol) || errors.Is(readErr, ws.ErrFrameTooLarge) {
 			message = readErr.Error()
-			code, help = "protocol_error", "the miner sent data that is not a valid log stream; "+prefix+" --lines <n> reads the log buffer instead"
+			code, help = "protocol_error", "the miner sent data that is not a valid log stream; "+runHint(prefix+" --lines <n>", "to read the log buffer instead")
 		}
 		return failureAfter(stdout, summary, 1, code, message, help)
 	}
@@ -146,10 +146,10 @@ func follow(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	if stream.count == 0 {
 		summary = append(summary, output.Field{Name: "state", Value: "0 new log lines arrived while following"})
 	}
-	hints := []any{prefix + " --lines <n> for the lines that are already in the log buffer"}
+	hints := []any{runHint(prefix+" --lines <n>", "for the lines that are already in the log buffer")}
 	if redact != nil {
 		summary = append(summary, output.Field{Name: "private", Value: logRedacted})
-		hints = append(hints, prefix+" --follow "+fmt.Sprint(opts.follow)+" --show-private prints the lines unchanged")
+		hints = append(hints, runHint(prefix+" --follow "+fmt.Sprint(opts.follow)+" --show-private", "to print the lines unchanged"))
 	}
 	return write(stdout, append(summary, output.Field{Name: "help", Value: hints}))
 }
@@ -158,13 +158,13 @@ func followOpenFailure(w io.Writer, err error, host string) int {
 	prefix := "axeos-axi logs --host " + shellQuote(host)
 	switch {
 	case errors.Is(err, axeos.ErrNotFound), errors.Is(err, axeos.ErrRootRedirect):
-		return failure(w, 1, "not_supported", "the log stream is not supported by this firmware", "axeos-axi info --host "+shellQuote(host)+" shows the firmware version; "+prefix+" --lines <n> reads the log buffer instead")
+		return failure(w, 1, "not_supported", "the log stream is not supported by this firmware", runHint("axeos-axi info --host "+shellQuote(host), "to show the firmware version")+"; "+runHint(prefix+" --lines <n>", "to read the log buffer instead"))
 	case errors.Is(err, axeos.ErrStreamFull):
-		return failure(w, 1, "connections_full", err.Error()+"; the web interface shares these places", "close other log streams or AxeOS web pages, then run "+prefix+" --follow <seconds> again")
+		return failure(w, 1, "connections_full", err.Error()+"; the web interface shares these places", "close other log streams or AxeOS web pages; "+runHint(prefix+" --follow <seconds>", "to follow again"))
 	case errors.Is(err, axeos.ErrAccess):
 		return failure(w, 1, "access_refused", err.Error(), "run the command from a host in the private network of the miner")
 	case errors.Is(err, axeos.ErrHandshake):
-		return failure(w, 1, "handshake_failed", err.Error(), prefix+" --lines <n> reads the log buffer instead")
+		return failure(w, 1, "handshake_failed", err.Error(), runHint(prefix+" --lines <n>", "to read the log buffer instead"))
 	}
 	return failure(w, 1, "miner_read_failed", err.Error(), minerReadHelp(err))
 }

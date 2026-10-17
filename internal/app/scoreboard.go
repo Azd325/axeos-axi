@@ -22,7 +22,7 @@ func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout 
 	}
 	for _, name := range columns {
 		if !slices.Contains(scoreboardFields, name) {
-			return failure(stdout, 2, "unknown_field", "unknown field "+name, "axeos-axi scoreboard --help; valid fields: "+strings.Join(scoreboardFields, ","))
+			return failure(stdout, 2, "unknown_field", "unknown field "+name, runHint("axeos-axi scoreboard --help", "for the help page")+"; valid fields: "+strings.Join(scoreboardFields, ","))
 		}
 	}
 	entries, err := client.GetList(ctx, "scoreboard")
@@ -54,7 +54,7 @@ func scoreboard(ctx context.Context, client *axeos.Client, opts options, stdout 
 	}
 	fields = append(fields, output.Field{Name: "shares", Value: shares})
 	if len(opts.fields) == 0 {
-		fields = append(fields, output.Field{Name: "help", Value: []any{"axeos-axi scoreboard --host " + shellQuote(opts.host) + " --fields " + strings.Join(scoreboardFields, ",") + " for the share proof fields"}})
+		fields = append(fields, output.Field{Name: "help", Value: []any{runHint("axeos-axi scoreboard --host "+shellQuote(opts.host)+" --fields "+strings.Join(scoreboardFields, ","), "for the share proof fields")}})
 	}
 	return write(stdout, fields)
 }

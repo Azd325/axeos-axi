@@ -2,4 +2,4 @@ exit: 0
 saved_host: null
 path: HOSTFILE
 state: no host is saved
-help[1]: axeos-axi discover finds miners on the local network; then axeos-axi host save <address> to save a default host
+help[1]: Run `axeos-axi discover` to find miners on the local network; Run `axeos-axi host save <address>` to save a default host

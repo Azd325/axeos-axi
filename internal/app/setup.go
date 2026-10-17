@@ -49,16 +49,16 @@ var (
 )
 
 func setupFailureHint(result setupResult, err error, action, agent string) string {
-	retry := "axeos-axi setup " + action + " --agent " + agent
+	retry := runHint("axeos-axi setup "+action+" --agent "+agent, "to try again")
 	switch {
 	case errors.Is(err, errHookConfigNotJSON), errors.Is(err, errHookConfigNotObject), errors.Is(err, errHookConfigHooks), errors.Is(err, errHookConfigSessionStart):
-		return "correct " + result.path + " so that it is a JSON object with compatible hooks, then run " + retry
+		return "correct " + result.path + " so that it is a JSON object with compatible hooks; " + retry
 	case errors.Is(err, errOpenCodePathOccupied):
-		return "move " + result.path + " away, then run " + retry
+		return "move " + result.path + " away; " + retry
 	case errors.Is(err, errCodexConfigUnsafe):
-		return "make " + codexConfigDisplayPath + " define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true, then run " + retry
+		return "make " + codexConfigDisplayPath + " define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true; " + retry
 	}
-	return "axeos-axi setup --help"
+	return runHint("axeos-axi setup --help", "for the setup help")
 }
 
 type hookLocation struct {
@@ -68,16 +68,16 @@ type hookLocation struct {
 }
 
 func (a *App) session(ctx context.Context, opts options, stdout io.Writer) int {
-	hints := []any{"axeos-axi for the home view of the miner", "axeos-axi health for a verdict", "axeos-axi --help for the commands"}
+	hints := []any{runHint("axeos-axi", "for the home view of the miner"), runHint("axeos-axi health", "for a verdict"), runHint("axeos-axi --help", "for the commands")}
 	host := a.sessionHost()
 	if host == "" {
-		hints = []any{"axeos-axi host save <address> to save a default host", "axeos-axi discover to find miners on the local network", "axeos-axi --help for the commands"}
+		hints = []any{runHint("axeos-axi host save <address>", "to save a default host"), runHint("axeos-axi discover", "to find miners on the local network"), runHint("axeos-axi --help", "for the commands")}
 		_ = write(stdout, output.Object{{Name: "help", Value: hints}})
 		return 0
 	}
 	info, ok := a.sessionRead(ctx, host)
 	if !ok {
-		hints = []any{"axeos-axi for the home view of the miner", "axeos-axi discover to find miners on the local network", "axeos-axi host show for the saved host"}
+		hints = []any{runHint("axeos-axi", "for the home view of the miner"), runHint("axeos-axi discover", "to find miners on the local network"), runHint("axeos-axi host show", "for the saved host")}
 		_ = write(stdout, output.Object{{Name: "miner", Value: "not reachable"}, {Name: "help", Value: hints}})
 		return 0
 	}
@@ -150,9 +150,9 @@ func (a *App) setup(opts options, stdout io.Writer) int {
 		if opts.action == "check" {
 			switch result.state {
 			case "missing":
-				hints = append(hints, "axeos-axi setup install --agent "+agent+" to install the hook")
+				hints = append(hints, runHint("axeos-axi setup install --agent "+agent, "to install the hook"))
 			case "stale":
-				hints = append(hints, "axeos-axi setup install --agent "+agent+" to replace the stale hook")
+				hints = append(hints, runHint("axeos-axi setup install --agent "+agent, "to replace the stale hook"))
 			}
 		}
 		if result.codexHooks != "" {

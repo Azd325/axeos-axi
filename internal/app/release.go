@@ -37,20 +37,23 @@ func (a *App) checkRelease(ctx context.Context, client *axeos.Client, opts optio
 	if reason != "" {
 		fields = append(fields, output.Field{Name: "reason", Value: reason})
 	}
-	fields = append(fields, output.Field{Name: "help", Value: "axeos-axi firmware --host " + shellQuote(opts.hosts[0]) + " for the running firmware checksum"})
+	fields = append(fields, output.Field{Name: "help", Value: runHint("axeos-axi firmware --host "+shellQuote(opts.hosts[0]), "for the running firmware checksum")})
 	return write(stdout, fields)
 }
 
 func releaseFailureHelp(err error, host string) string {
+	firmware := "axeos-axi firmware --host " + shellQuote(host)
+	again := runHint(firmware+" --check-release", "to check again")
+	offline := runHint(firmware, "for the firmware without an outside request")
 	switch {
 	case errors.Is(err, release.ErrRateLimit):
-		return "wait and run axeos-axi firmware --host " + shellQuote(host) + " --check-release again; GitHub limits requests without a token per hour"
+		return "wait; " + again + "; GitHub limits requests without a token per hour"
 	case errors.Is(err, release.ErrRefused):
-		return "GitHub refused the request; check the network path to api.github.com, then run axeos-axi firmware --host " + shellQuote(host) + " --check-release again; axeos-axi firmware --host " + shellQuote(host) + " needs no outside request"
+		return "GitHub refused the request; check the network path to api.github.com; " + again + "; " + offline
 	case errors.Is(err, release.ErrUnreachable):
-		return "check that this computer reaches api.github.com, then run axeos-axi firmware --host " + shellQuote(host) + " --check-release again; axeos-axi firmware --host " + shellQuote(host) + " needs no outside request"
+		return "check that this computer reaches api.github.com; " + again + "; " + offline
 	}
-	return "run axeos-axi firmware --host " + shellQuote(host) + " --check-release again later; axeos-axi firmware --host " + shellQuote(host) + " needs no outside request"
+	return again + " later; " + offline
 }
 
 func nullIfEmpty(s string) any {

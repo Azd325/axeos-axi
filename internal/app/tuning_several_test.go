@@ -16,7 +16,7 @@ const (
 )
 
 func tuningVerify(hosts ...string) string {
-	return "\"axeos-axi asic " + hostList(hosts...) + " shows frequency_mhz and core_voltage_set_mv of each miner\""
+	return "\"Run `axeos-axi asic " + hostList(hosts...) + "` to show frequency_mhz and core_voltage_set_mv of each miner\""
 }
 
 func tuningRestore(host, arguments string) string {
@@ -69,7 +69,7 @@ func TestTuningOfSeveralMinersSendsNoWriteWhenOneListLacksTheValue(t *testing.T)
 			second, secondCalls := tuningMiner(t, shortList, settingsSaved)
 			third, thirdCalls := tuningMiner(t, nil, settingsSaved)
 			args := onHosts([]string{"tuning", "--frequency", "550"}, first, second, third)
-			inspect := "\"axeos-axi tuning --host '" + second + "' --frequency 550 for the error message of that miner\""
+			inspect := "\"Run `axeos-axi tuning --host '" + second + "' --frequency 550` for the error message of that miner\""
 			want := severalPoolHead + "sent: false\ncount: 3\nfailed: 1\n"
 			if confirm {
 				args = append(args, "--confirm")
@@ -144,7 +144,7 @@ func TestTuningDefaultWithOneHostPrintsTheNumber(t *testing.T) {
 	want = "host: \"" + host + "\"\nrequest: PATCH /api/system\nbody:\n  coreVoltage: 1150\nsent: true\n" +
 		"settings[1]{setting,present,new,changes}:\n  core_voltage_set_mv,1100,1150,true\n" +
 		"result: \"the miner accepted the request; the values are active at once, without a restart, and the miner keeps them across a restart\"\n" +
-		"help[2]: \"axeos-axi asic --host '" + host + "' shows frequency_mhz and core_voltage_set_mv\",\"axeos-axi tuning --host '" + host + "' --core-voltage 1100 --confirm sets the previous values again\"\n"
+		"help[2]: \"Run `axeos-axi asic --host '" + host + "'` to show frequency_mhz and core_voltage_set_mv\",\"Run `axeos-axi tuning --host '" + host + "' --core-voltage 1100 --confirm` to set the previous values again\"\n"
 	if code != 0 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -184,7 +184,7 @@ func TestTuningDefaultOfAMinerWithoutADefaultSendsNoWrite(t *testing.T) {
 
 				code, out = execute(t, New(func(string) string { return second }), args[:3]...)
 				wantError := "error:\n  code: no_default_value\n  message: the miner reports no default value for frequency; the write is refused\n" +
-					"help: \"axeos-axi asic --host '" + second + "' --fields defaultFrequency,frequencyOptions shows the default and the list the miner reports\"\n"
+					"help: \"Run `axeos-axi asic --host '" + second + "' --fields defaultFrequency,frequencyOptions` to show the default and the list the miner reports\"\n"
 				if code != 1 || out != wantError {
 					t.Fatalf("code=%d\n%s\nwant\n%s", code, out, wantError)
 				}
@@ -213,7 +213,7 @@ func TestTuningOfSeveralMinersStopsAtTheFirstFailedWrite(t *testing.T) {
 		"miners[3]{host,core_voltage_set_mv_present,core_voltage_set_mv_new,result,restore,error}:\n" +
 		fmt.Sprintf("  %q,1100,1150,changed,%s,null\n  %q,1100,1150,failed,%s,tuning_failed\n  %q,1100,1150,not_attempted,null,null\n", first, tuningRestore(first, "--core-voltage 1100"), second, tuningRestore(second, "--core-voltage 1100"), third) +
 		"result: \"the write to miner 2 of 3 failed: the request was sent; miner returned HTTP 500 for settings; the call stopped with 1 changed before it and 1 not attempted after it\"\n" +
-		"help[2]: \"axeos-axi asic " + hostList(first, second, third) + " shows frequency_mhz and core_voltage_set_mv of each miner; read them before another tuning call\"," + restoreHelp + "\n"
+		"help[2]: \"Run `axeos-axi asic " + hostList(first, second, third) + "` to show frequency_mhz and core_voltage_set_mv of each miner; read them before another tuning call\"," + restoreHelp + "\n"
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -278,7 +278,7 @@ func TestTuningOfSeveralMinersSendsNoWriteWhenOneMinerFailsARead(t *testing.T) {
 				"miners[2]{host,frequency_mhz_present,frequency_mhz_new,result,restore,error}:\n" +
 				fmt.Sprintf("  %q,525,550,not_attempted,null,null\n  %q,null,null,not_attempted,null,%s\n", first, broken, tc.code) +
 				fmt.Sprintf(tuningCheckWrite, 1, 2) +
-				"help[1]: \"axeos-axi tuning --host '" + broken + "' --frequency 550 for the error message of that miner\"\n"
+				"help[1]: \"Run `axeos-axi tuning --host '" + broken + "' --frequency 550` for the error message of that miner\"\n"
 			if code != 1 || out != want {
 				t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 			}

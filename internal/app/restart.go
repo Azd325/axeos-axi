@@ -25,7 +25,7 @@ func restart(ctx context.Context, client *axeos.Client, opts options, stdout io.
 			output.Field{Name: "execute", Value: "axeos-axi restart --host " + hostArg + " --confirm"},
 		))
 	}
-	uptime := "axeos-axi info --host " + hostArg + " shows uptime_s and reset_reason"
+	uptime := runHint("axeos-axi info --host "+hostArg, "to show uptime_s and reset_reason")
 	err := client.Post(ctx, "restart")
 	switch {
 	case errors.Is(err, axeos.ErrNotSent):

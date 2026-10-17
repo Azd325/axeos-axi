@@ -163,7 +163,7 @@ func TestHostUsageErrorsSendAndWriteNothing(t *testing.T) {
 		}
 	}
 	code, out := execute(t, New(noHost), "host", "save", "http://")
-	if code != 2 || !strings.Contains(out, "code: invalid_host") || !strings.Contains(out, "help: axeos-axi host save 192.0.2.10") {
+	if code != 2 || !strings.Contains(out, "code: invalid_host") || !strings.Contains(out, "help: Run `axeos-axi host save 192.0.2.10`") {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	if len(calls()) != 0 {
@@ -210,7 +210,7 @@ func TestHostShowAndForget(t *testing.T) {
 	shown := tildePath(path)
 
 	code, out := execute(t, New(noHost), "host", "show")
-	if code != 0 || out != "saved_host: null\npath: "+shown+"\nstate: no host is saved\nhelp[1]: axeos-axi discover finds miners on the local network; then axeos-axi host save <address> to save a default host\n" {
+	if code != 0 || out != "saved_host: null\npath: "+shown+"\nstate: no host is saved\nhelp[1]: Run `axeos-axi discover` to find miners on the local network; Run `axeos-axi host save <address>` to save a default host\n" {
 		t.Fatalf("code=%d\n%s", code, out)
 	}
 	code, out = execute(t, New(noHost), "host", "forget")
@@ -387,7 +387,7 @@ func TestInvalidSavedHostFileIsAnError(t *testing.T) {
 			shown := tildePath(path)
 			for _, args := range [][]string{{"info"}, {"host", "show"}, {"restart", "--confirm"}} {
 				code, out := execute(t, New(noHost), args...)
-				if code != 1 || !strings.HasPrefix(out, "error:\n  code: saved_host_invalid\n") || !strings.Contains(out, "the saved host file "+shown+" does not hold one address") || !strings.Contains(out, "axeos-axi host forget removes the file") {
+				if code != 1 || !strings.HasPrefix(out, "error:\n  code: saved_host_invalid\n") || !strings.Contains(out, "the saved host file "+shown+" does not hold one address") || !strings.Contains(out, "Run `axeos-axi host forget` to remove the file") {
 					t.Fatalf("%v: code=%d\n%s", args, code, out)
 				}
 			}

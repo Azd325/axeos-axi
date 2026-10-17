@@ -212,7 +212,7 @@ func health(ctx context.Context, client *axeos.Client, opts options, stdout io.W
 	}
 	fields = append(fields, output.Field{Name: "rules", Value: rows})
 	if state != "healthy" {
-		fields = append(fields, output.Field{Name: "help", Value: []any{"axeos-axi --host " + shellQuote(opts.host) + " for the home view of the miner"}})
+		fields = append(fields, output.Field{Name: "help", Value: []any{runHint("axeos-axi --host "+shellQuote(opts.host), "for the home view of the miner")}})
 	}
 	if write(stdout, fields) != 0 {
 		return 1

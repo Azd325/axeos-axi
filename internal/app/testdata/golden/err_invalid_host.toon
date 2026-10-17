@@ -2,4 +2,4 @@ exit: 2
 error:
   code: invalid_host
   message: "invalid host; use an HTTP or HTTPS address without credentials, path or query"
-help: axeos-axi info --host 192.0.2.10
+help: Run `axeos-axi info --host 192.0.2.10`

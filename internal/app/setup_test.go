@@ -785,19 +785,19 @@ func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
 		name, agent, action, want string
 		prepare                   func(t *testing.T, home string)
 	}{
-		{"invalid JSON", "claude", "check", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup check --agent claude", func(t *testing.T, home string) {
+		{"invalid JSON", "claude", "check", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks; Run `axeos-axi setup check --agent claude` to try again", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".claude", "settings.json"), "{not json")
 		}},
-		{"invalid JSON on uninstall", "claude", "uninstall", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks, then run axeos-axi setup uninstall --agent claude", func(t *testing.T, home string) {
+		{"invalid JSON on uninstall", "claude", "uninstall", "correct ~/.claude/settings.json so that it is a JSON object with compatible hooks; Run `axeos-axi setup uninstall --agent claude` to try again", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".claude", "settings.json"), "{not json")
 		}},
-		{"occupied plugin path on check", "opencode", "check", "move ~/.config/opencode/plugins/axeos-axi.ts away, then run axeos-axi setup check --agent opencode", func(t *testing.T, home string) {
+		{"occupied plugin path on check", "opencode", "check", "move ~/.config/opencode/plugins/axeos-axi.ts away; Run `axeos-axi setup check --agent opencode` to try again", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"), "export default {}\n")
 		}},
-		{"occupied plugin path", "opencode", "install", "move ~/.config/opencode/plugins/axeos-axi.ts away, then run axeos-axi setup install --agent opencode", func(t *testing.T, home string) {
+		{"occupied plugin path", "opencode", "install", "move ~/.config/opencode/plugins/axeos-axi.ts away; Run `axeos-axi setup install --agent opencode` to try again", func(t *testing.T, home string) {
 			saveFile(t, filepath.Join(home, ".config", "opencode", "plugins", "axeos-axi.ts"), "export default {}\n")
 		}},
-		{"refused codex config", "codex", "install", "make ~/.codex/config.toml define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true, then run axeos-axi setup install --agent codex", func(t *testing.T, home string) {
+		{"refused codex config", "codex", "install", "make ~/.codex/config.toml define features once, as one [features] table with the line hooks = true or as the single line features.hooks = true; Run `axeos-axi setup install --agent codex` to try again", func(t *testing.T, home string) {
 			saveFile(t, codexConfig(home), "features = { hooks = false }\n")
 		}},
 	} {
@@ -805,7 +805,7 @@ func TestSetupFailureHintNeverRepeatsTheFailedCommand(t *testing.T) {
 			home := t.TempDir()
 			tc.prepare(t, home)
 			code, out := execute(t, setupApp(t, home), "setup", tc.action, "--agent", tc.agent)
-			if code != 1 || !strings.Contains(out, "help: \""+tc.want+"\"") {
+			if code != 1 || (!strings.Contains(out, "help: "+tc.want+"\n") && !strings.Contains(out, "help: \""+tc.want+"\"\n")) {
 				t.Fatalf("code=%d out=%q", code, out)
 			}
 		})
@@ -908,7 +908,7 @@ func TestSetupCheckHintsAnInstallForEachMissingOrStaleAgent(t *testing.T) {
 	home := t.TempDir()
 	a := setupApp(t, home)
 	code, out := execute(t, a, "setup", "check", "--agent", "claude")
-	if code != 0 || !strings.Contains(out, "help[1]: axeos-axi setup install --agent claude to install the hook\n") {
+	if code != 0 || !strings.Contains(out, "help[1]: Run `axeos-axi setup install --agent claude` to install the hook\n") {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 	execute(t, a, "setup", "install", "--agent", "claude")
@@ -920,7 +920,7 @@ func TestSetupCheckHintsAnInstallForEachMissingOrStaleAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	code, out = execute(t, a, "setup", "check", "--agent", "all")
-	for _, want := range []string{"claude,stale,", "axeos-axi setup install --agent claude to replace the stale hook", "axeos-axi setup install --agent codex to install the hook", "axeos-axi setup install --agent opencode to install the hook"} {
+	for _, want := range []string{"claude,stale,", "Run `axeos-axi setup install --agent claude` to replace the stale hook", "Run `axeos-axi setup install --agent codex` to install the hook", "Run `axeos-axi setup install --agent opencode` to install the hook"} {
 		if code != 0 || !strings.Contains(out, want) {
 			t.Fatalf("missing %q: code=%d out=%q", want, code, out)
 		}
