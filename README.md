@@ -634,7 +634,7 @@ release:
   date: "2026-09-20T15:57:20Z"
   url: "https://github.com/bitaxeorg/ESP-Miner/releases/tag/v2.15.3"
 comparison: up_to_date
-help: "axeos-axi firmware --host '<host>' for the running firmware checksum"
+help: "Run `axeos-axi firmware --host '<host>'` for the running firmware checksum"
 ```
 
 The command does not read the checksum path, so it works also on firmware v2.15.3 and older. The `help`
