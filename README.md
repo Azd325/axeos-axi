@@ -19,7 +19,7 @@ go install github.com/Azd325/axeos-axi/cmd/axeos-axi@latest
 This installs `axeos-axi` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not
 set. The command becomes available after that directory is on `PATH`.
 
-With Nix, run it with `nix run github:Azd325/axeos-axi -- --help`, or take `github:Azd325/axeos-axi` as a flake input and use `packages.${system}.axeos-axi`.
+With Nix, run it with `nix run github:Azd325/axeos-axi -- --help`, or take `github:Azd325/axeos-axi` as a flake input and use `packages.${system}.axeos-axi`. A Nix build reports the version `dev-<short revision>`, not a release tag.
 
 From a checked-out repository, use the launcher instead:
 
