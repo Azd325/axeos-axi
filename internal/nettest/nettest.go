@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"syscall"
 	"testing"
 )
 
@@ -36,13 +37,25 @@ func Run(m *testing.M) int {
 var dialer net.Dialer
 
 func guardedDial(ctx context.Context, network, address string) (net.Conn, error) {
-	if !loopback(address) {
-		mu.Lock()
-		violations = append(violations, network+" "+address)
-		mu.Unlock()
-		return nil, fmt.Errorf("nettest: refusing to dial non-loopback address %s", address)
+	if err := check(network, address); err != nil {
+		return nil, err
 	}
 	return dialer.DialContext(ctx, network, address)
+}
+
+// Control is a net.Dialer Control function that refuses non-loopback addresses.
+func Control(network, address string, _ syscall.RawConn) error {
+	return check(network, address)
+}
+
+func check(network, address string) error {
+	if loopback(address) {
+		return nil
+	}
+	mu.Lock()
+	violations = append(violations, network+" "+address)
+	mu.Unlock()
+	return fmt.Errorf("nettest: refusing to dial non-loopback address %s", address)
 }
 
 func loopback(address string) bool {
