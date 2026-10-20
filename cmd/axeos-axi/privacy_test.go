@@ -13,7 +13,7 @@ import (
 
 var (
 	ipv4Token     = regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
-	ipv6Token     = regexp.MustCompile(`(?i)[0-9a-f:]*::[0-9a-f:]*`)
+	ipv6Token     = regexp.MustCompile(`(?i)[0-9a-f:]*:[0-9a-f:]*:[0-9a-f:]*`)
 	macToken      = regexp.MustCompile(`(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b`)
 	localToken    = regexp.MustCompile(`(?i)[a-z0-9_.-]*\.local\b`)
 	bitcoinToken  = regexp.MustCompile(`\b(?:bc1|[13])[a-zA-Z0-9]{25,39}\b`)
@@ -56,6 +56,16 @@ func allowedLocal(host string) bool {
 	return host == ".local" || strings.HasSuffix(host, "._tcp.local") || strings.HasPrefix(host, "example-") || exampleHostnames[strings.ToLower(host)]
 }
 
+func trimSingleColons(tok string) string {
+	if !strings.HasPrefix(tok, "::") {
+		tok = strings.TrimPrefix(tok, ":")
+	}
+	if !strings.HasSuffix(tok, "::") {
+		tok = strings.TrimSuffix(tok, ":")
+	}
+	return tok
+}
+
 func privacyViolations(text string) []string {
 	var found []string
 	for _, tok := range ipv4Token.FindAllString(text, -1) {
@@ -64,6 +74,7 @@ func privacyViolations(text string) []string {
 		}
 	}
 	for _, tok := range ipv6Token.FindAllString(text, -1) {
+		tok = trimSingleColons(tok)
 		if ip := net.ParseIP(tok); ip != nil && !documentationIP(ip) {
 			found = append(found, "IPv6 address "+tok)
 		}
@@ -132,6 +143,7 @@ func TestScanFilesReportsBarePrivateAddresses(t *testing.T) {
 		"clean.md":  "run axeos-axi --host 192.0.2.10 and 2001:db8::1\n",
 		"ipv4.md":   "intro\nrun axeos-axi --host 192.168.1.20\n",
 		"ipv6.json": `{"addr": "2a02:8071::1"}` + "\n",
+		"full.json": `{"ipv6": "fe80:0000:0000:0000:a6cf:12ff:fe34:5678"}` + "\n",
 	}
 	var rels []string
 	for name, body := range files {
@@ -141,7 +153,7 @@ func TestScanFilesReportsBarePrivateAddresses(t *testing.T) {
 		rels = append(rels, name)
 	}
 	got := strings.Join(scanFiles(dir, rels), "\n")
-	for _, want := range []string{"ipv4.md:2: IPv4 address 192.168.1.20", "ipv6.json:1: IPv6 address 2a02:8071::1"} {
+	for _, want := range []string{"ipv4.md:2: IPv4 address 192.168.1.20", "ipv6.json:1: IPv6 address 2a02:8071::1", "full.json:1: IPv6 address fe80:0000:0000:0000:a6cf:12ff:fe34:5678"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("scan result %q lacks %q", got, want)
 		}
