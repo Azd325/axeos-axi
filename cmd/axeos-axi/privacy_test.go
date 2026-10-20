@@ -119,6 +119,9 @@ func scanFiles(root string, rels []string) []string {
 
 func TestFixturesAndDocsCarryOnlyDocumentationValues(t *testing.T) {
 	root := filepath.Join("..", "..")
+	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
+		t.Skip("not a git checkout (for example the nix build sandbox); the tracked file list is unavailable")
+	}
 	tracked, err := exec.Command("git", "-C", root, "ls-files", "-z").Output()
 	if err != nil {
 		t.Fatal(err)
