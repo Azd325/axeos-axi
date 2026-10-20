@@ -1,9 +1,9 @@
 package main
 
 import (
-	"io/fs"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -94,38 +94,27 @@ func privacyViolations(text string) []string {
 func TestFixturesAndDocsCarryOnlyDocumentationValues(t *testing.T) {
 	root := filepath.Join("..", "..")
 	scanned := 0
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	tracked, err := exec.Command("git", "-C", root, "ls-files", "-z").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range strings.Split(string(tracked), "\x00") {
+		if rel == "" || !strings.HasSuffix(rel, ".md") && !strings.Contains("/"+rel, "/testdata/") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if d.Name() == ".git" || d.Name() == "bin" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		slash := filepath.ToSlash(path)
-		if !strings.HasSuffix(slash, ".md") && !strings.Contains(slash, "/testdata/") {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
+			t.Fatal(err)
 		}
 		scanned++
-		rel, _ := filepath.Rel(root, path)
 		for lineNo, line := range strings.Split(string(data), "\n") {
 			if !auditPattern.MatchString(line) {
 				continue
 			}
 			for _, v := range privacyViolations(line) {
-				t.Errorf("%s:%d: %s is not a documentation or example value", filepath.ToSlash(rel), lineNo+1, v)
+				t.Errorf("%s:%d: %s is not a documentation or example value", rel, lineNo+1, v)
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 	if scanned == 0 {
 		t.Fatal("no fixture or documentation file found; the walk root is wrong")
