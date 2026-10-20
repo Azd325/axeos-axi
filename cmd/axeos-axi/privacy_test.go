@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -9,9 +10,6 @@ import (
 	"strings"
 	"testing"
 )
-
-// The audit regex in RELEASING.md.
-var auditPattern = regexp.MustCompile(`(?i)(https?://([0-9]{1,3}\.){3}[0-9]{1,3}|([0-9a-f]{2}:){5}[0-9a-f]{2}|ssid|stratum.?user|\.local\b|\b(bc1|[13])[a-zA-Z0-9]{25,39}\b)`)
 
 var (
 	ipv4Token     = regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
@@ -91,33 +89,65 @@ func privacyViolations(text string) []string {
 	return found
 }
 
+func scanFiles(root string, rels []string) []string {
+	var found []string
+	for _, rel := range rels {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			found = append(found, rel+": "+err.Error())
+			continue
+		}
+		for lineNo, line := range strings.Split(string(data), "\n") {
+			for _, v := range privacyViolations(line) {
+				found = append(found, fmt.Sprintf("%s:%d: %s is not a documentation or example value", rel, lineNo+1, v))
+			}
+		}
+	}
+	return found
+}
+
 func TestFixturesAndDocsCarryOnlyDocumentationValues(t *testing.T) {
 	root := filepath.Join("..", "..")
-	scanned := 0
 	tracked, err := exec.Command("git", "-C", root, "ls-files", "-z").Output()
 	if err != nil {
 		t.Fatal(err)
 	}
+	var rels []string
 	for _, rel := range strings.Split(string(tracked), "\x00") {
-		if rel == "" || !strings.HasSuffix(rel, ".md") && !strings.Contains("/"+rel, "/testdata/") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, rel))
-		if err != nil {
-			t.Fatal(err)
-		}
-		scanned++
-		for lineNo, line := range strings.Split(string(data), "\n") {
-			if !auditPattern.MatchString(line) {
-				continue
-			}
-			for _, v := range privacyViolations(line) {
-				t.Errorf("%s:%d: %s is not a documentation or example value", rel, lineNo+1, v)
-			}
+		if rel != "" && (strings.HasSuffix(rel, ".md") || strings.Contains("/"+rel, "/testdata/")) {
+			rels = append(rels, rel)
 		}
 	}
-	if scanned == 0 {
+	if len(rels) == 0 {
 		t.Fatal("no fixture or documentation file found; the walk root is wrong")
+	}
+	for _, v := range scanFiles(root, rels) {
+		t.Error(v)
+	}
+}
+
+func TestScanFilesReportsBarePrivateAddresses(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"clean.md":  "run axeos-axi --host 192.0.2.10 and 2001:db8::1\n",
+		"ipv4.md":   "intro\nrun axeos-axi --host 192.168.1.20\n",
+		"ipv6.json": `{"addr": "2a02:8071::1"}` + "\n",
+	}
+	var rels []string
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		rels = append(rels, name)
+	}
+	got := strings.Join(scanFiles(dir, rels), "\n")
+	for _, want := range []string{"ipv4.md:2: IPv4 address 192.168.1.20", "ipv6.json:1: IPv6 address 2a02:8071::1"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("scan result %q lacks %q", got, want)
+		}
+	}
+	if strings.Contains(got, "clean.md") {
+		t.Errorf("scan flagged documentation addresses: %q", got)
 	}
 }
 
