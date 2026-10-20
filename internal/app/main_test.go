@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/Azd325/axeos-axi/internal/nettest"
 )
 
 var configEnvironment = []string{"HOME", "XDG_CONFIG_HOME", "AppData"}
@@ -20,7 +22,7 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-	code := m.Run()
+	code := nettest.Run(m)
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
 }
