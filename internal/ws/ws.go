@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -57,6 +58,9 @@ type Conn struct {
 	br   *bufio.Reader
 }
 
+// DialControl, when set, runs before each connection attempt with the resolved address. Tests use it to refuse real miners.
+var DialControl func(network, address string, c syscall.RawConn) error
+
 // Dial opens a read-only WebSocket to base+path. It follows no redirect and sends no data frame, ever.
 func Dial(ctx context.Context, base, path string) (*Conn, error) {
 	u, err := url.Parse(base)
@@ -71,7 +75,7 @@ func Dial(ctx context.Context, base, path string) (*Conn, error) {
 			address = net.JoinHostPort(u.Hostname(), "80")
 		}
 	}
-	dialer := &net.Dialer{Timeout: handshakeTimeout}
+	dialer := &net.Dialer{Timeout: handshakeTimeout, Control: DialControl}
 	var conn net.Conn
 	if u.Scheme == "https" {
 		conn, err = (&tls.Dialer{NetDialer: dialer, Config: &tls.Config{ServerName: u.Hostname()}}).DialContext(ctx, "tcp", address)
