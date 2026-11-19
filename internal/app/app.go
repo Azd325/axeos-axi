@@ -539,7 +539,7 @@ func invalidHostHelp(opts options, refused int) string {
 	for _, flag := range []struct {
 		set  bool
 		name string
-	}{{opts.checkRelease, "--check-release"}, {opts.showPrivate, "--show-private"}, {opts.showUser, "--show-user"}, {opts.confirm, "--confirm"}} {
+	}{{opts.experimental, "--experimental"}, {opts.checkRelease, "--check-release"}, {opts.showPrivate, "--show-private"}, {opts.showUser, "--show-user"}, {opts.confirm, "--confirm"}} {
 		if flag.set {
 			call += " " + flag.name
 		}

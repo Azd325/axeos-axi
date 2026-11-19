@@ -104,3 +104,17 @@ func TestExperimentalIsAFlagOfWifiScanOnly(t *testing.T) {
 		t.Fatalf("%d %s %d", code, out, requests)
 	}
 }
+
+func TestWifiScanHintsKeepTheFieldsOfTheCall(t *testing.T) {
+	code, out := execute(t, New(noHost), "wifi-scan", "--host", "192.0.2.5", "--fields", "ssid,rssi")
+	want := "help: \"Run `axeos-axi wifi-scan --host '192.0.2.5' --experimental --fields ssid,rssi` to accept the risk and scan\"\n"
+	if code != 2 || !strings.Contains(out, "code: experimental_required\n") || !strings.HasSuffix(out, want) {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+	host, _ := scoreboardMiner(t, http.StatusInternalServerError, "WiFi scan failed")
+	code, out = execute(t, New(noHost), "wifi-scan", "--host", host, "--experimental", "--fields", "ssid")
+	want = "help: \"Run `axeos-axi wifi-scan --host '" + host + "' --experimental --fields ssid` to try again later\"\n"
+	if code != 1 || !strings.Contains(out, "code: scan_failed\n") || !strings.HasSuffix(out, want) {
+		t.Fatalf("code=%d\n%s", code, out)
+	}
+}
