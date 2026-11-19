@@ -34,10 +34,10 @@ const (
 	hostFlagHelp          = hostOrderHelp + "; one miner; HTTP unless a scheme is supplied"
 	writeHostsFlagHelp    = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to change several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
 	hostsFlagHelp         = hostOrderHelp + "; HTTP unless a scheme is supplied; repeat --host to read several miners in one call (see several_miners); AXEOS_HOST and the saved host name one miner"
-	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the default columns are host, two key values and error; --fields replaces the data columns; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, logs and health take one miner; restart, tuning and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi tuning --help, axeos-axi pool --help)"
+	severalHelp           = "with --host given more than once: prints count, failed and miners, a table with one row per miner in the order of the flags; the default columns are host, two key values and error; --fields replaces the data columns; a value the miner does not send is null; a miner that fails has its row with the error code (miner_read_failed, not_supported, invalid_statistics) in error and null in the value columns, and the other miners still print; exit code 1 when any miner failed, 2 for a usage error; the miners are read at the same time, each with the timeout below, and each gets the requests of a single-host call; the same host twice is a usage error and no request is sent; accepted by the home view, info, asic, stats without --samples and --columns, and firmware; scoreboard, wifi-scan, logs and health take one miner; restart, tuning and pool accept several miners with the rules of a write (axeos-axi restart --help, axeos-axi tuning --help, axeos-axi pool --help)"
 )
 
-var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill", "setup", "session"}
+var commandNames = []string{"info", "asic", "stats", "firmware", "scoreboard", "wifi-scan", "logs", "health", "discover", "restart", "tuning", "pool", "host", "skill", "setup", "session"}
 
 func commands() string { return strings.Join(commandNames, ", ") }
 
@@ -59,6 +59,8 @@ func validFlags(command string) string {
 		return "--host, --lines, --follow, --show-private, " + universalFlags
 	case "health":
 		return "--host, " + universalFlags
+	case "wifi-scan":
+		return "--host, --fields, --experimental, " + universalFlags
 	case "restart":
 		return "--host, --confirm, " + universalFlags
 	case "firmware":
@@ -107,6 +109,7 @@ type options struct {
 	help, version, confirm bool
 	showUser, showPrivate  bool
 	checkRelease           bool
+	experimental           bool
 	json                   bool
 }
 
@@ -262,7 +265,7 @@ func parse(args []string) (options, error) {
 					opts.fields[j] = field
 				}
 			}
-		case "--help", "-v", "-V", "--version", "--json", "--confirm", "--show-user", "--show-private", "--check-release":
+		case "--help", "-v", "-V", "--version", "--json", "--confirm", "--show-user", "--show-private", "--check-release", "--experimental":
 			if assigned {
 				opts.json = opts.json || flag == "--json"
 				fail("%s does not accept a value", flag)
@@ -284,6 +287,8 @@ func parse(args []string) (options, error) {
 				opts.showPrivate = true
 			case "--check-release":
 				opts.checkRelease = true
+			case "--experimental":
+				opts.experimental = true
 			default:
 				opts.version = true
 			}
@@ -334,6 +339,9 @@ func parse(args []string) (options, error) {
 			}
 			opts.command = arg
 		}
+	}
+	if opts.experimental && opts.command != "wifi-scan" && first == nil {
+		return opts, errors.New("unknown flag --experimental; it is a flag of `wifi-scan` only")
 	}
 	if opts.checkRelease && opts.command != "firmware" && first == nil {
 		return opts, errors.New("unknown flag --check-release; it is a flag of `firmware` only")
@@ -639,6 +647,9 @@ func (a *App) Run(ctx context.Context, args []string, stdout io.Writer) int {
 	if opts.command == "scoreboard" {
 		return scoreboard(ctx, client, opts, stdout)
 	}
+	if opts.command == "wifi-scan" {
+		return wifiScan(ctx, client, opts, stdout)
+	}
 	if opts.command == "logs" && opts.follow != 0 {
 		return follow(ctx, client, opts, stdout)
 	}
@@ -725,6 +736,9 @@ func help(command string) output.Object {
 	}
 	if command == "health" {
 		return healthHelp()
+	}
+	if command == "wifi-scan" {
+		return wifiScanHelp()
 	}
 	if command == "restart" {
 		return restartHelp()

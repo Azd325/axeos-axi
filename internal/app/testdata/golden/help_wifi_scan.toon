@@ -1,0 +1,14 @@
+exit: 0
+command: wifi-scan
+description: "EXPERIMENTAL: the networks the miner sees, at most 20, with count; default columns rssi,authmode; the network name (ssid) prints only when named in --fields, because it can identify the owner or the neighbourhood; authmode is the wifi_auth_mode_t number from 0 to 12, 0 is open; the scan can take about 10 seconds"
+experimental: "EXPERIMENTAL: with more than 20 access points in range, firmware without the upstream fix https://github.com/bitaxeorg/ESP-Miner/pull/2029 writes past a 20-entry array and can crash and restart the miner, which drops its Wi-Fi and pool connections; the scan runs only with --experimental; firmware v2.15.4 and older have no fix; this command can be removed or change without notice"
+flags:
+  host: "--host <address>; without it AXEOS_HOST, then the saved host (axeos-axi host --help), and the result then prints saved_host; one of the three is required; one miner; HTTP unless a scheme is supplied"
+  experimental: "--experimental; required; accepts the risk that the scan restarts the miner on firmware without the upstream fix"
+  fields: "--fields <name,...>; replaces the row columns; names: rssi,authmode,ssid"
+  json: "--json; prints the result as one JSON document with the same fields, values and help lines; errors as one JSON object with code, message and help; the exit code is unchanged"
+  help: "--help; no network request"
+  version: "-v, -V, --version; bare version, or with --json one object {\"version\":\"...\"}; no network request"
+timeout_s: 12
+view_fields: "rssi,authmode,ssid"
+examples[3]: axeos-axi wifi-scan --host 192.0.2.10 --experimental,"axeos-axi wifi-scan --host 192.0.2.10 --experimental --fields ssid,rssi",axeos-axi wifi-scan --help

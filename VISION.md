@@ -18,6 +18,7 @@ It owns exactly one thing: a small, truthful command-line interface to the miner
 
 - Before a new request is built, its handler is traced in the firmware source.
 - A read that can harm the device waits until the vendor releases the fix, then gets a minimum firmware version check; it is not built behind a flag or a warning.
+  The one exception is `wifi-scan`, built on an explicit decision of the owner before the fix https://github.com/bitaxeorg/ESP-Miner/pull/2029 ships: it is marked experimental, runs only with `--experimental`, and has no minimum firmware version check yet.
 - A firmware family other than AxeOS is supported only for paths that were traced in the source of that family.
 - Such a family gets reads only until a real device of that family was tested.
 

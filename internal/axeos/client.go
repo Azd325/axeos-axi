@@ -23,6 +23,9 @@ const (
 	Timeout = 4 * time.Second
 	// The firmware sends its 512 KiB log buffer one line per HTTP chunk (GET_system_logs in ESP-Miner main/http_server/http_server.c).
 	LogsTimeout = 15 * time.Second
+	// GET_wifi_scan and wifi_scan in ESP-Miner (main/http_server/http_server.c, components/connect/connect.c, master fa6140c)
+	// wait 100 ms, 1 s for a forced disconnect and at most 9 s of polls: 10.1 s at most.
+	WifiScanTimeout = 12 * time.Second
 	// The firmware reports each pool password as this value (system_api_get_full_json in ESP-Miner main/http_server/system_api_json.c).
 	KeepPassword = "*****"
 )
@@ -53,6 +56,7 @@ type Client struct {
 	base string
 	http *http.Client
 	logs *http.Client
+	scan *http.Client
 }
 
 func httpClient(timeout time.Duration) *http.Client {
@@ -80,7 +84,7 @@ func New(host string) (*Client, error) {
 	if port := u.Port(); port != "" && port != map[string]string{"http": "80", "https": "443"}[u.Scheme] {
 		host += ":" + port
 	}
-	return &Client{base: u.Scheme + "://" + host, http: httpClient(Timeout), logs: httpClient(LogsTimeout)}, nil
+	return &Client{base: u.Scheme + "://" + host, http: httpClient(Timeout), logs: httpClient(LogsTimeout), scan: httpClient(WifiScanTimeout)}, nil
 }
 
 func (c *Client) Base() string { return c.base }
@@ -139,6 +143,21 @@ func (c *Client) GetList(ctx context.Context, endpoint string) ([]any, error) {
 		return nil, errInvalidJSON
 	}
 	return data, nil
+}
+
+// GetWifiScan sends GET /api/system/wifi/scan, which makes the miner scan; the firmware answers {"networks": [...]}.
+func (c *Client) GetWifiScan(ctx context.Context) ([]any, error) {
+	body, _, err := c.fetch(ctx, c.scan, "wifi/scan")
+	if err != nil {
+		return nil, err
+	}
+	var data struct {
+		Networks []any `json:"networks"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil || data.Networks == nil {
+		return nil, errInvalidJSON
+	}
+	return data.Networks, nil
 }
 
 func (c *Client) GetText(ctx context.Context, endpoint string) (string, error) {

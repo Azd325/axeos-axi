@@ -395,3 +395,19 @@ func TestGetStatisticsSendsOnlyKnownColumns(t *testing.T) {
 		t.Fatalf("requests=%v", requested)
 	}
 }
+
+func TestWifiScanOutlastsTheReadTimeout(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(Timeout + time.Second)
+		_, _ = w.Write([]byte(`{"networks":[{"ssid":"example","rssi":-50,"authmode":3}]}`))
+	}))
+	defer s.Close()
+	c, err := New(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	networks, err := c.GetWifiScan(context.Background())
+	if err != nil || len(networks) != 1 {
+		t.Fatal(networks, err)
+	}
+}

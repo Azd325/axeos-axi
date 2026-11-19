@@ -44,6 +44,7 @@ bin/axeos-axi stats
 bin/axeos-axi firmware
 bin/axeos-axi firmware --check-release
 bin/axeos-axi scoreboard
+bin/axeos-axi wifi-scan --experimental
 bin/axeos-axi logs
 bin/axeos-axi health
 bin/axeos-axi discover
@@ -60,12 +61,12 @@ A command takes one miner, except the home view, `info`, `asic`, `stats` (withou
 Every other flag that takes a value, such as `--fields`, `--lines` and `--timeout`, given more than once is a usage error with exit code 2.
 Bare addresses use HTTP; explicit HTTP/HTTPS URLs with optional ports are accepted.
 A browser address such as `http://192.0.2.10/#/` is accepted; the fragment is dropped.
-Each request times out after four seconds; the `logs` request after fifteen. Redirects are refused.
+Each request times out after four seconds; the `logs` request after fifteen, the `wifi-scan` request after twelve. Redirects are refused.
 Each request to a miner goes directly to the miner; the proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are ignored for it.
 The GitHub request of `firmware --check-release` times out after ten seconds and uses the proxy environment variables.
 The read commands send only GET requests to `/api/system/info`, `/api/system/asic`,
-`/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard` and
-`/api/system/logs`, and mDNS queries from `discover`. `logs --follow` reads the WebSocket path
+`/api/system/statistics`, `/api/system/firmware/checksum`, `/api/system/scoreboard`,
+`/api/system/wifi/scan` and `/api/system/logs`, and mDNS queries from `discover`. `logs --follow` reads the WebSocket path
 `/api/ws`. `logs --lines` and `logs --follow` also read `/api/system/info`
 first, to find the private values to replace. Three commands change the miner, each only
 with `--confirm`: `restart` sends one POST request to `/api/system/restart`, and `tuning` and
@@ -80,6 +81,7 @@ sends that request one time for each miner.
 | `stats` | Recorded sample count, logging interval and latest sample's hashrate, temperatures and power; with `--samples` or `--columns`, the newest samples as a table of named columns |
 | `firmware` | Running partition, firmware version, image size and SHA-256 of the running image; needs firmware newer than v2.15.3, and v2.15.3 and older answer `not_supported` |
 | `scoreboard` | One row per best-difficulty share, highest first: rank, difficulty and block-header time |
+| `wifi-scan` | Experimental; runs only with `--experimental`. The number of networks the miner sees and, for each, signal strength (`rssi`) and `authmode`; network names only with `--fields ssid`. The scan can restart the miner on firmware without the upstream fix |
 | `logs` | Line count and size in bytes of the miner log buffer; log lines only with `--lines`; with `--follow <seconds>`, each new line while it runs; private values replaced unless `--show-private` |
 | `health` | The verdict (`healthy`, `unhealthy` or `unknown`) and one row for each of eight rules: result, value read, limit and reason. Exit code 3 for an unhealthy miner |
 | `discover` | One row per miner found on the local network: address for `--host`, mDNS hostname, family and firmware |
@@ -485,7 +487,7 @@ listed in command help or exact top-level JSON field names from the
 [AxeOS API](https://github.com/bitaxeorg/ESP-Miner/blob/master/main/http_server/openapi.yaml).
 `asic` also accepts fields from `info`; `stats` accepts its statistics-response fields;
 `firmware` accepts its checksum-response fields;
-`scoreboard` accepts only the view names in its help, as row columns;
+`scoreboard` and `wifi-scan` accept only the view names in their help, as row columns;
 `discover` accepts only the view names in its help;
 `logs`, `health`, `restart`, `tuning` and `pool` do not take `--fields`; `stats` does not combine `--fields` with `--samples` or `--columns`.
 For `info`, `asic` and the home view, firmware v2.15.3 sends some fields only on a condition,
@@ -504,7 +506,7 @@ bin/axeos-axi scoreboard --fields rank,difficulty,job_id,nonce
 bin/axeos-axi info --fields stratumUser,fallbackStratumUser,ssid,macAddr
 ```
 
-Pool users, Wi-Fi name, MAC, the `pools` configuration list, coinbase outputs and scriptsig
+Pool users, Wi-Fi name, the network names of `wifi-scan`, MAC, the `pools` configuration list, coinbase outputs and scriptsig
 are absent from default output. Explicit raw-field selection can expose private data,
 including users inside `pools`; avoid publishing that output.
 `logs --lines` replaces the pool users, the MAC and the Wi-Fi name that the miner reports by
@@ -560,6 +562,11 @@ the API does not send it. `ntime` is the block-header time of the share in Unix 
 identify neither the owner nor the network and appear only through `--fields`.
 Zero shares is a definitive result with exit code 0. Firmware without the path gives
 `not_supported`, by the same rule as `firmware`.
+`wifi-scan` is experimental. It sends one GET request, to `/api/system/wifi/scan`, and the miner scans for networks: the scan changes and saves no setting.
+With more than 20 access points in range, firmware without the upstream fix ([ESP-Miner pull request 2029](https://github.com/bitaxeorg/ESP-Miner/pull/2029)) writes past a 20-entry array, which can crash and restart the miner and so drop its Wi-Fi and pool connections; v2.15.4 and older do not have the fix. This was not reproduced on hardware.
+Because of that risk, the command refuses to run without `--experimental` and then sends no request; the refusal names the risk and the fix.
+The miner can take about ten seconds to answer, so this request times out after twelve seconds. The miner lists at most 20 networks. `rssi` is in dBm and `authmode` is the `wifi_auth_mode_t` number from 0 to 12. `ssid` prints only with `--fields`. Zero networks is a definitive result with exit code 0, and a scan that fails (HTTP 500, also while another scan runs) prints `scan_failed` with exit code 1.
+Firmware without the path gives `not_supported`, by the same rule as `firmware`. The command has no minimum firmware version check.
 `logs` without `--lines`, and `logs --lines` with `--show-private`, send one request, to the logs path only.
 `logs --lines` without `--show-private` first sends one request to the info path, then one to the logs path;
 if the info read fails, no log line is printed and the exit code is 1.
