@@ -73,7 +73,7 @@ func wifiScan(ctx context.Context, client *axeos.Client, opts options, stdout io
 func wifiScanHelp() output.Object {
 	return output.Object{
 		{Name: "command", Value: "wifi-scan"},
-		{Name: "description", Value: "EXPERIMENTAL: the networks the miner sees, at most 20, with count; default columns " + strings.Join(wifiScanDefaults, ",") + "; ssid prints only when named in --fields, because a network name can identify the owner or the neighbourhood; authmode is the wifi_auth_mode_t number from 0 to 12, 0 is open; the scan can take about 10 seconds"},
+		{Name: "description", Value: "EXPERIMENTAL: the networks the miner sees, at most 20, with count; default columns " + strings.Join(wifiScanDefaults, ",") + "; the network name (ssid) prints only when named in --fields, because it can identify the owner or the neighbourhood; authmode is the wifi_auth_mode_t number from 0 to 12, 0 is open; the scan can take about 10 seconds"},
 		{Name: "experimental", Value: wifiScanRisk + "; the scan runs only with --experimental; firmware v2.15.4 and older have no fix; this command can be removed or change without notice"},
 		{Name: "flags", Value: output.Object{
 			{Name: "host", Value: hostFlagHelp},
