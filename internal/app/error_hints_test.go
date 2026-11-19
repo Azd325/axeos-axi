@@ -87,6 +87,7 @@ func TestInvalidHostHintKeepsTheFlagsOfTheCall(t *testing.T) {
 		{[]string{"pool", "--host", bad, "--url", "pool.example.org", "--port", "3333", "--user", "wallet.worker"}, "help: Run `axeos-axi pool --host 192.0.2.10 --url='pool.example.org' --port=3333 --user=<user>`\n"},
 		{[]string{"logs", "--host", bad, "--follow", "5", "--show-private"}, "help: Run `axeos-axi logs --host 192.0.2.10 --follow 5 --show-private`\n"},
 		{[]string{"stats", "--host", bad, "--samples", "3", "--columns", "hashrate,power"}, "help: \"Run `axeos-axi stats --host 192.0.2.10 --samples 3 --columns hashrate,power`\"\n"},
+		{[]string{"wifi-scan", "--host", bad, "--experimental"}, "help: Run `axeos-axi wifi-scan --host 192.0.2.10 --experimental`\n"},
 		{[]string{"firmware", "--host", bad, "--check-release"}, "help: Run `axeos-axi firmware --host 192.0.2.10 --check-release`\n"},
 		{[]string{"info", "--host", "192.0.2.5", "--host", bad, "--fields", "version"}, "help: Run `axeos-axi info --host '192.0.2.5' --host 192.0.2.10 --fields version`\n"},
 	} {

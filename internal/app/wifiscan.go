@@ -23,8 +23,12 @@ var (
 const wifiScanRisk = "EXPERIMENTAL: with more than 20 access points in range, firmware without the upstream fix " + wifiScanFixURL + " writes past a 20-entry array and can crash and restart the miner, which drops its Wi-Fi and pool connections"
 
 func wifiScan(ctx context.Context, client *axeos.Client, opts options, stdout io.Writer) int {
+	retry := "axeos-axi wifi-scan --host " + shellQuote(opts.host) + " --experimental"
+	if len(opts.fields) != 0 {
+		retry += " --fields " + strings.Join(opts.fields, ",")
+	}
 	if !opts.experimental {
-		return failure(stdout, 2, "experimental_required", wifiScanRisk+"; pass --experimental to run the scan anyway", runHint("axeos-axi wifi-scan --host "+shellQuote(opts.host)+" --experimental", "to accept the risk and scan"))
+		return failure(stdout, 2, "experimental_required", wifiScanRisk+"; pass --experimental to run the scan anyway", runHint(retry, "to accept the risk and scan"))
 	}
 	columns := wifiScanDefaults
 	if len(opts.fields) != 0 {
@@ -39,7 +43,7 @@ func wifiScan(ctx context.Context, client *axeos.Client, opts options, stdout io
 	if err != nil {
 		var status *axeos.StatusError
 		if errors.As(err, &status) && status.Code == http.StatusInternalServerError {
-			return failure(stdout, 1, "scan_failed", "the miner reported that the Wi-Fi scan failed; it also answers this while another scan runs", runHint("axeos-axi wifi-scan --host "+shellQuote(opts.host)+" --experimental", "to try again later"))
+			return failure(stdout, 1, "scan_failed", "the miner reported that the Wi-Fi scan failed; it also answers this while another scan runs", runHint(retry, "to try again later"))
 		}
 		return optionalReadFailure(stdout, err, "wifi scan", opts.host)
 	}

@@ -98,8 +98,8 @@ func TestSeveralMinersUseTheDefaultViewColumns(t *testing.T) {
 			t.Errorf("home output: %s", out)
 		}
 		command := strings.TrimSpace("axeos-axi " + c.command)
-		hint := "help[1]: Run `" + command + " --fields <names>` for more fields; Run `" + command + " --help` for the names\n"
-		if !strings.HasSuffix(out, hint) || strings.Contains(out, "--host '") {
+		hint := "help[1]: \"Run `" + command + " --host '" + first + "' --host '" + second + "' --fields <names>` for more fields; Run `" + command + " --help` for the names\"\n"
+		if !strings.HasSuffix(out, hint) {
 			t.Errorf("hint: %s", out)
 		}
 		code, out = execute(t, a, append(slices.Clone(args), "--json")...)
@@ -204,7 +204,7 @@ func TestMinerWithoutChecksumPathIsNotSupported(t *testing.T) {
 	old, oldCalls := noChecksumMiner(t)
 	a := New(func(string) string { return "" })
 	code, out := execute(t, a, append([]string{"firmware"}, hostArgs(good, old)...)...)
-	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"Run `axeos-axi firmware --host '%s'` for the error message of that miner\",Run `axeos-axi firmware --fields <names>` for more fields; Run `axeos-axi firmware --help` for the names\n", good, old, old)
+	want := fmt.Sprintf("count: 2\nfailed: 1\nminers[2]{host,version,sha256,error}:\n  %q,v2.15.3,9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,null\n  %q,null,null,not_supported\nhelp[2]: \"Run `axeos-axi firmware --host '%s'` for the error message of that miner\",\"Run `axeos-axi firmware --host '%s' --host '%s' --fields <names>` for more fields; Run `axeos-axi firmware --help` for the names\"\n", good, old, old, good, old)
 	if code != 1 || out != want {
 		t.Fatalf("code=%d\n%s\nwant\n%s", code, out, want)
 	}
@@ -333,5 +333,15 @@ func TestEnvironmentHostStaysOneHost(t *testing.T) {
 	code, out := execute(t, a, "info", "--host", flagged)
 	if code != 0 || strings.Contains(out, "miners") || len(envCalls()) != 0 || len(flagCalls()) != 1 {
 		t.Fatalf("code=%d out=%s env=%v flag=%v", code, out, envCalls(), flagCalls())
+	}
+}
+
+func TestSeveralMinersFieldsHintKeepsTheHostsOfTheCall(t *testing.T) {
+	first, _ := miner(t, fixture(t, "info"))
+	second, _ := miner(t, fixture(t, "info"))
+	code, out := execute(t, New(noHost), "info", "--host", first, "--host", second)
+	want := "help[1]: \"Run `axeos-axi info --host '" + first + "' --host '" + second + "' --fields <names>` for more fields; Run `axeos-axi info --help` for the names\"\n"
+	if code != 0 || !strings.HasSuffix(out, want) {
+		t.Fatalf("code=%d\n%s", code, out)
 	}
 }
