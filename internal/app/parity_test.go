@@ -130,6 +130,7 @@ var parityCases = []parityCase{
 	{name: "help_stats", args: []string{"stats", "--help"}},
 	{name: "help_firmware", args: []string{"firmware", "--help"}},
 	{name: "help_scoreboard", args: []string{"scoreboard", "--help"}},
+	{name: "help_wifi_scan", args: []string{"wifi-scan", "--help"}},
 	{name: "help_logs", args: []string{"logs", "--help"}},
 	{name: "help_discover", args: []string{"discover", "--help"}},
 	{name: "help_restart", args: []string{"restart", "--help"}},
