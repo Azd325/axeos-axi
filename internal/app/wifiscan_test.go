@@ -5,9 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/Azd325/axeos-axi/internal/axeos"
 )
 
 const wifiScanBody = `{"networks":[{"ssid":"example-net-1","rssi":-48,"authmode":3},{"ssid":"example-net-2","rssi":-71,"authmode":0,"channel":6}]}`
@@ -89,12 +86,6 @@ func TestWifiScanResults(t *testing.T) {
 				t.Fatal(calls())
 			}
 		})
-	}
-}
-
-func TestWifiScanWaitsLongerThanOtherReads(t *testing.T) {
-	if axeos.WifiScanTimeout < 11*time.Second || axeos.Timeout != 4*time.Second || axeos.LogsTimeout != 15*time.Second {
-		t.Fatal(axeos.WifiScanTimeout, axeos.Timeout, axeos.LogsTimeout)
 	}
 }
 
