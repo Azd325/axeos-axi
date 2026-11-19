@@ -426,7 +426,7 @@ The exit code is 0 when each miner answered, 1 when any miner failed and 2 for a
 The miners are read at the same time, each with the four-second timeout, and each miner gets the same requests as a call with one `--host`.
 A call with one `--host` prints exactly what it printed before.
 A help line names the command that prints the error message of a failed miner, up to three lines.
-Each default table with an answering miner adds one hint: the command with `--fields <names>` and a pointer to its `--help` for the names. A default `stats` table adds a `state` column when a miner reports a state, such as disabled statistics logging.
+Each default table with an answering miner adds one hint: the command with the `--host` flags of the call and `--fields <names>`, and a pointer to its `--help` for the names. A default `stats` table adds a `state` column when a miner reports a state, such as disabled statistics logging.
 
 `AXEOS_HOST` and the saved host each name one miner. The same host twice, an invalid host, or several hosts on `scoreboard`, `stats --samples`, `stats --columns`, `logs` or `health` is a usage error with exit code 2, and no request is sent.
 
@@ -564,7 +564,7 @@ Zero shares is a definitive result with exit code 0. Firmware without the path g
 `not_supported`, by the same rule as `firmware`.
 `wifi-scan` is experimental. It sends one GET request, to `/api/system/wifi/scan`, and the miner scans for networks: the scan changes and saves no setting.
 With more than 20 access points in range, firmware without the upstream fix ([ESP-Miner pull request 2029](https://github.com/bitaxeorg/ESP-Miner/pull/2029)) writes past a 20-entry array, which can crash and restart the miner and so drop its Wi-Fi and pool connections; v2.15.4 and older do not have the fix. This was not reproduced on hardware.
-Because of that risk, the command refuses to run without `--experimental` and then sends no request; the refusal names the risk and the fix.
+Because of that risk, the command refuses to run without `--experimental` and then sends no request; the refusal names the risk and the fix. The retry hints of the refusal and of `scan_failed` repeat the `--fields` of the call.
 The miner can take about ten seconds to answer, so this request times out after twelve seconds. The miner lists at most 20 networks. `rssi` is in dBm and `authmode` is the `wifi_auth_mode_t` number from 0 to 12. `ssid` prints only with `--fields`. Zero networks is a definitive result with exit code 0, and a scan that fails (HTTP 500, also while another scan runs) prints `scan_failed` with exit code 1.
 Firmware without the path gives `not_supported`, by the same rule as `firmware`. The command has no minimum firmware version check.
 `logs` without `--lines`, and `logs --lines` with `--show-private`, send one request, to the logs path only.
